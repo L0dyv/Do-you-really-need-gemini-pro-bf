@@ -158,9 +158,9 @@
       ? `Your outlook: ${wD}% chance to drop as primary after Mo ${res.sotaCutoff} (${M.fmtMoney(res.downsideNet, true)}), ${wU}% full year (${M.fmtMoney(res.upsideNet, true)})`
       : `预期前 ${res.sotaCutoff} 个月后 ${wD}% 概率不再当主力（${M.fmtMoney(res.downsideNet, true)}），${wU}% 概率用满全年（${M.fmtMoney(res.upsideNet, true)}）`;
     const stdRowSvg = `
-      <rect x="${padX}" y="${stdRowY}" width="${contentW}" height="${stdRowH}" fill="#f7f6f3"/>
-      <rect x="${padX}" y="${stdRowY}" width="3" height="${stdRowH}" fill="#37352f"/>
-      <line x1="${padX}" y1="${stdRowY}" x2="${W - padX}" y2="${stdRowY}" stroke="#d3d1cb" stroke-width="1.2"/>
+      <rect x="${padX}" y="${stdRowY}" width="${contentW}" height="${stdRowH}" fill="#f2f7fd"/>
+      <rect x="${padX}" y="${stdRowY}" width="2" height="${stdRowH}" fill="#2383e2" fill-opacity="0.65"/>
+      <line x1="${padX}" y1="${stdRowY}" x2="${W - padX}" y2="${stdRowY}" stroke="#e9e9e7" stroke-width="1"/>
       <text x="${padX + 12}" y="${stdRowY + 19}" fill="#37352f" font-size="13" font-weight="600" font-family="${fontSans}">${esc(stdTitle)}</text>
       <text x="${padX + 12}" y="${stdRowY + 35}" fill="#787774" font-size="10.5" font-family="${fontSans}">${esc(stdSub)}</text>
       <text x="${W - padX - 216}" y="${stdRowY + 26}" text-anchor="end" fill="#37352f" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(expectedBuyCost))}</text>

@@ -2645,11 +2645,15 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .fin-table tbody tr.fin-row-active td {
-  background: var(--surface);
+  background: rgba(35, 131, 226, 0.06);
+}
+
+.fin-table tbody tr.fin-row-active:hover td {
+  background: rgba(35, 131, 226, 0.085);
 }
 
 .fin-table tbody tr.fin-row-active td:first-child {
-  box-shadow: inset 3px 0 0 var(--ink);
+  box-shadow: inset 2px 0 0 rgba(35, 131, 226, 0.65);
 }
 
 .scen-cell-wrap {
@@ -2670,11 +2674,11 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .fin-row-selectable:hover .scen-radio-dot {
-  border-color: var(--ink-2);
+  border-color: rgba(35, 131, 226, 0.65);
 }
 
 .fin-row-active .scen-radio-dot {
-  border-color: var(--ink);
+  border-color: #2383e2;
 }
 
 .fin-row-active .scen-radio-dot::after {
@@ -2682,7 +2686,7 @@ input[type="range"]::-moz-range-thumb {
   position: absolute;
   inset: 2.5px;
   border-radius: 50%;
-  background: var(--ink);
+  background: #2383e2;
 }
 
 /* 3x3 Sensitivity Matrix */
