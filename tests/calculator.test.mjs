@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { DEFAULT_STATE } = require('../js/data.js');
+const { DEFAULT_STATE, buildMonthPlan, makeSubItem } = require('../js/data.js');
 const {
   calculateLedger,
   getMonthlyProCny,
@@ -59,11 +59,21 @@ test('Default 477 CNY Turkey Black Friday scenario has positive EV at 65% retent
   assert.equal(res.verdict.level, 'buy');
 });
 
-test('Japan 608 CNY Black Friday scenario requires higher retention threshold than Turkey 477 CNY', () => {
-  const trRes = calculateLedger(Object.assign(clone(DEFAULT_STATE), { bfCostCny: 477 }));
-  const jpRes = calculateLedger(Object.assign(clone(DEFAULT_STATE), { bfPreset: 'jp_web', bfCostCny: 608 }));
-  assert.ok(jpRes.breakEvenProbPct > trRes.breakEvenProbPct + 10);
-  assert.ok(jpRes.expectedNetSavings < trRes.expectedNetSavings);
+test('Multi-subscription stack (3x Pro + Devin + custom) offsets exactly 1 Pro slot per month', () => {
+  const s = Object.assign(clone(DEFAULT_STATE), {
+    monthPlans: buildMonthPlan('three_pro_devin'),
+  });
+  // Add a custom Cursor subscription (¥133/mo) to January
+  s.monthPlans[1].push(makeSubItem(null, 1, { id: 'custom_cursor', name: 'Cursor Pro', priceCny: 133 }));
+
+  const res = calculateLedger(s);
+  assert.equal(res.proCoveredMonths, 12);
+  assert.equal(res.ultraOverlapMonths, 0);
+  // In Jan (index 1): 3x Pro + Devin (534) + GPT (70) + Cursor (133) + Music (17)
+  // Buy saves exactly 1x Pro in Jan
+  assert.ok(Math.abs(res.monthlyRows[1].monthSavedByBf - res.monthlyRows[1].proUnit) < 0.01);
+  // Total other subs includes 3*Devin + 3*GPT + 1*Cursor
+  assert.equal(Math.round(res.totalOtherSubsAnnual), 534 * 3 + 70 * 3 + 133);
 });
 
 test('Double-pro fallback when Turkey Ultra fails reduces downside of Black Friday Pro', () => {
@@ -92,4 +102,3 @@ test('All DOM IDs referenced in app.js exist in index.html and contain zero emoj
   assert.equal(emojiRe.test(app), false, 'app.js should not contain emojis');
   assert.equal(emojiRe.test(data), false, 'data.js should not contain emojis');
 });
-

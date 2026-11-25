@@ -72,30 +72,71 @@
     return { key: 'risk', label: '空窗/掉队风险', tone: 'amber' };
   }
 
+  /**
+   * Resolve unit price for a subscription item in a given month.
+   */
+  function getItemUnitPrice(item, monthIndex, state) {
+    if (item.dynamicPrice === 'gemini_pro') {
+      return getMonthlyProCny(monthIndex, state);
+    }
+    if (item.dynamicPrice === 'gemini_ultra_5x') {
+      const price = getUltraCostForMonth(monthIndex, state);
+      if (price != null) return price;
+      // If fallback strategy is double_pro, Ultra 5x turns into 2x Pro
+      return getMonthlyProCny(monthIndex, state) * 2;
+    }
+    return Math.max(0, Number(item.priceCny) || 0);
+  }
+
+  /**
+   * Normalize legacy `state.months` or modern `state.monthPlans` into 12 arrays of items.
+   */
+  function resolveMonthPlans(state) {
+    if (Array.isArray(state.monthPlans) && state.monthPlans.length === 12) {
+      return state.monthPlans;
+    }
+    // Backwards compatibility if a caller passes legacy `months`
+    const legacy = Array.isArray(state.months) ? state.months : [];
+    const { makeSubItem } = data;
+    return MONTHS.map((_, i) => {
+      const m = legacy[i] || 'none';
+      if (m === 'ultra') return [makeSubItem('gemini_ultra_5x', 1)];
+      if (m === 'pro1') return [makeSubItem('gemini_pro', 1)];
+      if (m === 'pro2') return [makeSubItem('gemini_pro', 2)];
+      return [];
+    });
+  }
+
   function buildComparisonScenarios(state, baseRows, bfCost, musicFee) {
     const m0to3Buy = baseRows.slice(0, 4).reduce((s, r) => s + r.buyMonthFlow, 0);
     const m0to3Skip = baseRows.slice(0, 4).reduce((s, r) => s + r.skipMonthFlow, 0);
+    const m4to11Other = baseRows.slice(4).reduce((s, r) => s + r.otherSubsCost, 0);
 
-    const s1Buy = bfCost + m0to3Buy + musicFee * 8;
-    const s1Skip = m0to3Skip + musicFee * 8;
+    // Scenario 1: Worst case — after April (months 4..11), user drops Gemini completely (keeps non-Gemini subs + music)
+    const s1Buy = bfCost + m0to3Buy + m4to11Other + musicFee * 8;
+    const s1Skip = m0to3Skip + m4to11Other + musicFee * 8;
 
+    // Scenario 2: Off-season only — Apr-Aug (5 months) 1x Pro, Sep-Nov no Gemini
     const aprAugPro = baseRows.slice(4, 9).reduce((s, r) => s + r.proUnit, 0);
-    const s2Buy = bfCost + m0to3Buy + musicFee * 8;
-    const s2Skip = m0to3Skip + aprAugPro + musicFee * 8;
+    const s2Buy = bfCost + m0to3Buy + m4to11Other + musicFee * 8;
+    const s2Skip = m0to3Skip + aprAugPro + m4to11Other + musicFee * 8;
 
+    // Scenario 3: Turkey fails in Jan (months 1..3 use 2x Pro + other subs), Apr-Aug 1x Pro
     const janMarPro = baseRows.slice(1, 4).reduce((s, r) => s + r.proUnit, 0);
-    const decCost = baseRows[0].skipMonthFlow;
-    const decDiff = baseRows[0].skipMonthFlow - baseRows[0].buyMonthFlow;
-    const s3Buy = bfCost + (decCost - decDiff) + janMarPro + musicFee * 3 + musicFee * 8;
-    const s3Skip = decCost + janMarPro * 2 + musicFee * 3 + aprAugPro + musicFee * 8;
+    const janMarOther = baseRows.slice(1, 4).reduce((s, r) => s + r.otherSubsCost, 0);
+    const decBuy = baseRows[0].buyMonthFlow;
+    const decSkip = baseRows[0].skipMonthFlow;
+    const s3Buy = bfCost + decBuy + janMarPro + janMarOther + musicFee * 3 + m4to11Other + musicFee * 8;
+    const s3Skip = decSkip + janMarPro * 2 + janMarOther + musicFee * 3 + aprAugPro + m4to11Other + musicFee * 8;
 
+    // Scenario 4: Full 12-month configured plan
     const s4Buy = baseRows[11].cumBuy;
     const s4Skip = baseRows[11].cumSkip;
 
     return [
       {
         id: 'worst',
-        title: '最差剧本：4月后模型掉队，彻底改用别家',
+        title: '最差剧本：4月后 Gemini 掉队，彻底停用 Gemini',
         tag: '风控底线',
         tone: 'red',
         buyTotal: s1Buy,
@@ -122,7 +163,7 @@
       },
       {
         id: 'full_plan',
-        title: '当前日历完整执行（含 9~11 月新旗舰接力）',
+        title: '当前 12 个月订阅组合完整执行',
         tag: '你的计划',
         tone: 'green',
         buyTotal: s4Buy,
@@ -135,6 +176,7 @@
   function calculateLedger(state) {
     const bfCost = Math.max(0, Number(state.bfCostCny) || 0);
     const musicFee = Math.max(0, Number(state.musicMonthlyCny) || 0);
+    const plans = resolveMonthPlans(state);
 
     const monthlyRows = [];
     let cumBuy = bfCost;
@@ -144,48 +186,75 @@
     let ultraOverlapMonths = 0;
     let idleNoneMonths = 0;
     let totalProValueSaved = 0;
+    let totalOtherSubsAnnual = 0;
     let crossoverMonthIndex = null;
 
     for (let i = 0; i < MONTHS.length; i++) {
-      const mode = state.months[i] || 'none';
+      const items = Array.isArray(plans[i]) ? plans[i] : [];
       const proUnit = getMonthlyProCny(i, state);
       const phase = getModelPhase(i, state);
       const tryRate = getTryRateAtOffset(MONTHS[i].offsetFromNow, state.tryAnnualDepRate);
       const trAvailable = isTurkeyUltraAvailable(i, state);
 
-      let buyMonthFlow = 0;
-      let skipMonthFlow = 0;
-      let effectiveMode = mode;
+      let geminiProSlots = 0;
+      let hasUltraActive = false;
+      let ultraFallbackToPro = false;
+      let geminiUltraCost = 0;
+      let otherSubsCost = 0;
+      let hasMusicIncluded = false;
 
-      if (mode === 'ultra') {
-        if (!trAvailable && state.fallbackUltraStrategy === 'double_pro') {
-          effectiveMode = 'pro2_fallback';
-          buyMonthFlow = proUnit + musicFee;
-          skipMonthFlow = proUnit * 2 + musicFee;
-          proCoveredMonths += 1;
-          totalProValueSaved += proUnit;
-        } else {
-          const ultraPrice = getUltraCostForMonth(i, state);
-          buyMonthFlow = ultraPrice;
-          skipMonthFlow = ultraPrice;
-          ultraOverlapMonths += 1;
+      const resolvedItems = items.map((item) => {
+        const qty = Math.max(1, Number(item.qty) || 1);
+        if (item.dynamicPrice === 'gemini_pro') {
+          geminiProSlots += qty;
+          return Object.assign({}, item, { qty, unitCny: proUnit, subtotalCny: proUnit * qty });
         }
-      } else if (mode === 'pro1') {
-        buyMonthFlow = musicFee;
-        skipMonthFlow = proUnit + musicFee;
+        if (item.dynamicPrice === 'gemini_ultra_5x') {
+          if (!trAvailable && state.fallbackUltraStrategy === 'double_pro') {
+            geminiProSlots += 2 * qty;
+            ultraFallbackToPro = true;
+            return Object.assign({}, item, {
+              qty,
+              unitCny: proUnit * 2,
+              subtotalCny: proUnit * 2 * qty,
+              fallbackNote: '断续切双Pro',
+            });
+          }
+          const uPrice = getUltraCostForMonth(i, state);
+          geminiUltraCost += uPrice * qty;
+          hasUltraActive = true;
+          hasMusicIncluded = true;
+          return Object.assign({}, item, { qty, unitCny: uPrice, subtotalCny: uPrice * qty });
+        }
+        const unit = Math.max(0, Number(item.priceCny) || 0);
+        if (item.includesMusic) hasMusicIncluded = true;
+        if (item.id === 'gemini_ultra_20x') {
+          geminiUltraCost += unit * qty;
+          hasUltraActive = true;
+        } else {
+          otherSubsCost += unit * qty;
+        }
+        return Object.assign({}, item, { qty, unitCny: unit, subtotalCny: unit * qty });
+      });
+
+      const monthMusic = hasMusicIncluded ? 0 : musicFee;
+      const bfSlotOffset = geminiProSlots >= 1 ? 1 : 0;
+
+      const skipMonthFlow =
+        geminiUltraCost + geminiProSlots * proUnit + otherSubsCost + monthMusic;
+      const buyMonthFlow =
+        geminiUltraCost + Math.max(0, geminiProSlots - bfSlotOffset) * proUnit + otherSubsCost + monthMusic;
+
+      if (bfSlotOffset > 0) {
         proCoveredMonths += 1;
         totalProValueSaved += proUnit;
-      } else if (mode === 'pro2') {
-        buyMonthFlow = proUnit + musicFee;
-        skipMonthFlow = proUnit * 2 + musicFee;
-        proCoveredMonths += 1;
-        totalProValueSaved += proUnit;
+      } else if (hasUltraActive) {
+        ultraOverlapMonths += 1;
       } else {
-        buyMonthFlow = musicFee;
-        skipMonthFlow = musicFee;
         idleNoneMonths += 1;
       }
 
+      totalOtherSubsAnnual += otherSubsCost;
       cumBuy += buyMonthFlow;
       cumSkip += skipMonthFlow;
 
@@ -196,8 +265,12 @@
       monthlyRows.push({
         index: i,
         month: MONTHS[i],
-        mode,
-        effectiveMode,
+        items: resolvedItems,
+        geminiProSlots,
+        hasUltraActive,
+        ultraFallbackToPro,
+        otherSubsCost,
+        monthMusic,
         tryRate,
         proUnit,
         phase,
@@ -247,8 +320,8 @@
         level: 'skip',
         badge: '建议跳过',
         tone: 'red',
-        headline: '按当前用量日历，就算全年不换模型也会亏钱',
-        detail: `你的日历中仅 ${proCoveredMonths} 个月实际用到黑五 Pro（折合可替代月费 ¥${Math.round(totalProValueSaved)}），低于黑五成本 ¥${Math.round(bfCost)}。留现金按月买更划算。`,
+        headline: '按当前 12 个月订阅组合，就算全年不换模型也会亏钱',
+        detail: `你的组合中仅 ${proCoveredMonths} 个月实际用到黑五 Pro 槽位（可抵月费 ¥${Math.round(totalProValueSaved)}），低于黑五成本 ¥${Math.round(bfCost)}。直接按月买更划算。`,
       };
     } else if (expectedNetSavings >= 40 && p * 100 >= breakEvenProbPct + 5) {
       verdict = {
@@ -256,7 +329,7 @@
         badge: '值得入手（副号）',
         tone: 'green',
         headline: `正期望交易：当前把握（${state.retainProbPct}%）高于盈亏线（${breakEvenProbPct.toFixed(1)}%）`,
-        detail: `预计 ${breakEvenMonths.toFixed(1)} 个月即可回本，按计划执行净省 ¥${Math.round(upsideNet)}，计入模型掉队风险后的期望净收益为 +¥${Math.round(expectedNetSavings)}。记得使用独立副号/独立 Apple ID 购买。`,
+        detail: `预计 ${breakEvenMonths.toFixed(1)} 个月回本，按计划执行净省 ¥${Math.round(upsideNet)}，计入模型掉队风险后的期望净收益为 +¥${Math.round(expectedNetSavings)}。记得使用独立副号/独立 Apple ID。`,
       };
     } else if (expectedNetSavings >= -40) {
       verdict = {
@@ -264,7 +337,7 @@
         badge: '接近打平 · 谨慎观望',
         tone: 'amber',
         headline: `赔率接近五五开：期望净值 ${expectedNetSavings >= 0 ? '+' : ''}¥${Math.round(expectedNetSavings)}`,
-        detail: `需要至少 ${breakEvenProbPct.toFixed(1)}% 的把握相信明年非重度期不会换模型才算正期望。若不想背负 ¥${Math.round(bfCost)} 沉没成本，按月随用随买更自由。`,
+        detail: `需要至少 ${breakEvenProbPct.toFixed(1)}% 的把握相信明年非重度期继续用 Gemini 才算正期望。若不想背负 ¥${Math.round(bfCost)} 沉没成本，按月随用随买更灵活。`,
       };
     } else {
       verdict = {
@@ -284,7 +357,11 @@
       proCoveredMonths,
       ultraOverlapMonths,
       idleNoneMonths,
+      totalIdleMonths: ultraOverlapMonths + idleNoneMonths,
+      ultraIdleCostCny: (bfCost * ultraOverlapMonths) / 12,
+      totalIdleCostCny: (bfCost * (ultraOverlapMonths + idleNoneMonths)) / 12,
       totalProValueSaved,
+      totalOtherSubsAnnual,
       totalBuyCost: cumBuy,
       totalSkipCost: cumSkip,
       fullPlanNetSavings,
@@ -305,6 +382,7 @@
     isTurkeyUltraAvailable,
     getUltraCostForMonth,
     getModelPhase,
+    getItemUnitPrice,
     calculateLedger,
   };
 });
