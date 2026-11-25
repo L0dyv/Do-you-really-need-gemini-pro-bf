@@ -184,11 +184,11 @@
       </div>
     </section>
 
-    <!-- STEP 3: Renewal, FX & Music (Notion Page Properties Style) -->
+    <!-- STEP 3: Renewal, FX & Bundled Perks (Notion Page Properties Style) -->
     <section class="step" data-step="2" id="step-2">
       <p class="step-meta mono">03 / 05</p>
-      <h1 class="page-title">核对主号续费、里拉汇率与听歌</h1>
-      <p class="page-lead">这里只放真正影响差价的几个变量，像 Notion 属性栏一样直接微调即可。</p>
+      <h1 class="page-title">核对主号续费、汇率与附带权益</h1>
+      <p class="page-lead">只保留真正影响差价的变量；YouTube Music 与 Google Colab 等附带权益默认均按 ¥0 折抵，避免高估用不上的赠品。</p>
 
       <div class="section-label">主号 Ultra 续费情况</div>
       <div class="prop-group">
@@ -265,10 +265,26 @@
         </div>
 
         <div class="prop-row">
-          <label class="prop-key" for="inp-music-cny">日常听歌月费</label>
+          <span class="prop-key">黑五附带权益：YT Music</span>
+          <div class="prop-val">
+            <span class="tag tag-gray mono">可折抵 ¥0</span>
+            <span class="unit">Pro 仅送 YouTube Premium Lite，不含 YT Music（听歌插广告且不能息屏），平替不掉现有音乐软件</span>
+          </div>
+        </div>
+
+        <div class="prop-row">
+          <label class="prop-key" for="inp-music-cny">Ultra 平替音乐月费（选填）</label>
           <div class="prop-val">
             <input class="flat-input mono" id="inp-music-cny" type="number" min="0" max="100" step="1" style="width:76px;" />
-            <span class="unit">元 / 月（Ultra 免；Pro 的 YT Lite 不含听歌）</span>
+            <span class="unit">元 / 月（默认 ¥0；若原本有酷狗/Spotify 等会员，填月费后仅在 Ultra 月份自动抵扣）</span>
+          </div>
+        </div>
+
+        <div class="prop-row">
+          <label class="prop-key" for="inp-colab-cny">Google Colab 算力折抵（选填）</label>
+          <div class="prop-val">
+            <input class="flat-input mono" id="inp-colab-cny" type="number" min="0" max="200" step="1" style="width:76px;" />
+            <span class="unit">元 / 月（默认 ¥0；参考低价 200 CU ≈ ¥20、2,000~2,500 CU ≈ ¥160，但未必卖得出也非刚需，不建议直接折抵）</span>
           </div>
         </div>
       </div>
@@ -390,7 +406,7 @@
       <div class="doc-block">
         <div class="block-head">
           <h2 class="block-title">四种剧本对照</h2>
-          <span class="block-note">均含其他订阅与全年听歌口径</span>
+          <span class="block-note">按统一订阅与附带权益口径对比</span>
         </div>
         <div class="table-wrap">
           <table class="flat-table">
@@ -412,14 +428,15 @@
         <h2 class="block-title" style="margin-bottom: 10px;">备忘与实证数据</h2>
         <div class="toggles">
           <details class="notion-toggle">
-            <summary>iPadOS 土区 Apple ID 购买与权益防坑清单</summary>
+            <summary>iPadOS 土区 Apple ID 购买与附带权益避坑清单</summary>
             <div class="toggle-body">
               <ul class="plain-list">
-                <li><strong>严禁与 Ultra 主号共用同一个土区 Apple ID</strong>：苹果内购按 Apple ID 一对一绑定 Google One 订阅链，共用会冲突或顶掉 265 元旧价 Ultra。</li>
+                <li><strong>严禁与 Ultra 主号共用同一个土区 Apple ID</strong>：苹果内购按 Apple ID 一对一绑定 Google One 订阅链，共用会冲突或顶掉旧价 Ultra。</li>
                 <li><strong>防串号登录</strong>：在 iPadOS 打开 Google One / Gemini App 下单前，先退出其他 Google 账号，只保留目标副号登录。</li>
                 <li><strong>不会更改 Google 账号区域</strong>：走苹果内购不经过 Google Pay，但退订只能在 Apple ID 订阅里操作。</li>
                 <li><strong>买完立刻关自动续费</strong>：避免次年到期按原价自动扣款。</li>
-                <li><strong>听歌单独解耦</strong>：Pro 的 YT Premium Lite 不含 YT Music；想听歌可留酷狗（¥17/月）或用土区单开 YT Premium（官价 119.99 TRY ≈ ¥16/月，内购约 ¥20~22/月）。</li>
+                <li><strong>YouTube Music 避坑</strong>：Pro 送的是 YouTube Premium Lite，不含 YT Music（听歌插广告且手机不能息屏），也无法补差价升级，因此默认按 ¥0 算；只有 Ultra 才含完整版 YouTube Premium。</li>
+                <li><strong>Google Colab CU 避坑</strong>：市场低价参考 200 CU ≈ ¥20、2,000~2,500 CU ≈ ¥160，但变现难且非人人刚需，算账时默认按 ¥0 计，避免把用不上的权益当成省钱。</li>
               </ul>
             </div>
           </details>

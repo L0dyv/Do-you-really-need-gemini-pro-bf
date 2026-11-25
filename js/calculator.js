@@ -187,6 +187,7 @@
   function calculateLedger(state) {
     const bfCost = Math.max(0, Number(state.bfCostCny) || 0);
     const musicFee = Math.max(0, Number(state.musicMonthlyCny) || 0);
+    const colabCredit = Math.max(0, Number(state.colabProMonthlyCny) || 0);
     const plans = resolveMonthPlans(state);
 
     const monthlyRows = [];
@@ -298,7 +299,9 @@
 
       const skipMonthFlow =
         geminiUltraCost + geminiProTotalCost + otherSubsCost + monthMusic;
-      const buyMonthFlow = Math.max(0, skipMonthFlow - bfSavedThisMonth);
+      // Only credit Colab perk on BUY in months where SKIP does not already hold Gemini Pro (and user explicitly values it > 0)
+      const extraColabCredit = geminiProSlots === 0 && !hasUltraActive ? colabCredit : 0;
+      const buyMonthFlow = Math.max(0, skipMonthFlow - bfSavedThisMonth - extraColabCredit);
 
       if (bfSavedThisMonth > 0) {
         proCoveredMonths += 1;

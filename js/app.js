@@ -14,12 +14,12 @@
 
   const { calculateLedger, convertToCny, getTryRateAtOffset } = window.SubLedgerCalc;
 
-  const STORAGE_KEY = 'ai_sub_ledger_state_v6';
+  const STORAGE_KEY = 'ai_sub_ledger_state_v7';
 
   const STEPS = [
     { idx: 0, label: '1. 方案', nextLabel: '下一步：排布 12 个月组合 →' },
-    { idx: 1, label: '2. 用量', nextLabel: '下一步：核对续费与汇率 →' },
-    { idx: 2, label: '3. 续费与汇率', nextLabel: '下一步：评估模型周期 →' },
+    { idx: 1, label: '2. 用量', nextLabel: '下一步：核对续费、汇率与权益 →' },
+    { idx: 2, label: '3. 续费与权益', nextLabel: '下一步：评估模型周期 →' },
     { idx: 3, label: '4. 周期与把握', nextLabel: '查看最终结论 →' },
     { idx: 4, label: '5. 结论', nextLabel: '回到第 1 步' },
   ];
@@ -194,6 +194,7 @@
     document.getElementById('inp-try-dep').value = state.tryAnnualDepRate;
     document.getElementById('inp-midyear-hike').checked = Boolean(state.googleMidYearHike);
     document.getElementById('inp-music-cny').value = state.musicMonthlyCny;
+    document.getElementById('inp-colab-cny').value = state.colabProMonthlyCny || 0;
     document.getElementById('inp-sota-len').value = state.effectiveSotaMonths;
     document.getElementById('inp-next-interval').value = state.nextFlagshipInterval;
     document.getElementById('inp-retain-prob').value = state.retainProbPct;
@@ -960,6 +961,11 @@
 
     document.getElementById('inp-music-cny').addEventListener('input', (e) => {
       state.musicMonthlyCny = Math.max(0, Number(e.target.value) || 0);
+      render();
+    });
+
+    document.getElementById('inp-colab-cny').addEventListener('input', (e) => {
+      state.colabProMonthlyCny = Math.max(0, Number(e.target.value) || 0);
       render();
     });
 
