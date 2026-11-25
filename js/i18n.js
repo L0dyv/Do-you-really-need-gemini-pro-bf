@@ -52,7 +52,7 @@
       'step1.customPreviewEmpty': '自定义币种与金额',
       'step1.customFieldLabel': '今日实付包年金额',
       'step1.hintUnpicked': '请先选择上方一个方案，选定后将显示下一步按钮',
-      'step1.hintPicked': '也可随时点击屏幕左右边缘的 < / > 翻页',
+      'step1.hintPicked': '已选定黑五方案，可随时回来修改',
       'step1.nextBtn': '下一步：排布 12 个月方案 →',
       'step1.perYear': '≈ {yen} / 年',
 
@@ -343,7 +343,7 @@
       'step1.customPreviewEmpty': 'Custom amount',
       'step1.customFieldLabel': 'Upfront Annual Cost',
       'step1.hintUnpicked': 'Select one deal above to unlock the Next button',
-      'step1.hintPicked': 'You can also click the < / > edges anytime to navigate',
+      'step1.hintPicked': 'Deal selected — you can return here anytime to change it',
       'step1.nextBtn': 'Next: Map 12-Month Plan →',
       'step1.perYear': '≈ {yen} / yr',
 

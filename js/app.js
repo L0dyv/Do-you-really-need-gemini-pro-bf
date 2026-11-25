@@ -1299,11 +1299,11 @@
     const mobPrev = document.getElementById('btn-mobile-prev');
     const mobNext = document.getElementById('btn-mobile-next');
     const isStep1Picked = Boolean(state.bfPicked);
-    // Hide right-edge Next on Step 4 (sole CTA is "Done, Calculate Now"), Step 5 (final), and unpicked Step 1
-    const hideNext = currentStep >= STEPS.length - 2 || (currentStep === 0 && !isStep1Picked);
+    // Show right-edge Next ONLY on steps without an in-page primary CTA (Steps 2 & 3)
+    const hideNext = currentStep === 0 || currentStep >= 3;
     prevBtn.classList.toggle('is-hidden', currentStep === 0);
     nextBtn.classList.toggle('is-hidden', hideNext);
-    nextBtn.classList.toggle('is-emphasized', currentStep === 0 && isStep1Picked);
+    nextBtn.classList.toggle('is-emphasized', false);
     document.getElementById('side-next-tip').textContent = t('nav.next');
     mobPrev.style.visibility = currentStep === 0 ? 'hidden' : 'visible';
     mobNext.style.visibility = hideNext ? 'hidden' : 'visible';
