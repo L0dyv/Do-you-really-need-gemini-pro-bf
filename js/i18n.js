@@ -146,9 +146,9 @@
 
       'modal.kicker': 'MODEL LIFECYCLE · CENTER PEEK',
       'modal.close': '关闭 ×',
-      'modal.title': '设定模型周期与留存把握',
+      'modal.title': '你觉得 Gemini 能支棱多久？',
       'modal.lead': 'AI 模型迭代很快，包年值不值取决于这一代能撑多久，以及掉队后你还会不会继续用。按你的判断拖动下方滑块即可。',
-      'modal.sotaKey': '你觉得 Gemini 能支棱多久',
+      'modal.sotaKey': '维持 SOTA 时长',
       'modal.nextKey': '下代成为 SOTA 的模型间隔',
       'modal.monthsVal': '{n} 个月',
       'modal.sotaHelp': '自 2026年12月1日起算（12月为第 1 个月），{n} 个月涵盖至 {until} 底。例：Gemini 2.5 Pro（2025.03）一直支棱到 Claude Opus 4.5（2025.11）上线，约 8 个月；掉队后仍可能继续当主力，可在下方设留存把握。',
@@ -460,9 +460,9 @@
 
       'modal.kicker': 'MODEL LIFECYCLE · CENTER PEEK',
       'modal.close': 'Close ×',
-      'modal.title': 'Model Lifecycle & Retention Confidence',
+      'modal.title': 'How Long Can Gemini Stay SOTA?',
       'modal.lead': 'AI models cycle fast. Whether an annual deal pays off depends on how long this generation stays SOTA and whether you will keep using it afterward.',
-      'modal.sotaKey': 'How long Gemini stays SOTA',
+      'modal.sotaKey': 'SOTA Duration',
       'modal.nextKey': 'Next SOTA Flagship Interval',
       'modal.monthsVal': '{n} mo',
       'modal.sotaHelp': 'Counting from Dec 1, 2026 (Dec = Mo 1), {n} months runs through end of {until}. Example: Gemini 2.5 Pro (Mar 2025) held SOTA for ~8 months until Claude Opus 4.5 (Nov 2025). You may still keep using it afterward — set retention below.',
