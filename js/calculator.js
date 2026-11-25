@@ -276,6 +276,7 @@
     return [
       {
         id: 'immediate_stop',
+        cutoff: 0,
         title: isEn ? 'Worst Case: Abandoned Immediately (0 mo)' : '极端情况：买完即弃用（0 个月）',
         periodNote: isEn ? 'Plan unused from Month 1; upfront fee lost' : '计划完全落空，白花今日预付年费',
         tag: isEn ? 'Floor' : '风控底线',
@@ -286,6 +287,7 @@
       },
       {
         id: 'sota_cutoff',
+        cutoff: sotaCutoff,
         title: isEn
           ? `Drop After SOTA Span (Active ${sotaEndLabel})`
           : `主力期后弃用（仅生效${sotaEndLabel}）`,
@@ -298,6 +300,7 @@
       },
       {
         id: 'next_gen_review',
+        cutoff: nextGenCutoff,
         title: isEn
           ? `Hold Until Next-Gen Launch (Active ${nextEndLabel})`
           : `撑到下代旗舰前（生效${nextEndLabel}）`,
@@ -310,6 +313,7 @@
       },
       {
         id: 'full_plan',
+        cutoff: 12,
         title: isEn ? 'Full 12-Month Plan Executed · Baseline' : '按第 3 步计划执行满全年（12 个月 · 基准）',
         periodNote: isEn
           ? `Executes your Step 3 plan in full · ${wU}% retention weight in EV`

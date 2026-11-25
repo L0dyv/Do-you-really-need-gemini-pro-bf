@@ -69,6 +69,7 @@
   let currentStep = 0;
   let maxVisitedStep = 0;
   let displayCurrency = getLang() === 'en-US' ? 'USD' : 'CNY';
+  let activeScenarioId = null; // null = default EV mode; or one of the 4 scenario IDs
   let selectedMonths = new Set();  // Step 2 (Plan A) selection
   let selectedMonthsB = new Set(); // Step 3 (Plan B) selection
   let lastCheckedIdx = null;
@@ -571,6 +572,7 @@
   // Real 12-Month Ledger Replay (~1.12s): plays back actual monthly flows & cumSkip - cumBuy
   function runFinalCalculationSequence() {
     clearCalcTimers();
+    activeScenarioId = null;
     const reduceMotion =
       typeof window.matchMedia === 'function' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1020,10 +1022,52 @@
     renderNotionPicker();
   }
 
+  // Compute row-by-row cash flows when inspecting one of the 4 early-abandonment scenarios
+  function buildScenarioViewRows(baseRows, bfCost, cutoff) {
+    const limit = Math.min(12, Math.max(0, Math.round(cutoff)));
+    let cumBuy = bfCost;
+    let cumSkip = 0;
+    let crossoverMonthIndex = null;
+    let totalSaved = 0;
+    let activeSavedMonths = 0;
+    const rows = baseRows.map((r, i) => {
+      const reverted = i >= limit;
+      const buyMonthFlow = reverted ? r.skipMonthFlow : r.buyMonthFlow;
+      const monthSavedByBf = r.skipMonthFlow - buyMonthFlow;
+      cumBuy += buyMonthFlow;
+      cumSkip += r.skipMonthFlow;
+      if (monthSavedByBf > 0.01) {
+        totalSaved += monthSavedByBf;
+        activeSavedMonths += 1;
+      }
+      if (crossoverMonthIndex === null && cumSkip >= cumBuy - 0.01 && cumSkip > 0) {
+        crossoverMonthIndex = i;
+      }
+      return Object.assign({}, r, {
+        reverted,
+        buyMonthFlow,
+        monthSavedByBf,
+        cumBuy,
+        cumSkip,
+      });
+    });
+    const avgProPrice = activeSavedMonths > 0 ? totalSaved / activeSavedMonths : 0;
+    const equivalentUsageMonths = avgProPrice > 0 ? bfCost / avgProPrice : Infinity;
+    return {
+      cutoff: limit,
+      rows,
+      crossoverMonthIndex,
+      activeSavedMonths,
+      avgProPrice,
+      equivalentUsageMonths,
+    };
+  }
+
   // Cumulative Chart with Day 0 ("今日" / "Now") upfront anchor
-  function renderChart(res) {
+  function renderChart(res, scenarioOverlay) {
     const container = document.getElementById('chart-container');
-    const rows = res.monthlyRows;
+    const rows = scenarioOverlay ? scenarioOverlay.rows : res.monthlyRows;
+    const crossoverIdx = scenarioOverlay ? scenarioOverlay.crossoverMonthIndex : res.crossoverMonthIndex;
 
     const width = 760;
     const height = 228;
@@ -1069,13 +1113,23 @@
     }
 
     let crossoverSvg = '';
-    if (res.crossoverMonthIndex !== null) {
-      const cx = xAt(res.crossoverMonthIndex + 1);
-      const cy = yAt(rows[res.crossoverMonthIndex].cumBuy);
+    if (crossoverIdx !== null) {
+      const cx = xAt(crossoverIdx + 1);
+      const cy = yAt(rows[crossoverIdx].cumBuy);
       crossoverSvg = `
         <line x1="${cx.toFixed(1)}" y1="${padT}" x2="${cx.toFixed(1)}" y2="${padT + plotH}" stroke="#1c3829" stroke-dasharray="3 3" stroke-width="1"/>
         <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.2" fill="#1c3829" stroke="#ffffff" stroke-width="1.5"/>
-        <text x="${Math.min(width - 96, cx + 8).toFixed(1)}" y="${Math.max(padT + 20, cy - 8).toFixed(1)}" fill="#1c3829" font-size="11.5" font-weight="600">${escapeHtml(t('step4.chartBreakeven', { m: getMonthShort(res.crossoverMonthIndex) }))}</text>
+        <text x="${Math.min(width - 96, cx + 8).toFixed(1)}" y="${Math.max(padT + 20, cy - 8).toFixed(1)}" fill="#1c3829" font-size="11.5" font-weight="600">${escapeHtml(t('step4.chartBreakeven', { m: getMonthShort(crossoverIdx) }))}</text>
+      `;
+    }
+
+    let cutoffMarkerSvg = '';
+    if (scenarioOverlay && scenarioOverlay.cutoff > 0 && scenarioOverlay.cutoff < 12) {
+      const k = scenarioOverlay.cutoff;
+      const kx = xAt(k);
+      cutoffMarkerSvg = `
+        <line x1="${kx.toFixed(1)}" y1="${padT}" x2="${kx.toFixed(1)}" y2="${padT + plotH}" stroke="#b45309" stroke-dasharray="3 3" stroke-width="1.2"/>
+        <text x="${Math.min(width - 130, Math.max(padL + 6, kx + 6)).toFixed(1)}" y="${(padT + plotH - 8).toFixed(1)}" fill="#92400e" font-size="11" font-weight="600">${escapeHtml(t('step4.scenChartCutoff', { k }))}</text>
       `;
     }
 
@@ -1104,6 +1158,7 @@
       <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="12-month cumulative comparison">
         ${gridLines.join('')}
         ${nextGenMarkerSvg}
+        ${cutoffMarkerSvg}
         <polyline points="${skipPts}" fill="none" stroke="#9b9a97" stroke-width="1.9" stroke-dasharray="5 4"/>
         <polyline points="${buyPts}" fill="none" stroke="#37352f" stroke-width="2.2"/>
         <circle cx="${xAt(0).toFixed(1)}" cy="${yAt(res.bfCost).toFixed(1)}" r="3.2" fill="#37352f"/>
@@ -1271,13 +1326,18 @@
       }
     }
 
-    // STEP 5: Institutional Financial Decision Memo
+    // STEP 5: Institutional Financial Decision Memo (supports switching between EV & any of the 4 scenarios)
     const dispCur = getDisplayCurrency();
     const dispSym = dispCur === 'USD' ? '$' : '¥';
+    const activeSc = activeScenarioId
+      ? (res.scenarios.find((sc) => sc.id === activeScenarioId) || null)
+      : null;
+    const scenOverlay = activeSc ? buildScenarioViewRows(res.monthlyRows, res.bfCost, activeSc.cutoff) : null;
+
     document.querySelectorAll('[data-disp-cur]').forEach((btn) => {
       btn.classList.toggle('is-active', btn.dataset.dispCur === dispCur);
     });
-    document.getElementById('memo-ev-label').textContent = t('step4.heroEvLabelCur', { cur: dispCur });
+    document.getElementById('btn-scen-reset-ev').style.display = activeSc ? 'inline-flex' : 'none';
     document.getElementById('scen-unit-note').textContent = t('step4.scenNoteCur', { cur: dispCur });
     document.getElementById('th-scen-buy').textContent = t('step4.scenColBuyCur', { cur: dispCur });
     document.getElementById('th-scen-skip').textContent = t('step4.scenColSkipCur', { cur: dispCur });
@@ -1294,53 +1354,90 @@
     });
 
     const badge = document.getElementById('verdict-badge');
-    badge.className = `tag tag-${res.verdict.tone}`;
-    badge.textContent = res.verdict.badge;
-    document.getElementById('verdict-headline').textContent = res.verdict.headline;
-    document.getElementById('verdict-detail').textContent = res.verdict.detail;
-
-    // Hero EV value (crisp ink numeral + colored sign)
-    const evRounded = Math.round(convertDisplay(res.expectedNetSavings));
     const evHeroEl = document.getElementById('memo-ev-hero');
-    if (evRounded > 0) {
-      evHeroEl.innerHTML = `<span class="ev-sign-pos">+</span>${dispSym}${Math.abs(evRounded).toLocaleString('en-US')}`;
-    } else if (evRounded < 0) {
-      evHeroEl.innerHTML = `<span class="ev-sign-neg">-</span>${dispSym}${Math.abs(evRounded).toLocaleString('en-US')}`;
+    const probEl = document.getElementById('memo-cond-prob');
+    const probSubEl = document.getElementById('memo-cond-prob-sub');
+    const crossEl = document.getElementById('memo-cond-crossover');
+    const crossSubEl = document.getElementById('memo-cond-crossover-sub');
+
+    const heroAmountCny = activeSc ? activeSc.diff : res.expectedNetSavings;
+    const heroRounded = Math.round(convertDisplay(heroAmountCny));
+    if (heroRounded > 0) {
+      evHeroEl.innerHTML = `<span class="ev-sign-pos">+</span>${dispSym}${Math.abs(heroRounded).toLocaleString('en-US')}`;
+    } else if (heroRounded < 0) {
+      evHeroEl.innerHTML = `<span class="ev-sign-neg">-</span>${dispSym}${Math.abs(heroRounded).toLocaleString('en-US')}`;
     } else {
       evHeroEl.textContent = `${dispSym}0`;
     }
-    const rateStr = `${res.evReturnPct >= 0 ? '+' : ''}${res.evReturnPct.toFixed(1)}%`;
-    document.getElementById('memo-ev-rate').textContent = res.bfCost > 0
-      ? t('step4.evRateText', { rate: rateStr, bf: fmtYen(res.bfCost) })
-      : '';
 
-    // Condition 1: Retention Confidence vs Break-Even Line
-    document.getElementById('memo-cond-prob').textContent = `${state.retainProbPct}%`;
-    const probSubEl = document.getElementById('memo-cond-prob-sub');
-    if (res.breakEvenProbStatus === 'already_even') {
-      probSubEl.textContent = t('step4.condProbLocked');
-    } else if (res.breakEvenProbStatus === 'impossible') {
-      probSubEl.textContent = t('step4.condProbImpossible');
-    } else if (res.breakEvenProbStatus === 'deterministic') {
-      probSubEl.textContent = t('step4.condProbDet');
-    } else if (res.breakEvenProbPct != null) {
-      const gap = (res.breakEvenProbDirection === 'lte'
-        ? res.breakEvenProbPct - state.retainProbPct
-        : state.retainProbPct - res.breakEvenProbPct);
-      probSubEl.textContent = gap >= 0
-        ? t('step4.condProbAbove', { line: res.breakEvenProbPct.toFixed(1), gap: gap.toFixed(1) })
-        : t('step4.condProbBelow', { line: res.breakEvenProbPct.toFixed(1), gap: gap.toFixed(1) });
-    }
+    if (activeSc && scenOverlay) {
+      const scTone = activeSc.diff >= 40 ? 'green' : activeSc.diff <= -40 ? 'red' : 'amber';
+      const scBadge = activeSc.diff >= 40
+        ? t('step4.scenBadgeBuy')
+        : activeSc.diff <= -40
+          ? t('step4.scenBadgeLoss')
+          : t('step4.scenBadgeEven');
+      badge.className = `tag tag-${scTone}`;
+      badge.textContent = scBadge;
+      document.getElementById('verdict-headline').textContent = t('step4.scenHeadline', { title: activeSc.title });
+      document.getElementById('verdict-detail').textContent = t('step4.scenDetail', {
+        buy: fmtYen(activeSc.buyTotal),
+        skip: fmtYen(activeSc.skipTotal),
+        diff: fmtYen(activeSc.diff, true),
+      });
+      document.getElementById('memo-ev-label').textContent = t('step4.scenHeroLabel', { k: activeSc.cutoff, cur: dispCur });
+      const scRatePct = res.bfCost > 0 ? (activeSc.diff / res.bfCost) * 100 : 0;
+      const scRateStr = `${scRatePct >= 0 ? '+' : ''}${scRatePct.toFixed(1)}%`;
+      document.getElementById('memo-ev-rate').textContent = res.bfCost > 0
+        ? t('step4.scenRateText', { rate: scRateStr, bf: fmtYen(res.bfCost) })
+        : '';
 
-    // Condition 2: True Cumulative Calendar Payback + Equivalent Usage Subtext
-    document.getElementById('memo-cond-crossover').textContent =
-      res.crossoverMonthIndex !== null
+      probEl.textContent = t('step4.scenCondMode');
+      probSubEl.textContent = t('step4.scenCondSub', { k: activeSc.cutoff });
+
+      crossEl.textContent = scenOverlay.crossoverMonthIndex !== null
+        ? getMonthLabel(scenOverlay.crossoverMonthIndex)
+        : t('step4.condCrossNone');
+      crossSubEl.textContent = Number.isFinite(scenOverlay.equivalentUsageMonths) && scenOverlay.activeSavedMonths > 0
+        ? t('step4.condCrossSub', { n: scenOverlay.equivalentUsageMonths.toFixed(1), avg: fmtYen(scenOverlay.avgProPrice) })
+        : t('step4.condCrossSubInf');
+    } else {
+      document.getElementById('memo-ev-label').textContent = t('step4.heroEvLabelCur', { cur: dispCur });
+      badge.className = `tag tag-${res.verdict.tone}`;
+      badge.textContent = res.verdict.badge;
+      document.getElementById('verdict-headline').textContent = res.verdict.headline;
+      document.getElementById('verdict-detail').textContent = res.verdict.detail;
+
+      const rateStr = `${res.evReturnPct >= 0 ? '+' : ''}${res.evReturnPct.toFixed(1)}%`;
+      document.getElementById('memo-ev-rate').textContent = res.bfCost > 0
+        ? t('step4.evRateText', { rate: rateStr, bf: fmtYen(res.bfCost) })
+        : '';
+
+      // Condition 1: Retention Confidence vs Break-Even Line
+      probEl.textContent = `${state.retainProbPct}%`;
+      if (res.breakEvenProbStatus === 'already_even') {
+        probSubEl.textContent = t('step4.condProbLocked');
+      } else if (res.breakEvenProbStatus === 'impossible') {
+        probSubEl.textContent = t('step4.condProbImpossible');
+      } else if (res.breakEvenProbStatus === 'deterministic') {
+        probSubEl.textContent = t('step4.condProbDet');
+      } else if (res.breakEvenProbPct != null) {
+        const gap = (res.breakEvenProbDirection === 'lte'
+          ? res.breakEvenProbPct - state.retainProbPct
+          : state.retainProbPct - res.breakEvenProbPct);
+        probSubEl.textContent = gap >= 0
+          ? t('step4.condProbAbove', { line: res.breakEvenProbPct.toFixed(1), gap: gap.toFixed(1) })
+          : t('step4.condProbBelow', { line: res.breakEvenProbPct.toFixed(1), gap: gap.toFixed(1) });
+      }
+
+      // Condition 2: True Cumulative Calendar Payback + Equivalent Usage Subtext
+      crossEl.textContent = res.crossoverMonthIndex !== null
         ? getMonthLabel(res.crossoverMonthIndex)
         : t('step4.condCrossNone');
-    document.getElementById('memo-cond-crossover-sub').textContent =
-      Number.isFinite(res.equivalentUsageMonths) && res.proCoveredMonths > 0
+      crossSubEl.textContent = Number.isFinite(res.equivalentUsageMonths) && res.proCoveredMonths > 0
         ? t('step4.condCrossSub', { n: res.equivalentUsageMonths.toFixed(1), avg: fmtYen(res.avgProPrice) })
         : t('step4.condCrossSubInf');
+    }
 
     // Hairline Upfront & Idle Strip
     const idleStripPart = res.totalIdleMonths > 0
@@ -1393,18 +1490,28 @@
       res.hasLegacyTurkeyUltra ? 'block' : 'none';
 
     // Cumulative Chart, 4-Scenario Table, 3x3 Sensitivity Matrix
-    renderChart(res);
+    renderChart(res, scenOverlay);
 
     document.getElementById('scenarios-tbody').innerHTML = res.scenarios
       .map((sc) => {
         const rounded = Math.round(sc.diff);
         const pillCls = rounded > 0 ? 'is-pos' : rounded < 0 ? 'is-neg' : 'is-zero';
-        const rowCls = sc.isBaseline ? 'fin-row-baseline' : '';
+        const isActive = activeSc && activeSc.id === sc.id;
+        const rowCls = [
+          'fin-row-selectable',
+          !activeSc && sc.isBaseline ? 'fin-row-baseline' : '',
+          isActive ? 'fin-row-active' : '',
+        ].filter(Boolean).join(' ');
         return `
-          <tr class="${rowCls}">
+          <tr class="${rowCls}" data-scenario-id="${escapeHtml(sc.id)}" role="button" tabindex="0" aria-pressed="${isActive ? 'true' : 'false'}">
             <td>
-              <div class="fin-scen-title">${escapeHtml(sc.title)}</div>
-              <div class="fin-scen-sub">${escapeHtml(sc.periodNote || '')}</div>
+              <div class="scen-cell-wrap">
+                <span class="scen-radio-dot" aria-hidden="true"></span>
+                <div>
+                  <div class="fin-scen-title">${escapeHtml(sc.title)}</div>
+                  <div class="fin-scen-sub">${escapeHtml(sc.periodNote || '')}</div>
+                </div>
+              </div>
             </td>
             <td class="num mono">${fmtNum(sc.buyTotal)}</td>
             <td class="num mono">${fmtNum(sc.skipTotal)}</td>
@@ -1413,16 +1520,22 @@
       })
       .join('');
 
-    document.getElementById('compare-12m-tbody').innerHTML = res.monthlyRows
+    const displayRows = scenOverlay ? scenOverlay.rows : res.monthlyRows;
+    document.getElementById('compare-12m-tbody').innerHTML = displayRows
       .map((r) => {
         const planAHtml = r.items.length
           ? r.items.map((it) => `<span class="ref-mini-pill tag-${it.tone || 'gray'}" style="opacity:0.9;">${escapeHtml(formatItemPillLabel(it))}</span>`).join(' ')
           : '<span class="ref-empty-dash">—</span>';
-        const bfShort = lang === 'en-US' ? 'BF Pro' : '黑五 Pro';
-        const extraHtml = r.buyItems && r.buyItems.length
-          ? r.buyItems.map((it) => `<span class="ref-mini-pill tag-${it.tone || 'gray'}" style="opacity:0.9;">${escapeHtml(formatItemPillLabel(it))}</span>`).join(' ')
-          : '';
-        const planBHtml = `<span class="ref-mini-pill tag-gemini" style="opacity:0.95;font-weight:600;">${escapeHtml(bfShort)}</span>${extraHtml ? ` <span class="bf-row-plus">+</span> ${extraHtml}` : ''}`;
+        let planBHtml;
+        if (r.reverted) {
+          planBHtml = `<span class="ref-mini-pill tag-amber" style="opacity:0.9;">${escapeHtml(t('step4.scenDroppedTag'))}</span>`;
+        } else {
+          const bfShort = lang === 'en-US' ? 'BF Pro' : '黑五 Pro';
+          const extraHtml = r.buyItems && r.buyItems.length
+            ? r.buyItems.map((it) => `<span class="ref-mini-pill tag-${it.tone || 'gray'}" style="opacity:0.9;">${escapeHtml(formatItemPillLabel(it))}</span>`).join(' ')
+            : '';
+          planBHtml = `<span class="ref-mini-pill tag-gemini" style="opacity:0.95;font-weight:600;">${escapeHtml(bfShort)}</span>${extraHtml ? ` <span class="bf-row-plus">+</span> ${extraHtml}` : ''}`;
+        }
         const diffVal = Math.round(r.monthSavedByBf);
         const diffCls = diffVal > 0 ? 'is-pos' : diffVal < 0 ? 'is-neg' : '';
         const cumNet = Math.round(r.cumSkip - r.cumBuy);
@@ -1485,9 +1598,33 @@
       render();
     });
 
+    const scenTbody = document.getElementById('scenarios-tbody');
+    scenTbody.addEventListener('click', (e) => {
+      const tr = e.target.closest('tr[data-scenario-id]');
+      if (!tr) return;
+      const id = tr.dataset.scenarioId;
+      activeScenarioId = activeScenarioId === id ? null : id;
+      render();
+    });
+    scenTbody.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const tr = e.target.closest('tr[data-scenario-id]');
+      if (!tr) return;
+      e.preventDefault();
+      const id = tr.dataset.scenarioId;
+      activeScenarioId = activeScenarioId === id ? null : id;
+      render();
+    });
+
+    document.getElementById('btn-scen-reset-ev').addEventListener('click', () => {
+      activeScenarioId = null;
+      render();
+    });
+
     document.getElementById('btn-reset').addEventListener('click', () => {
       recordUndoSnapshot();
       state = createInitialUiState();
+      activeScenarioId = null;
       selectedMonths = new Set();
       selectedMonthsB = new Set();
       pickerState = null;

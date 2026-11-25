@@ -2478,6 +2478,82 @@ input[type="range"]::-moz-range-thumb {
   line-height: 1.55;
 }
 
+.scen-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scen-reset-btn {
+  height: 25px;
+  padding: 0 9px;
+  border-radius: 4px;
+  border: 1px solid var(--border-2);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.scen-reset-btn:hover {
+  background: var(--hover);
+  border-color: var(--ink);
+}
+
+.fin-table tbody tr.fin-row-selectable {
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.fin-table tbody tr.fin-row-selectable:hover td {
+  background: var(--hover);
+}
+
+.fin-table tbody tr.fin-row-active td {
+  background: var(--surface);
+}
+
+.fin-table tbody tr.fin-row-active td:first-child {
+  box-shadow: inset 3px 0 0 var(--ink);
+}
+
+.scen-cell-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.scen-radio-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-2);
+  margin-top: 4px;
+  flex-shrink: 0;
+  position: relative;
+  transition: border-color 0.12s ease;
+}
+
+.fin-row-selectable:hover .scen-radio-dot {
+  border-color: var(--ink-2);
+}
+
+.fin-row-active .scen-radio-dot {
+  border-color: var(--ink);
+}
+
+.fin-row-active .scen-radio-dot::after {
+  content: "";
+  position: absolute;
+  inset: 2.5px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
 /* 3x3 Sensitivity Matrix */
 .sens-table {
   width: 100%;
