@@ -1,27 +1,38 @@
 :root {
+  /* Exact Notion Light Mode Tokens */
   --bg: #ffffff;
   --surface: #f7f6f3;
-  --hover: rgba(55, 53, 47, 0.05);
-  --active: rgba(55, 53, 47, 0.085);
+  --callout-bg: #f1f1ef;
+  --hover: #f7f6f3;
+  --active: rgba(55, 53, 47, 0.08);
 
   --ink: #37352f;
-  --ink-2: rgba(55, 53, 47, 0.65);
-  --ink-3: rgba(55, 53, 47, 0.42);
-  --line: rgba(55, 53, 47, 0.09);
-  --line-2: rgba(55, 53, 47, 0.16);
+  --ink-2: #787774;
+  --ink-3: #9b9a97;
+  --border: #e9e9e7;
+  --border-2: #d3d1cb;
+
+  /* Exact Notion Select Tag Colors */
+  --tag-gray-bg: #e3e2e0;
+  --tag-gray-fg: #32302c;
+
+  --tag-blue-bg: #d3e5ef;
+  --tag-blue-fg: #183347;
+
+  --tag-yellow-bg: #fdecc8;
+  --tag-yellow-fg: #402c1b;
+
+  --tag-green-bg: #dbeddb;
+  --tag-green-fg: #1c3829;
+
+  --tag-red-bg: #ffe2dd;
+  --tag-red-fg: #5d1715;
+
+  --tag-purple-bg: #e8deee;
+  --tag-purple-fg: #412454;
 
   --tag-dark-bg: #37352f;
   --tag-dark-fg: #ffffff;
-  --tag-gray-bg: rgba(227, 226, 224, 0.55);
-  --tag-gray-fg: #37352f;
-  --tag-blue-bg: #e7f3f8;
-  --tag-blue-fg: #24536b;
-  --tag-amber-bg: #fbf3db;
-  --tag-amber-fg: #6d5420;
-  --tag-green-bg: #edf3ec;
-  --tag-green-fg: #2d5a35;
-  --tag-red-bg: #fdebeb;
-  --tag-red-fg: #8b2d2d;
 
   --font-sans: "Inter", "Noto Sans SC", "HarmonyOS Sans SC", "PingFang SC", "Source Han Sans SC", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "Noto Sans SC", monospace;
@@ -34,7 +45,7 @@
 }
 
 html {
-  font-size: 15px;
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -44,7 +55,8 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
-  line-height: 1.68;
+  font-size: 16px;
+  line-height: 1.65;
 }
 
 button,
@@ -59,21 +71,21 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
-/* Whisper-quiet Top Bar */
+/* Topbar (Notion Breadcrumb Bar) */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
 }
 
 .topbar-inner {
-  max-width: 1160px;
+  max-width: 1180px;
   margin: 0 auto;
-  height: 50px;
-  padding: 0 40px;
+  height: 52px;
+  padding: 0 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -81,7 +93,7 @@ select {
 }
 
 .topbar-brand {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink);
   white-space: nowrap;
@@ -90,16 +102,16 @@ select {
 .step-tabs {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   overflow-x: auto;
 }
 
 .step-tab {
   border: none;
   background: transparent;
-  padding: 5px 9px;
+  padding: 6px 11px;
   border-radius: 4px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--ink-3);
   cursor: pointer;
   white-space: nowrap;
@@ -124,22 +136,21 @@ select {
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
 .ghost-btn,
 .ghost-select {
-  height: 28px;
-  padding: 0 8px;
+  height: 32px;
+  padding: 0 10px;
   border-radius: 4px;
   border: none;
   background: transparent;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--ink-2);
   cursor: pointer;
   outline: none;
-  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .ghost-btn:hover,
@@ -148,24 +159,24 @@ select {
   color: var(--ink);
 }
 
-/* Spacious Notion Full-Width Document Canvas */
+/* Notion Page Canvas — Wide, Breathable, Left-Aligned Editorial Flow */
 .page {
-  max-width: 1160px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 48px 40px 96px;
-}
-
-.step-narrow {
-  max-width: 820px;
+  padding: 56px 56px 112px;
 }
 
 .step {
   display: none;
-  animation: fadeIn 0.18s ease;
+  animation: fadeIn 0.16s ease;
 }
 
 .step.is-active {
   display: block;
+}
+
+.step-narrow {
+  max-width: 820px;
 }
 
 @keyframes fadeIn {
@@ -173,42 +184,43 @@ select {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.step-meta {
-  margin: 0 0 10px;
-  font-size: 12px;
+.step-kicker {
+  font-size: 12.5px;
   color: var(--ink-3);
   letter-spacing: 0.06em;
+  margin-bottom: 10px;
 }
 
 .page-title {
-  margin: 0 0 10px;
-  font-size: 30px;
+  margin: 0 0 14px;
+  font-size: 38px;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.22;
   letter-spacing: -0.025em;
   color: var(--ink);
 }
 
 .page-lead {
-  margin: 0 0 32px;
-  font-size: 14.5px;
+  margin: 0 0 36px;
+  font-size: 16px;
   color: var(--ink-2);
   line-height: 1.7;
+  max-width: 780px;
 }
 
-/* Step 1: Clean Borderless-Feel Choice Rows */
+/* Step 1 Choice Rows */
 .choice-list {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--border);
 }
 
 .choice-row {
   width: 100%;
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 16px 12px;
+  gap: 16px;
+  padding: 20px 14px;
   border: none;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -224,10 +236,10 @@ select {
 }
 
 .choice-radio {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  border: 1.5px solid var(--line-2);
+  border: 1.5px solid var(--border-2);
   margin-top: 4px;
   flex-shrink: 0;
   position: relative;
@@ -240,7 +252,7 @@ select {
 .choice-row.is-selected .choice-radio::after {
   content: "";
   position: absolute;
-  inset: 3px;
+  inset: 3.5px;
   border-radius: 50%;
   background: var(--ink);
 }
@@ -254,74 +266,76 @@ select {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
 .choice-name {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--ink);
 }
 
 .choice-price {
-  font-size: 14.5px;
+  font-size: 15.5px;
   font-weight: 600;
   color: var(--ink);
 }
 
 .choice-note {
-  margin-top: 3px;
-  font-size: 12.5px;
-  color: var(--ink-3);
+  margin-top: 5px;
+  font-size: 14px;
+  color: var(--ink-2);
 }
 
-/* Notion Callout (True Notion style: warm gray surface, zero borders) */
+/* Notion Callout */
 .callout {
-  background: var(--surface);
+  background: var(--callout-bg);
   border-radius: 4px;
-  padding: 16px 18px;
+  padding: 18px 20px;
 }
 
 .callout-title {
-  font-size: 14px;
+  font-size: 15.5px;
   font-weight: 600;
   color: var(--ink);
 }
 
 .callout-text {
-  margin: 4px 0 0;
-  font-size: 13.5px;
+  margin: 6px 0 0;
+  font-size: 14.5px;
   color: var(--ink-2);
-  line-height: 1.65;
+  line-height: 1.7;
 }
 
-/* Tags / Pills */
+/* Exact Notion Select Tags */
 .tag {
   display: inline-flex;
   align-items: center;
-  padding: 1px 6px;
+  padding: 2px 8px;
   border-radius: 3px;
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 500;
-  line-height: 1.55;
+  line-height: 1.5;
   white-space: nowrap;
 }
 
-.tag-dark { background: var(--tag-dark-bg); color: var(--tag-dark-fg); }
 .tag-gray { background: var(--tag-gray-bg); color: var(--tag-gray-fg); }
 .tag-blue { background: var(--tag-blue-bg); color: var(--tag-blue-fg); }
-.tag-amber { background: var(--tag-amber-bg); color: var(--tag-amber-fg); }
+.tag-yellow { background: var(--tag-yellow-bg); color: var(--tag-yellow-fg); }
+.tag-amber { background: var(--tag-yellow-bg); color: var(--tag-yellow-fg); }
 .tag-green { background: var(--tag-green-bg); color: var(--tag-green-fg); }
 .tag-red { background: var(--tag-red-bg); color: var(--tag-red-fg); }
+.tag-purple { background: var(--tag-purple-bg); color: var(--tag-purple-fg); }
+.tag-dark { background: var(--tag-dark-bg); color: var(--tag-dark-fg); }
 
-/* Step 2: Notion Database Table & Prominent Batch Toolbar */
+/* Text Buttons */
 .text-btn {
   border: none;
   background: transparent;
-  padding: 4px 7px;
+  padding: 5px 9px;
   border-radius: 4px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--ink-2);
   cursor: pointer;
   transition: background-color 0.12s ease, color 0.12s ease;
@@ -336,84 +350,72 @@ select {
   color: var(--ink-3);
 }
 
-.db-batch-bar {
+/* Step 2: Notion Database Toolbar (Batch Edit) */
+.db-toolbar {
+  padding: 16px 18px;
   background: var(--surface);
   border-radius: 4px;
-  padding: 12px 14px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
-.db-batch-top {
+.db-toolbar-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.db-batch-select {
+.db-toolbar-group {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
-.db-batch-label {
-  font-size: 12px;
+.db-toolbar-label {
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--ink);
-  margin-right: 6px;
+  margin-right: 8px;
 }
 
-.db-batch-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+.db-toolbar-actions {
+  justify-content: flex-start;
+  gap: 10px;
 }
 
-.db-selected-pill {
-  font-size: 12px;
+.db-count-badge {
+  font-size: 13px;
   font-weight: 600;
   color: var(--ink);
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 4px;
   background: rgba(55, 53, 47, 0.08);
   white-space: nowrap;
 }
 
 .db-catalog-select {
-  flex: 1;
-  min-width: 190px;
+  min-width: 300px;
+  max-width: 400px;
   background: var(--bg);
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--border-2);
 }
 
-.db-batch-controls .flat-input {
-  background: var(--bg);
-  border: 1px solid var(--line-2);
-}
-
-.db-batch-extra {
+.db-toolbar-sub {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-
-.qty-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .mini-toggle summary {
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--ink-2);
-  padding: 2px 0;
+  padding: 4px 0;
   user-select: none;
 }
 
@@ -424,155 +426,194 @@ select {
 .custom-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 10px;
+  margin-top: 10px;
   flex-wrap: wrap;
 }
 
 .custom-row input[type="text"] {
   flex: 1;
-  min-width: 150px;
+  min-width: 180px;
   background: var(--bg);
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--border-2);
 }
 
-.custom-row input[type="number"] {
+.custom-row input[type="number"],
+.custom-row select {
   background: var(--bg);
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--border-2);
 }
 
-/* Notion Database 12-Month Table */
-.db-table-wrap {
+/* Authentic Notion Database Table (Horizontal + Vertical #E9E9E7 Gridlines) */
+.notion-db-wrap {
   overflow-x: auto;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
-.db-table {
+.notion-db {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
 }
 
-.db-table th {
+.notion-db th {
   text-align: left;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--ink-3);
-  padding: 10px 12px;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
   white-space: nowrap;
+  background: var(--bg);
 }
 
-.db-table td {
-  padding: 12px 12px;
-  border-bottom: 1px solid var(--line);
+.notion-db th:last-child,
+.notion-db td:last-child {
+  border-right: none;
+}
+
+.th-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.th-right {
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.th-icon {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.notion-db td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
   vertical-align: middle;
+  color: var(--ink);
+  line-height: 1.5;
 }
 
-.db-table tbody tr.db-row:hover {
+.notion-db tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.notion-db tbody tr.db-row:hover td {
   background: var(--hover);
 }
 
-.db-table tbody tr.db-row.is-selected {
-  background: rgba(55, 53, 47, 0.04);
+.notion-db tbody tr.db-row.is-selected td {
+  background: rgba(35, 131, 226, 0.045);
 }
 
-.db-table .col-check {
-  width: 30px;
+.notion-db .col-check {
+  width: 44px;
   text-align: center;
+  padding: 10px 8px;
 }
 
-.db-table input[type="checkbox"] {
+.notion-db input[type="checkbox"] {
   accent-color: var(--ink);
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   cursor: pointer;
   vertical-align: middle;
 }
 
-.db-table .col-month {
-  width: 116px;
+.notion-db .col-month {
+  width: 175px;
   white-space: nowrap;
 }
 
 .db-month-main {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink);
-  display: inline-block;
-  margin-right: 6px;
+  margin-right: 8px;
 }
 
 .db-month-phase {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
-  display: inline-block;
 }
 
-.db-table .col-status {
-  width: 156px;
+.notion-db .col-state {
+  width: 170px;
   white-space: nowrap;
 }
 
-.db-table .col-total {
-  width: 110px;
+.notion-db .col-save {
+  width: 130px;
   white-space: nowrap;
 }
 
-.db-table .num {
+.notion-db .num {
   text-align: right;
 }
 
-/* Inline Subscription Tokens Inside Each Month Row */
+.notion-db tfoot td {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+  border-right: none;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  background: var(--bg);
+}
+
+/* Interactive Notion Select Tags Inside Database Cells */
 .row-tokens {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 8px;
 }
 
 .sub-token {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
+  gap: 6px;
+  padding: 3px 9px;
   border-radius: 3px;
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.45;
   background: var(--tag-gray-bg);
-  color: var(--ink);
+  color: var(--tag-gray-fg);
 }
 
-.sub-token.tone-dark { background: var(--tag-dark-bg); color: var(--tag-dark-fg); }
 .sub-token.tone-blue { background: var(--tag-blue-bg); color: var(--tag-blue-fg); }
-.sub-token.tone-amber { background: var(--tag-amber-bg); color: var(--tag-amber-fg); }
+.sub-token.tone-yellow { background: var(--tag-yellow-bg); color: var(--tag-yellow-fg); }
+.sub-token.tone-purple { background: var(--tag-purple-bg); color: var(--tag-purple-fg); }
+.sub-token.tone-green { background: var(--tag-green-bg); color: var(--tag-green-fg); }
+.sub-token.tone-dark { background: var(--tag-dark-bg); color: var(--tag-dark-fg); }
 
-.tok-btn {
+.tok-main-btn {
   border: none;
   background: transparent;
   color: inherit;
-  opacity: 0.58;
+  font-size: 13.5px;
+  font-weight: 500;
+  padding: 0;
+  cursor: pointer;
+}
+
+.tok-del-btn {
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.55;
   cursor: pointer;
   padding: 0 2px;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1;
 }
 
-.tok-btn:hover {
-  opacity: 1;
-}
-
-.tok-price-btn {
-  border: none;
-  background: transparent;
-  color: inherit;
-  opacity: 0.72;
-  font-size: 11px;
-  padding: 0 2px;
-  cursor: pointer;
-  text-decoration: underline dotted;
-}
-
-.tok-price-btn:hover {
+.tok-del-btn:hover {
   opacity: 1;
 }
 
@@ -581,10 +622,9 @@ select {
   background: transparent;
   color: var(--ink-3);
   cursor: pointer;
-  font-size: 12px;
-  padding: 2px 6px;
+  font-size: 13px;
+  padding: 3px 8px;
   border-radius: 3px;
-  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .row-add-btn:hover {
@@ -592,75 +632,59 @@ select {
   color: var(--ink);
 }
 
-/* Inline Expandable Single-Month Add Sub-Row */
 .db-inline-add-row td {
   background: var(--surface);
-  padding: 10px 12px;
+  padding: 12px 16px;
 }
 
 .inline-add-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .inline-add-bar .flat-select,
 .inline-add-bar .flat-input {
   background: var(--bg);
-  border: 1px solid var(--line-2);
-  height: 29px;
-  font-size: 12.5px;
+  border: 1px solid var(--border-2);
+  height: 34px;
+  font-size: 13.5px;
 }
 
-.inline-add-bar .subtle-btn {
-  height: 29px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-
-.db-table tfoot td {
-  padding: 10px 8px;
-  font-size: 12.5px;
-  color: var(--ink-2);
-  border-bottom: 1px solid var(--line);
-  background: #fcfcfb;
-}
-
-/* Flat Inputs & Notion Page Properties */
+/* Notion Page Properties (Steps 3, 4, 5) */
 .section-label {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--ink-3);
-  letter-spacing: 0.02em;
-  margin-bottom: 6px;
+  color: var(--ink-2);
+  margin-bottom: 10px;
 }
 
 .prop-group {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--border);
 }
 
 .prop-row {
   display: grid;
-  grid-template-columns: 168px 1fr;
+  grid-template-columns: 200px 1fr;
   align-items: center;
-  gap: 12px;
-  min-height: 42px;
-  padding: 6px 4px;
-  border-bottom: 1px solid var(--line);
+  gap: 16px;
+  min-height: 50px;
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--border);
 }
 
 .prop-key {
-  font-size: 13.5px;
+  font-size: 14.5px;
   color: var(--ink-2);
 }
 
 .prop-val {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
-  font-size: 13.5px;
+  font-size: 15px;
   color: var(--ink);
 }
 
@@ -669,45 +693,41 @@ select {
 }
 
 .val-badge {
-  min-width: 66px;
+  min-width: 76px;
   text-align: right;
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 600;
   color: var(--ink);
 }
 
 .unit {
-  font-size: 12.5px;
-  color: var(--ink-3);
+  font-size: 13.5px;
+  color: var(--ink-2);
 }
 
 .muted-note {
-  margin: 6px 0 4px;
-  font-size: 12px;
-  color: var(--ink-3);
-  line-height: 1.55;
+  margin: 6px 0;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  line-height: 1.6;
 }
 
 .flat-input,
 .flat-select {
-  height: 32px;
-  padding: 0 9px;
+  height: 36px;
+  padding: 0 11px;
   border-radius: 4px;
   border: 1px solid transparent;
   background: var(--surface);
-  font-size: 13.5px;
+  font-size: 14.5px;
   color: var(--ink);
   outline: none;
   transition: border-color 0.12s ease, background-color 0.12s ease;
 }
 
-.flat-select {
-  max-width: 100%;
-}
-
 .flat-input:hover,
 .flat-select:hover {
-  background: rgba(55, 53, 47, 0.075);
+  background: #efeee9;
 }
 
 .flat-input:focus,
@@ -720,19 +740,18 @@ select {
 .pill-switch {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .pill-opt {
   border: none;
   background: transparent;
-  padding: 4px 10px;
+  padding: 6px 12px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-2);
   cursor: pointer;
-  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .pill-opt:hover {
@@ -750,15 +769,15 @@ select {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-2);
   cursor: pointer;
 }
 
 .check-inline input {
   accent-color: var(--ink);
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
 }
 
 /* Monochrome Range Slider */
@@ -766,17 +785,17 @@ input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   flex: 1;
-  height: 3px;
+  height: 4px;
   border-radius: 2px;
-  background: var(--line-2);
+  background: var(--border-2);
   outline: none;
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--ink);
   border: 2px solid #ffffff;
@@ -785,8 +804,8 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 input[type="range"]::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--ink);
   border: 2px solid #ffffff;
@@ -796,38 +815,38 @@ input[type="range"]::-moz-range-thumb {
 
 /* EV Ruler */
 .ev-block {
-  margin-top: 28px;
+  margin-top: 32px;
 }
 
 .ev-top {
   display: flex;
   justify-content: space-between;
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--ink-2);
 }
 
 .ev-track {
   position: relative;
-  height: 6px;
+  height: 7px;
   border-radius: 999px;
   background: var(--surface);
-  border: 1px solid var(--line);
-  margin: 24px 0 8px;
+  border: 1px solid var(--border);
+  margin: 28px 0 10px;
 }
 
 .ev-threshold {
   position: absolute;
-  top: -7px;
-  bottom: -7px;
-  width: 1.5px;
+  top: -8px;
+  bottom: -8px;
+  width: 2px;
   background: var(--ink);
 }
 
 .ev-threshold-tag {
   position: absolute;
-  top: -22px;
+  top: -24px;
   transform: translateX(-50%);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-2);
   white-space: nowrap;
 }
@@ -835,8 +854,8 @@ input[type="range"]::-moz-range-thumb {
 .ev-dot {
   position: absolute;
   top: 50%;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: var(--ink);
   transform: translate(-50%, -50%);
@@ -846,11 +865,11 @@ input[type="range"]::-moz-range-thumb {
 .ev-axis {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 
-/* Step 5: Document Sections */
+/* Step 5 Sections */
 .summary-props strong {
   font-weight: 600;
 }
@@ -859,27 +878,27 @@ input[type="range"]::-moz-range-thumb {
 .is-neg { color: var(--tag-red-fg); }
 
 .doc-block {
-  margin-top: 38px;
+  margin-top: 44px;
 }
 
 .block-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 14px;
   flex-wrap: wrap;
 }
 
 .block-title {
   margin: 0;
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--ink);
 }
 
 .block-note {
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--ink-3);
 }
 
@@ -894,51 +913,18 @@ input[type="range"]::-moz-range-thumb {
   display: block;
 }
 
-/* Flat Notion Table */
-.table-wrap {
-  overflow-x: auto;
-}
-
-.flat-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13.5px;
-}
-
-.flat-table th {
-  text-align: left;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink-3);
-  padding: 8px 8px;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
-}
-
-.flat-table td {
-  padding: 10px 8px;
-  border-bottom: 1px solid var(--line);
-  color: var(--ink);
-}
-
-.flat-table .num {
-  text-align: right;
-  white-space: nowrap;
-}
-
-/* Quiet Notion Toggles */
+/* Toggles */
 .toggles {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .notion-toggle summary {
   cursor: pointer;
-  padding: 7px 6px;
+  padding: 9px 8px;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--ink);
   user-select: none;
@@ -949,8 +935,8 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .toggle-body {
-  padding: 6px 8px 16px 20px;
-  font-size: 13.5px;
+  padding: 8px 10px 18px 22px;
+  font-size: 14.5px;
   color: var(--ink-2);
 }
 
@@ -959,24 +945,30 @@ input[type="range"]::-moz-range-thumb {
   padding-left: 18px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 /* Buttons & Footer */
 .subtle-btn,
 .primary-btn {
-  height: 32px;
-  padding: 0 14px;
+  height: 36px;
+  padding: 0 16px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   transition: background-color 0.12s ease;
 }
 
+.btn-sm {
+  height: 34px;
+  padding: 0 13px;
+  font-size: 13.5px;
+}
+
 .subtle-btn {
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--border-2);
   background: var(--bg);
   color: var(--ink);
 }
@@ -996,9 +988,9 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .step-footer {
-  margin-top: 44px;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
+  margin-top: 52px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1008,19 +1000,19 @@ input[type="range"]::-moz-range-thumb {
 .footer-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 /* Toast */
 .toast {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
+  bottom: 24px;
+  right: 24px;
   background: var(--ink);
   color: #ffffff;
-  padding: 8px 14px;
+  padding: 10px 16px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 13.5px;
   opacity: 0;
   transform: translateY(6px);
   pointer-events: none;
@@ -1032,41 +1024,30 @@ input[type="range"]::-moz-range-thumb {
   transform: translateY(0);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 820px) {
+  .topbar-inner {
+    padding: 0 18px;
+  }
+
   .topbar-brand {
     display: none;
   }
 
   .page {
-    padding: 32px 16px 72px;
+    padding: 32px 18px 72px;
   }
 
   .page-title {
-    font-size: 24px;
-  }
-
-  .month-grid {
-    grid-template-columns: repeat(3, 1fr);
+    font-size: 28px;
   }
 
   .prop-row {
     grid-template-columns: 1fr;
-    gap: 4px;
-    padding: 10px 2px;
+    gap: 6px;
+    padding: 12px 2px;
   }
 
-  .add-row {
-    grid-template-columns: 1fr;
-  }
-
-  .sub-row {
-    grid-template-columns: 1fr auto;
-    row-gap: 6px;
-  }
-}
-
-@media (max-width: 480px) {
-  .month-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .db-catalog-select {
+    min-width: 100%;
   }
 }

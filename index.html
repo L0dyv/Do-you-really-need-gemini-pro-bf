@@ -3,46 +3,46 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gemini 黑五包年决策账本</title>
+  <title>AI 黑五包年决策账本</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./css/notion.css" />
 </head>
 <body>
-  <!-- Minimal Notion Top Bar (No Sidebar) -->
+  <!-- Authentic Notion Topbar -->
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="topbar-brand">Gemini 黑五决策账本</div>
+      <div class="topbar-brand">AI 黑五决策账本</div>
 
-      <nav class="step-tabs" id="step-nav-list" aria-label="引导步骤"></nav>
+      <nav class="step-tabs" id="step-nav-list" aria-label="测算步骤"></nav>
 
       <div class="topbar-actions">
-        <select class="ghost-select" id="inp-preset-picker" aria-label="快速套用预设">
-          <option value="">载入示例...</option>
+        <select class="ghost-select" id="inp-preset-picker" aria-label="载入预设">
+          <option value="">预设场景...</option>
         </select>
         <button type="button" class="ghost-btn" id="btn-reset">重置</button>
       </div>
     </div>
   </header>
 
-  <!-- Single Centered Airy Notion Document Column -->
+  <!-- Authentic Notion Document Canvas -->
   <main class="page">
-    <!-- STEP 1: Black Friday Plan -->
-    <section class="step is-active" data-step="0" id="step-0">
-      <p class="step-meta mono">01 / 05</p>
-      <h1 class="page-title">选一个你正在考虑的黑五包年方案</h1>
-      <p class="page-lead">默认按“给独立副号买一年 Pro”来算，不碰主号现有的 Ultra 车位。</p>
+    <!-- STEP 1: Black Friday Deal -->
+    <section class="step step-narrow is-active" data-step="0" id="step-0">
+      <div class="step-kicker mono">STEP 01 / 05</div>
+      <h1 class="page-title">选择黑五包年方案</h1>
+      <p class="page-lead">确定本次需要提前支付的包年成本，支持直接输入里拉、日元、美元或人民币原币金额。</p>
 
       <div class="choice-list" id="bf-choice-grid">
         <button type="button" class="choice-row" data-bf-choice="tr_ios">
           <span class="choice-radio" aria-hidden="true"></span>
           <div class="choice-content">
             <div class="choice-line">
-              <span class="choice-name">土区 iPadOS 黑五 Pro</span>
+              <span class="choice-name">土区 App Store 黑五 Pro</span>
               <span class="choice-price mono">3,600 TRY ≈ ¥477 / 年</span>
             </div>
-            <div class="choice-note">折合 ¥39.7/月 · 需独立土区 Apple ID，勿与主号共用</div>
+            <div class="choice-note">折合 ¥39.7/月 · 独立 Apple ID 内购</div>
           </div>
         </button>
 
@@ -61,115 +61,112 @@
           <span class="choice-radio" aria-hidden="true"></span>
           <div class="choice-content">
             <div class="choice-line">
-              <span class="choice-name">自定义实付年费</span>
+              <span class="choice-name">自定义币种与年费</span>
               <span class="choice-price mono" id="lbl-custom-preview">自定义</span>
             </div>
-            <div class="choice-note">有礼品卡折扣或其他地区报价时，手动填折合人民币</div>
+            <div class="choice-note">手动填写任意币种的实际包年金额</div>
           </div>
         </button>
       </div>
 
-      <div class="prop-group" id="panel-bf-custom" style="margin-top: 16px;">
+      <div class="prop-group" id="panel-bf-custom" style="margin-top: 20px;">
         <div class="prop-row">
-          <label class="prop-key" for="inp-bf-raw">自定义实付年费</label>
+          <label class="prop-key" for="inp-bf-raw">实付包年金额</label>
           <div class="prop-val">
-            <select class="flat-select" id="inp-bf-currency" style="width:110px;">
+            <select class="flat-select" id="inp-bf-currency" style="width:120px;">
               <option value="TRY">TRY 里拉</option>
               <option value="JPY">JPY 日元</option>
               <option value="USD">USD 美元</option>
               <option value="CNY">CNY 人民币</option>
             </select>
-            <input class="flat-input mono" id="inp-bf-raw" type="number" min="0" max="500000" step="1" style="width:110px;" />
-            <span class="unit mono" id="lbl-bf-converted">≈ ¥477</span>
+            <input class="flat-input mono" id="inp-bf-raw" type="number" min="0" max="500000" step="1" style="width:124px;" />
+            <span class="unit mono" id="lbl-bf-converted">≈ ¥477 / 年</span>
           </div>
         </div>
       </div>
 
-      <div class="callout" style="margin-top: 28px;">
+      <div class="callout" style="margin-top: 32px;">
         <div class="callout-title" id="insight-step-0-title"></div>
         <p class="callout-text" id="insight-step-0-detail"></p>
       </div>
     </section>
 
-    <!-- STEP 2: 12-Month Notion Database Table View -->
+    <!-- STEP 2: Authentic Notion Database Table -->
     <section class="step" data-step="1" id="step-1">
-      <p class="step-meta mono">02 / 05</p>
-      <h1 class="page-title">排布未来 12 个月的订阅组合</h1>
-      <p class="page-lead">只在表格里放你真实会开的订阅。<strong>只有标记“黑五可顶替”的项</strong>（默认月付 Gemini Pro，其他套餐也可点标签开启）才会计入黑五省下的钱；旺季必开的 Ultra 或照常保留的套餐只作总账参考，不混算抵扣。</p>
+      <div class="step-kicker mono">STEP 02 / 05</div>
+      <h1 class="page-title">如果不买黑五，这 12 个月原本怎么用？</h1>
+      <p class="page-lead">只填写<strong>会被黑五 Pro 顶替</strong>的月份订阅，以及<strong>已开 Ultra 导致黑五空闲</strong>的月份。无论买不买黑五都会固定保留的无关订阅不需要填入表格。</p>
 
-      <!-- Prominent Batch Edit Toolbar (Notion Database Header) -->
-      <div class="db-batch-bar">
-        <div class="db-batch-top">
-          <div class="db-batch-select">
-            <span class="db-batch-label">批量编辑</span>
-            <button type="button" class="text-btn" data-select-range="peak">选 12–3月</button>
-            <button type="button" class="text-btn" data-select-range="jan_mar">选 1–3月</button>
-            <button type="button" class="text-btn" data-select-range="offseason">选 4–8月</button>
-            <button type="button" class="text-btn" data-select-range="autumn">选 9–11月</button>
+      <!-- Notion Database Toolbar (Batch Edit) -->
+      <div class="db-toolbar">
+        <div class="db-toolbar-row">
+          <div class="db-toolbar-group">
+            <span class="db-toolbar-label">批量勾选</span>
+            <button type="button" class="text-btn" data-select-range="peak">12–3月</button>
+            <button type="button" class="text-btn" data-select-range="jan_mar">1–3月</button>
+            <button type="button" class="text-btn" data-select-range="offseason">4–8月</button>
+            <button type="button" class="text-btn" data-select-range="autumn">9–11月</button>
             <button type="button" class="text-btn" data-select-range="all">全选</button>
             <button type="button" class="text-btn text-btn-muted" data-select-range="none">取消</button>
           </div>
-          <select class="ghost-select" id="inp-plan-template" aria-label="整年组合模板">
+
+          <select class="ghost-select" id="inp-plan-template" aria-label="整年模板">
             <option value="">整年模板...</option>
-            <option value="default">12-3月 Ultra+GPT / 4-11月 Pro</option>
-            <option value="three_pro_devin">1-3月 3×Pro+Devin+GPT / 其余 Pro</option>
-            <option value="offseason_only">1-3月 Ultra+GPT / 4-8月 Pro / 9-11月停</option>
-            <option value="all_pro">全年单号 Pro</option>
+            <option value="default">12-3月 Ultra 空闲 / 4-11月平替土区 Pro</option>
+            <option value="offseason_only">1-3月 Ultra 空闲 / 4-8月 Pro / 9-11月停用</option>
+            <option value="all_pro">全年 12 个月平替土区 Pro</option>
+            <option value="replace_gpt">12-3月 Ultra 空闲 / 4-11月平替 ChatGPT Plus</option>
             <option value="empty">清空全年</option>
           </select>
         </div>
 
-        <div class="db-batch-controls">
-          <span class="db-selected-pill mono" id="editor-selected-title">已选 4 个月</span>
-          <select class="flat-select db-catalog-select" id="inp-add-catalog" aria-label="批量选择常见订阅"></select>
-          <div class="qty-inline">
-            <span class="unit">×</span>
-            <input class="flat-input mono" id="inp-add-qty" type="number" min="1" max="10" value="1" style="width:48px;text-align:center;" />
-          </div>
-          <label class="check-inline" style="white-space:nowrap;">
-            <input type="checkbox" id="inp-add-replaceable" checked />
-            <span>黑五 Pro 可顶替</span>
-          </label>
-          <button type="button" class="subtle-btn" id="btn-add-catalog">批量加入</button>
+        <div class="db-toolbar-row db-toolbar-actions">
+          <span class="db-count-badge mono" id="editor-selected-title">已选 4 个月</span>
+          <select class="flat-select db-catalog-select" id="inp-add-catalog" aria-label="批量设为以下方案"></select>
+          <button type="button" class="primary-btn btn-sm" id="btn-replace-catalog">批量设为</button>
+          <button type="button" class="subtle-btn btn-sm" id="btn-add-catalog">追加一项</button>
           <button type="button" class="text-btn text-btn-muted" id="btn-clear-selected-months">清空所选</button>
         </div>
 
-        <div class="db-batch-extra">
+        <div class="db-toolbar-sub">
           <span class="muted-note" id="help-catalog-note" style="margin:0;"></span>
           <details class="mini-toggle" id="toggle-custom-sub">
-            <summary>+ 批量添加自定义订阅（支持选里拉 / 日元 / 美元 / 人民币）</summary>
+            <summary>+ 自定义可被黑五平替的订阅（支持 TRY / JPY / USD / CNY）</summary>
             <div class="custom-row">
-              <input class="flat-input" id="inp-custom-name" type="text" placeholder="名称，如 Cursor Pro" />
-              <select class="flat-select" id="inp-custom-currency" style="width:94px;">
-                <option value="CNY">CNY ¥</option>
+              <input class="flat-input" id="inp-custom-name" type="text" placeholder="订阅名称" />
+              <select class="flat-select" id="inp-custom-currency" style="width:106px;">
                 <option value="TRY">TRY ₺</option>
                 <option value="JPY">JPY ¥</option>
                 <option value="USD">USD $</option>
+                <option value="CNY">CNY ¥</option>
               </select>
-              <input class="flat-input mono" id="inp-custom-price" type="number" min="0" max="500000" step="1" placeholder="金额/月" style="width:86px;" />
-              <input class="flat-input mono" id="inp-custom-qty" type="number" min="1" max="10" value="1" placeholder="数量" style="width:48px;text-align:center;" />
-              <label class="check-inline" style="white-space:nowrap;">
-                <input type="checkbox" id="inp-custom-replaceable" />
-                <span>黑五可顶替</span>
-              </label>
-              <button type="button" class="subtle-btn" id="btn-add-custom">加入所选月</button>
+              <input class="flat-input mono" id="inp-custom-price" type="number" min="0" max="500000" step="1" placeholder="原币月费" style="width:104px;" />
+              <button type="button" class="subtle-btn btn-sm" id="btn-add-custom">应用到所选月</button>
             </div>
           </details>
         </div>
       </div>
 
-      <!-- Notion Database 12-Month Table -->
-      <div class="db-table-wrap">
-        <table class="db-table">
+      <!-- Authentic Notion Database Table (Horizontal + Vertical #E9E9E7 Gridlines) -->
+      <div class="notion-db-wrap">
+        <table class="notion-db">
           <thead>
             <tr>
               <th class="col-check">
                 <input type="checkbox" id="chk-select-all" aria-label="全选或取消全选月份" />
               </th>
-              <th class="col-month">月份</th>
-              <th class="col-subs">本月订阅标签（点标签可切换区/币种/是否可被黑五顶替）</th>
-              <th class="col-status">黑五抵扣状态</th>
-              <th class="col-total num">可被顶替项</th>
+              <th class="col-month">
+                <span class="th-inner"><span class="th-icon">Aa</span>月份</span>
+              </th>
+              <th class="col-plan">
+                <span class="th-inner"><span class="th-icon">◉</span>不买黑五时的原方案（点击标签可切换地区与币种）</span>
+              </th>
+              <th class="col-state">
+                <span class="th-inner"><span class="th-icon">≡</span>黑五状态</span>
+              </th>
+              <th class="col-save num">
+                <span class="th-inner th-right"><span class="th-icon">#</span>黑五可省</span>
+              </th>
             </tr>
           </thead>
           <tbody id="db-months-tbody"></tbody>
@@ -177,26 +174,25 @@
         </table>
       </div>
 
-      <!-- Idle Period & Summary Callout -->
-      <div class="callout" style="margin-top: 22px;">
+      <div class="callout" style="margin-top: 28px;">
         <div class="callout-title" id="insight-step-1-title"></div>
         <p class="callout-text" id="insight-step-1-detail"></p>
       </div>
     </section>
 
-    <!-- STEP 3: Renewal, FX & Bundled Perks (Notion Page Properties Style) -->
-    <section class="step" data-step="2" id="step-2">
-      <p class="step-meta mono">03 / 05</p>
-      <h1 class="page-title">核对主号续费、汇率与附带权益</h1>
-      <p class="page-lead">只保留真正影响差价的变量；YouTube Music 与 Google Colab 等附带权益默认均按 ¥0 折抵，避免高估用不上的赠品。</p>
+    <!-- STEP 3: Renewal, FX & Bundled Perks -->
+    <section class="step step-narrow" data-step="2" id="step-2">
+      <div class="step-kicker mono">STEP 03 / 05</div>
+      <h1 class="page-title">核对续费、汇率与附带权益</h1>
+      <p class="page-lead">设置里拉贬值预期与主号 Ultra 续费情况；附带权益默认均按 ¥0 折抵，防止高估实际用不上的赠品。</p>
 
       <div class="section-label">主号 Ultra 续费情况</div>
       <div class="prop-group">
         <div class="prop-row">
-          <label class="prop-key" for="inp-ultra-cny">土区旧价 Ultra 5x</label>
+          <label class="prop-key" for="inp-ultra-cny">现有 Ultra 5x 月费</label>
           <div class="prop-val">
-            <input class="flat-input mono" id="inp-ultra-cny" type="number" min="100" max="1500" step="5" style="width:92px;" />
-            <span class="unit">元 / 月（含完整 YT Music）</span>
+            <input class="flat-input mono" id="inp-ultra-cny" type="number" min="100" max="1500" step="5" style="width:104px;" />
+            <span class="unit">元 / 月</span>
           </div>
         </div>
 
@@ -206,7 +202,7 @@
             <div class="pill-switch" id="renewal-segment">
               <button type="button" class="pill-opt" data-renewal="always">全程可续</button>
               <button type="button" class="pill-opt" data-renewal="fail_at">中途断续</button>
-              <button type="button" class="pill-opt" data-renewal="immediate_fail">12月即断</button>
+              <button type="button" class="pill-opt" data-renewal="immediate_fail">首月即断</button>
             </div>
           </div>
         </div>
@@ -223,22 +219,22 @@
           <label class="prop-key" for="inp-fallback-strategy">断续后旺季兜底</label>
           <div class="prop-val">
             <select class="flat-select" id="inp-fallback-strategy">
-              <option value="jp_ultra">改开日区 Ultra 5x（¥608/月，约 $91）</option>
-              <option value="us_ultra">改开美区 Ultra 5x（¥667/月，$99.99）</option>
-              <option value="double_pro">放弃 Ultra，改双号 Pro 轮切（黑五抵 1 槽）</option>
+              <option value="jp_ultra">改开日区 Ultra 5x（14,500 JPY ≈ ¥608/月）</option>
+              <option value="us_ultra">改开美区 Ultra 5x（$99.99 ≈ ¥667/月）</option>
+              <option value="double_pro">放弃 Ultra，改用多号 Pro（黑五可抵 1 槽）</option>
             </select>
           </div>
         </div>
       </div>
 
-      <div class="section-label" style="margin-top: 28px;">不买黑五时的月付 Pro 兜底与里拉汇率</div>
+      <div class="section-label" style="margin-top: 36px;">汇率走势与月付基准</div>
       <div class="prop-group">
         <div class="prop-row">
-          <span class="prop-key">月付 Pro 地区</span>
+          <span class="prop-key">默认月付 Pro 基准</span>
           <div class="prop-val">
             <div class="pill-switch" id="pro-region-segment">
-              <button type="button" class="pill-opt" data-pro-region="tr">土区 870 TRY (≈¥115)</button>
-              <button type="button" class="pill-opt" data-pro-region="jp">日区 2,900 JPY (≈¥122)</button>
+              <button type="button" class="pill-opt" data-pro-region="tr">土区 870 TRY</button>
+              <button type="button" class="pill-opt" data-pro-region="jp">日区 2,900 JPY</button>
             </div>
           </div>
         </div>
@@ -251,55 +247,58 @@
               <span class="mono val-badge" id="lbl-try-dep">22%</span>
             </div>
           </div>
-          <p class="muted-note" id="help-try-preview" style="padding: 2px 0 8px;"></p>
+          <p class="muted-note" id="help-try-preview" style="padding: 6px 4px 10px;"></p>
 
           <div class="prop-row">
-            <label class="prop-key" for="inp-midyear-hike">明年 6 月二次涨价</label>
+            <label class="prop-key" for="inp-midyear-hike">年中二次调价假设</label>
             <div class="prop-val">
               <label class="check-inline">
                 <input type="checkbox" id="inp-midyear-hike" />
-                <span>假设 Google 年中把土区 Pro 拉回 ¥115/月锚点</span>
+                <span>假设次年 6 月土区调价回当前人民币锚点</span>
               </label>
             </div>
           </div>
         </div>
+      </div>
 
+      <div class="section-label" style="margin-top: 36px;">附带权益折抵（默认均按 ¥0）</div>
+      <div class="prop-group">
         <div class="prop-row">
-          <span class="prop-key">黑五附带权益：YT Music</span>
+          <span class="prop-key">YouTube Music</span>
           <div class="prop-val">
-            <span class="tag tag-gray mono">可折抵 ¥0</span>
-            <span class="unit">Pro 仅送 YouTube Premium Lite，不含 YT Music（听歌插广告且不能息屏），平替不掉现有音乐软件</span>
+            <span class="tag tag-gray mono">Pro 折抵 ¥0</span>
+            <span class="unit">Pro 仅含 YouTube Premium Lite，不含 YT Music，无法平替听歌会员</span>
           </div>
         </div>
 
         <div class="prop-row">
-          <label class="prop-key" for="inp-music-cny">Ultra 平替音乐月费（选填）</label>
+          <label class="prop-key" for="inp-music-cny">现有听歌月费（选填）</label>
           <div class="prop-val">
-            <input class="flat-input mono" id="inp-music-cny" type="number" min="0" max="100" step="1" style="width:76px;" />
-            <span class="unit">元 / 月（默认 ¥0；若原本有酷狗/Spotify 等会员，填月费后仅在 Ultra 月份自动抵扣）</span>
+            <input class="flat-input mono" id="inp-music-cny" type="number" min="0" max="100" step="1" style="width:88px;" />
+            <span class="unit">元 / 月（仅在开启含完整 YT Music 的 Ultra 月份抵扣）</span>
           </div>
         </div>
 
         <div class="prop-row">
-          <label class="prop-key" for="inp-colab-cny">Google Colab 算力折抵（选填）</label>
+          <label class="prop-key" for="inp-colab-cny">Google Colab（选填）</label>
           <div class="prop-val">
-            <input class="flat-input mono" id="inp-colab-cny" type="number" min="0" max="200" step="1" style="width:76px;" />
-            <span class="unit">元 / 月（默认 ¥0；参考低价 200 CU ≈ ¥20、2,000~2,500 CU ≈ ¥160，但未必卖得出也非刚需，不建议直接折抵）</span>
+            <input class="flat-input mono" id="inp-colab-cny" type="number" min="0" max="200" step="1" style="width:88px;" />
+            <span class="unit">元 / 月（默认 ¥0；参考低价 200 CU ≈ ¥20 / 2,000+ CU ≈ ¥160，流动性低不建议折抵）</span>
           </div>
         </div>
       </div>
 
-      <div class="callout" style="margin-top: 24px;">
+      <div class="callout" style="margin-top: 32px;">
         <div class="callout-title" id="insight-step-2-title"></div>
         <p class="callout-text" id="insight-step-2-detail"></p>
       </div>
     </section>
 
     <!-- STEP 4: Model Lifecycle & Probability -->
-    <section class="step" data-step="3" id="step-3">
-      <p class="step-meta mono">04 / 05</p>
-      <h1 class="page-title">结合模型周期率，给明年一个真实把握</h1>
-      <p class="page-lead">参考历史：2.5 Pro（2025.03）撑到 Sonnet 4.5 为 6 个月、撑到 Opus 4.5 前为 7 个月；3.1 Pro 到 Gemini 4（11月）隔了 9 个月。</p>
+    <section class="step step-narrow" data-step="3" id="step-3">
+      <div class="step-kicker mono">STEP 04 / 05</div>
+      <h1 class="page-title">按模型周期率评估留存把握</h1>
+      <p class="page-lead">参考历史实证：Gemini 2.5 Pro 撑到 Sonnet 4.5 约 6 个月、撑到 Opus 4.5 前约 7 个月；3.1 Pro 到 Gemini 4 间隔约 9 个月。</p>
 
       <div class="prop-group">
         <div class="prop-row">
@@ -309,7 +308,7 @@
             <span class="mono val-badge" id="lbl-sota-len">7 个月</span>
           </div>
         </div>
-        <p class="muted-note" id="help-sota-until"></p>
+        <p class="muted-note" id="help-sota-until" style="padding: 4px 4px 8px;"></p>
 
         <div class="prop-row">
           <span class="prop-key">下代好用旗舰间隔</span>
@@ -318,10 +317,10 @@
             <span class="mono val-badge" id="lbl-next-interval">10 个月</span>
           </div>
         </div>
-        <p class="muted-note" id="help-next-when"></p>
+        <p class="muted-note" id="help-next-when" style="padding: 4px 4px 8px;"></p>
 
-        <div class="prop-row" style="margin-top: 10px;">
-          <span class="prop-key">4月后留存把握 (p)</span>
+        <div class="prop-row">
+          <span class="prop-key">中后期留存把握 (p)</span>
           <div class="prop-val prop-val-slider">
             <input type="range" id="inp-retain-prob" min="0" max="100" step="5" />
             <span class="mono val-badge" id="lbl-retain-prob">65%</span>
@@ -329,10 +328,9 @@
         </div>
       </div>
 
-      <!-- Minimalist Probability Ruler -->
       <div class="ev-block">
         <div class="ev-top">
-          <span>主观把握 vs 数学盈亏线</span>
+          <span>主观留存把握 vs 数学盈亏平衡线</span>
           <span class="mono" id="lbl-ev-gap">--</span>
         </div>
         <div class="ev-track">
@@ -342,35 +340,34 @@
           <div class="ev-dot" id="ev-user-dot"></div>
         </div>
         <div class="ev-axis mono">
-          <span>0%（必换别家）</span>
+          <span>0%（中后期换别家）</span>
           <span>50%</span>
-          <span>100%（必用满）</span>
+          <span>100%（按计划用满）</span>
         </div>
       </div>
 
-      <div class="callout" style="margin-top: 24px;">
+      <div class="callout" style="margin-top: 32px;">
         <div class="callout-title" id="insight-step-3-title"></div>
         <p class="callout-text" id="insight-step-3-detail"></p>
       </div>
     </section>
 
-    <!-- STEP 5: Final Notion Memo Ledger -->
-    <section class="step" data-step="4" id="step-4">
-      <p class="step-meta mono">05 / 05 · LEDGER SUMMARY</p>
+    <!-- STEP 5: Final Decision Ledger -->
+    <section class="step step-narrow" data-step="4" id="step-4">
+      <div class="step-kicker mono">STEP 05 / 05 · SUMMARY</div>
       <div class="verdict-head">
         <span class="tag" id="verdict-badge">计算中</span>
-        <h1 class="page-title" id="verdict-headline" style="margin-top: 8px;"></h1>
+        <h1 class="page-title" id="verdict-headline" style="margin-top: 10px;"></h1>
       </div>
       <p class="page-lead" id="verdict-detail"></p>
 
-      <!-- Flat Notion Page Properties Summary (No noisy KPI boxes) -->
       <div class="prop-group summary-props">
         <div class="prop-row">
           <span class="prop-key">黑五包年成本</span>
           <div class="prop-val mono"><strong id="kpi-bf-cost">--</strong> <span class="unit" id="kpi-bf-monthly"></span></div>
         </div>
         <div class="prop-row">
-          <span class="prop-key">黑五空闲期（含 Ultra 重叠）</span>
+          <span class="prop-key">黑五空闲期</span>
           <div class="prop-val mono" id="kpi-idle-summary">--</div>
         </div>
         <div class="prop-row">
@@ -387,29 +384,26 @@
         </div>
       </div>
 
-      <!-- Idle Period Reminder Callout (shown cleanly whenever there are idle months) -->
-      <div class="callout" id="idle-callout" style="margin-top: 22px;">
+      <div class="callout" id="idle-callout" style="margin-top: 26px;">
         <div class="callout-title" id="idle-callout-title"></div>
         <p class="callout-text" id="idle-callout-detail"></p>
       </div>
 
-      <!-- Minimalist SVG Cumulative Chart -->
       <div class="doc-block">
         <div class="block-head">
-          <h2 class="block-title">12 个月累积现金支出</h2>
-          <span class="block-note">实线：买黑五 Pro · 虚线：不买按月付</span>
+          <h2 class="block-title">12 个月累积边际支出对比</h2>
+          <span class="block-note">实线：买黑五 Pro · 虚线：不买黑五按原方案月付</span>
         </div>
         <div class="chart-wrap" id="chart-container"></div>
       </div>
 
-      <!-- 4 Scenarios Flat Table -->
       <div class="doc-block">
         <div class="block-head">
-          <h2 class="block-title">四种剧本对照</h2>
-          <span class="block-note">按统一订阅与附带权益口径对比</span>
+          <h2 class="block-title">四种情景对照</h2>
+          <span class="block-note">仅统计与黑五相关的边际订阅支出</span>
         </div>
-        <div class="table-wrap">
-          <table class="flat-table">
+        <div class="notion-db-wrap">
+          <table class="notion-db">
             <thead>
               <tr>
                 <th>情景剧本</th>
@@ -423,29 +417,26 @@
         </div>
       </div>
 
-      <!-- Quiet Notion Toggles -->
       <div class="doc-block">
-        <h2 class="block-title" style="margin-bottom: 10px;">备忘与实证数据</h2>
+        <h2 class="block-title" style="margin-bottom: 12px;">实证数据与操作注意</h2>
         <div class="toggles">
           <details class="notion-toggle">
-            <summary>iPadOS 土区 Apple ID 购买与附带权益避坑清单</summary>
+            <summary>多区账号与附带权益注意事项</summary>
             <div class="toggle-body">
               <ul class="plain-list">
-                <li><strong>严禁与 Ultra 主号共用同一个土区 Apple ID</strong>：苹果内购按 Apple ID 一对一绑定 Google One 订阅链，共用会冲突或顶掉旧价 Ultra。</li>
-                <li><strong>防串号登录</strong>：在 iPadOS 打开 Google One / Gemini App 下单前，先退出其他 Google 账号，只保留目标副号登录。</li>
-                <li><strong>不会更改 Google 账号区域</strong>：走苹果内购不经过 Google Pay，但退订只能在 Apple ID 订阅里操作。</li>
-                <li><strong>买完立刻关自动续费</strong>：避免次年到期按原价自动扣款。</li>
-                <li><strong>YouTube Music 避坑</strong>：Pro 送的是 YouTube Premium Lite，不含 YT Music（听歌插广告且手机不能息屏），也无法补差价升级，因此默认按 ¥0 算；只有 Ultra 才含完整版 YouTube Premium。</li>
-                <li><strong>Google Colab CU 避坑</strong>：市场低价参考 200 CU ≈ ¥20、2,000~2,500 CU ≈ ¥160，但变现难且非人人刚需，算账时默认按 ¥0 计，避免把用不上的权益当成省钱。</li>
+                <li><strong>独立 Apple ID 隔离</strong>：iOS / iPadOS 内购按 Apple ID 一对一绑定 Google One 订阅链，不可与已有 Ultra 主号共用同一个 Apple ID。</li>
+                <li><strong>下单前仅登录目标 Google 账号</strong>：防止内购凭证误绑到其他 Google 账号；走苹果内购不会改变 Google 账号归属地。</li>
+                <li><strong>关闭自动续费</strong>：首年促销价到期后会自动按原价续订，下单后建议立即在系统订阅管理中关闭自动续费。</li>
+                <li><strong>附带权益口径</strong>：Pro 附带的 YouTube Premium Lite 不含 YT Music（听歌插广告且手机无法息屏）；Colab CU 流动性较低，默认均按 ¥0 折抵。</li>
               </ul>
             </div>
           </details>
 
           <details class="notion-toggle">
-            <summary>历史模型周期率实证（2.5 Pro 实战 6~7 个月 / 旗舰 9~11 个月换代）</summary>
+            <summary>历史模型周期率参考（2.5 Pro → 3.1 Pro → Gemini 4）</summary>
             <div class="toggle-body">
-              <div class="table-wrap">
-                <table class="flat-table">
+              <div class="notion-db-wrap">
+                <table class="notion-db">
                   <thead>
                     <tr>
                       <th>时间</th>
@@ -461,10 +452,10 @@
           </details>
 
           <details class="notion-toggle">
-            <summary>土耳其里拉近三年汇率与 2027 订阅价格推算</summary>
+            <summary>土耳其里拉近三年汇率与 2027 推算</summary>
             <div class="toggle-body">
-              <div class="table-wrap">
-                <table class="flat-table">
+              <div class="notion-db-wrap">
+                <table class="notion-db">
                   <thead>
                     <tr>
                       <th>时间节点</th>
@@ -483,7 +474,6 @@
       </div>
     </section>
 
-    <!-- Quiet Step Footer -->
     <footer class="step-footer">
       <button type="button" class="text-btn" id="btn-prev">← 上一步</button>
       <div class="footer-right">

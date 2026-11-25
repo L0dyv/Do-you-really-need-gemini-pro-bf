@@ -115,7 +115,7 @@
     const { makeSubItem } = data;
     return MONTHS.map((_, i) => {
       const m = legacy[i] || 'none';
-      if (m === 'ultra') return [makeSubItem('gemini_ultra_5x', 1)];
+      if (m === 'ultra') return [makeSubItem('ultra_idle', 1)];
       if (m === 'pro1') return [makeSubItem('gemini_pro_tr', 1)];
       if (m === 'pro2') return [makeSubItem('gemini_pro_tr', 2)];
       return [];
@@ -226,6 +226,10 @@
         const isUltra5xDyn = item.dynamicPrice === 'gemini_ultra_5x';
         const isUltra = Boolean(item.isGeminiUltra || isUltra5xDyn);
         const canReplace = item.replaceableByBf != null ? Boolean(item.replaceableByBf) : isPro;
+
+        if (item.id === 'none_idle') {
+          return Object.assign({}, item, { qty: 1, replaceableByBf: false, unitCny: 0, subtotalCny: 0 });
+        }
 
         if (isPro) {
           const unit = getItemUnitPrice(item, i, state);
