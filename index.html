@@ -26,6 +26,21 @@
     </div>
   </header>
 
+  <!-- Minimalist Side-Edge Navigation Zones (Left < / Right >) -->
+  <button type="button" class="side-nav-zone side-nav-prev" id="btn-prev" aria-label="上一步" title="上一步">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M15 5l-7 7 7 7" />
+    </svg>
+    <span class="side-nav-tip">上一步</span>
+  </button>
+
+  <button type="button" class="side-nav-zone side-nav-next" id="btn-next" aria-label="下一步" title="下一步">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M9 5l7 7-7 7" />
+    </svg>
+    <span class="side-nav-tip" id="side-next-tip">下一步</span>
+  </button>
+
   <!-- Authentic Notion Document Canvas -->
   <main class="page">
     <!-- STEP 1: Black Friday Deal -->
@@ -83,11 +98,6 @@
             <span class="unit mono" id="lbl-bf-converted">≈ ¥477 / 年</span>
           </div>
         </div>
-      </div>
-
-      <div class="callout" style="margin-top: 32px;">
-        <div class="callout-title" id="insight-step-0-title"></div>
-        <p class="callout-text" id="insight-step-0-detail"></p>
       </div>
     </section>
 
@@ -167,12 +177,6 @@
         </select>
         <input class="flat-input mono" id="inp-custom-price" type="number" min="0" max="500000" step="1" placeholder="原币月费" style="width:104px;" />
         <button type="button" class="subtle-btn btn-sm" id="btn-add-custom">应用到勾选月</button>
-      </div>
-
-      <!-- Step 2: Factual Schedule Summary Only (No Premature Pricing Verdict) -->
-      <div class="callout" style="margin-top: 24px;">
-        <div class="callout-title" id="insight-step-1-title"></div>
-        <p class="callout-text" id="insight-step-1-detail"></p>
       </div>
     </section>
 
@@ -272,11 +276,6 @@
           </div>
         </div>
       </div>
-
-      <div class="callout" style="margin-top: 32px;">
-        <div class="callout-title" id="insight-step-2-title"></div>
-        <p class="callout-text" id="insight-step-2-detail"></p>
-      </div>
     </section>
 
     <!-- STEP 4: Model Lifecycle & Probability -->
@@ -348,11 +347,6 @@
           <span>50%</span>
           <span>100%（按计划用满）</span>
         </div>
-      </div>
-
-      <div class="callout" style="margin-top: 32px;">
-        <div class="callout-title" id="insight-step-3-title"></div>
-        <p class="callout-text" id="insight-step-3-detail"></p>
       </div>
     </section>
 
@@ -478,18 +472,19 @@
       </div>
     </section>
 
-    <footer class="step-footer">
-      <button type="button" class="text-btn" id="btn-prev">← 上一步</button>
-      <div class="footer-right">
-        <div class="export-group" id="export-group" style="display:none;">
-          <button type="button" class="subtle-btn" id="btn-copy-hd-img" title="将 3x 超清 PNG 直接复制到剪贴板，方便粘贴到微信或 Notion">复制 3x 高清图</button>
-          <button type="button" class="subtle-btn" id="btn-export-svg" title="下载无限清晰的矢量 SVG 图片">导出 SVG</button>
-          <button type="button" class="subtle-btn" id="btn-export-html" title="下载可离线分享的单文件 HTML 报告">导出网页</button>
-          <button type="button" class="text-btn" id="btn-copy-summary">复制文字</button>
-        </div>
-        <button type="button" class="primary-btn" id="btn-next">下一步 →</button>
-      </div>
-    </footer>
+    <!-- Export Bar (Shown only on Step 5) -->
+    <div class="export-footer" id="export-group" style="display:none;">
+      <button type="button" class="subtle-btn" id="btn-copy-hd-img" title="将 3x 超清 PNG 直接复制到剪贴板，方便粘贴到微信或 Notion">复制 3x 高清图</button>
+      <button type="button" class="subtle-btn" id="btn-export-svg" title="下载无限清晰的矢量 SVG 图片">导出 SVG</button>
+      <button type="button" class="subtle-btn" id="btn-export-html" title="下载可离线分享的单文件 HTML 报告">导出网页</button>
+      <button type="button" class="text-btn" id="btn-copy-summary">复制文字</button>
+    </div>
+
+    <!-- Mobile-only Step Nav Fallback -->
+    <div class="mobile-step-nav">
+      <button type="button" class="text-btn" id="btn-mobile-prev">← 上一步</button>
+      <button type="button" class="primary-btn btn-sm" id="btn-mobile-next">下一步 →</button>
+    </div>
 
     <!-- Minimalist Monochrome GitHub Footer -->
     <div class="site-credit">

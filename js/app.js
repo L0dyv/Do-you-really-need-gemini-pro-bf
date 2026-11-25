@@ -473,8 +473,15 @@
     });
     renderStepTabs();
 
-    document.getElementById('btn-prev').style.visibility = currentStep === 0 ? 'hidden' : 'visible';
-    document.getElementById('btn-next').textContent = STEPS[currentStep].nextLabel;
+    const prevBtn = document.getElementById('btn-prev');
+    const nextBtn = document.getElementById('btn-next');
+    const mobPrev = document.getElementById('btn-mobile-prev');
+    const mobNext = document.getElementById('btn-mobile-next');
+    prevBtn.classList.toggle('is-hidden', currentStep === 0);
+    nextBtn.classList.toggle('is-hidden', currentStep === STEPS.length - 1);
+    document.getElementById('side-next-tip').textContent = currentStep === 3 ? '查看结论' : '下一步';
+    mobPrev.style.visibility = currentStep === 0 ? 'hidden' : 'visible';
+    mobNext.style.visibility = currentStep === STEPS.length - 1 ? 'hidden' : 'visible';
     document.getElementById('export-group').style.display = currentStep === 4 ? 'flex' : 'none';
 
     // STEP 1
@@ -488,27 +495,12 @@
         ? `${fmtNativeAmount(state.bfRawAmount, state.bfCurrency)} ≈ ${fmtYen(state.bfCostCny)}`
         : '自定义币种与金额';
 
-    const rawMonths = res.bfCost / res.monthlyRows[0].proUnit;
-    document.getElementById('insight-step-0-title').textContent =
-      `折合 ¥${res.bfMonthlyAvg.toFixed(1)} / 月 · 裸回本约 ${rawMonths.toFixed(1)} 个月`;
-    document.getElementById('insight-step-0-detail').textContent =
-      `按当前月付 Pro（${fmtYen(res.monthlyRows[0].proUnit)}/月）粗算，全年至少有 ${rawMonths.toFixed(1)} 个月被黑五平替才不亏。下一步在表格中排布 12 个月原方案。`;
-
     // STEP 2
     renderDatabaseTable(res);
 
     const idleUltraMonths = res.monthlyRows
       .filter((r) => r.hasUltraActive && r.replaceableSlots === 0)
       .map((r) => r.month.short);
-    const idleText =
-      res.ultraOverlapMonths > 0
-        ? `其中 ${idleUltraMonths.join('、')}（共 ${res.ultraOverlapMonths} 个月）存在致空闲 Plan，黑五 Pro 将处于空闲状态；`
-        : '当前排布没有被其他 Plan 占用的黑五空闲月；';
-
-    document.getElementById('insight-step-1-title').textContent =
-      `已排布：平替生效 ${res.proCoveredMonths} 个月 · 致空闲 Plan ${res.ultraOverlapMonths} 个月 · 停用 ${res.idleNoneMonths} 个月`;
-    document.getElementById('insight-step-1-detail').textContent =
-      `${idleText}具体汇率折算、模型周期与最终盈亏将在后续步骤统一计算。`;
 
     // STEP 3
     document.querySelectorAll('[data-renewal]').forEach((btn) => {
@@ -524,13 +516,6 @@
     const novRate = getTryRateAtOffset(12, state.tryAnnualDepRate);
     document.getElementById('help-try-preview').textContent =
       `按此贬值速率：2027年4月 1元≈${aprRate.toFixed(2)} TRY，11月 1元≈${novRate.toFixed(2)} TRY。若需模拟某个 TRY 订阅在 6 月调价追汇率，可在第 2 步点击该订阅标签单独勾选。`;
-
-    document.getElementById('insight-step-2-title').textContent =
-      `折算后平替项月均价约 ¥${Math.round(res.avgProPrice)}/月，需生效 ${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) : '--'} 个月回本`;
-    document.getElementById('insight-step-2-detail').textContent =
-      res.proCoveredMonths >= res.breakEvenMonths
-        ? `表格中有 ${res.proCoveredMonths} 个生效月份，已越过回本线；下一步算入模型换代与掉队风险。`
-        : `表格中仅有 ${res.proCoveredMonths} 个生效月份，低于回本线，直接按月买更划算。`;
 
     // STEP 4
     const sotaUntilText = formatFutureMonth(2026, 11, state.effectiveSotaMonths);
@@ -559,13 +544,6 @@
     const probGap = state.retainProbPct - res.breakEvenProbPct;
     document.getElementById('lbl-ev-gap').textContent =
       probGap >= 0 ? `高于盈亏线 +${probGap.toFixed(1)}%` : `低于盈亏线 ${probGap.toFixed(1)}%`;
-
-    document.getElementById('insight-step-3-title').textContent =
-      `期望净收益 (EV)：${fmtYen(res.expectedNetSavings, true)}`;
-    document.getElementById('insight-step-3-detail').textContent =
-      probGap >= 0
-        ? `当前把握（${state.retainProbPct}%）高于盈亏线（${res.breakEvenProbPct.toFixed(1)}%），年付方案为正期望。`
-        : `当前把握（${state.retainProbPct}%）低于盈亏线（${res.breakEvenProbPct.toFixed(1)}%），年付方案期望为负。`;
 
     // STEP 5
     const badge = document.getElementById('verdict-badge');
@@ -674,7 +652,14 @@
 
     document.getElementById('btn-next').addEventListener('click', () => {
       if (currentStep < STEPS.length - 1) goToStep(currentStep + 1);
-      else goToStep(0);
+    });
+
+    document.getElementById('btn-mobile-prev').addEventListener('click', () => {
+      if (currentStep > 0) goToStep(currentStep - 1);
+    });
+
+    document.getElementById('btn-mobile-next').addEventListener('click', () => {
+      if (currentStep < STEPS.length - 1) goToStep(currentStep + 1);
     });
 
     // Step 1
@@ -808,8 +793,8 @@
     // blank page margins left/right of the table or directly on table rows (just like Notion!)
     document.addEventListener('mousedown', (e) => {
       if (currentStep !== 1 || e.button !== 0) return;
-      // Never hijack typing/selecting inside text/number inputs, dropdowns, or links
-      if (e.target.closest('input[type="text"], input[type="number"], textarea, select, option, a, .topbar, .step-footer')) return;
+      // Never hijack typing/selecting inside text/number inputs, dropdowns, links, or side nav zones
+      if (e.target.closest('input[type="text"], input[type="number"], textarea, select, option, a, .topbar, .side-nav-zone, .mobile-step-nav')) return;
       // Ignore if clicking inside an open inline row editor bar
       if (e.target.closest('.db-inline-add-row, .db-bottom-custom, .db-selection-bar')) return;
       // Must be within Step 2 area or its horizontal margins (below topbar, above footer)

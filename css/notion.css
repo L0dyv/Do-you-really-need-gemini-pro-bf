@@ -159,11 +159,91 @@ select {
   color: var(--ink);
 }
 
-/* Notion Page Canvas — Wide, Breathable, Left-Aligned Editorial Flow */
+/* Notion Page Canvas — Fits single viewport cleanly on Steps 1-4 */
 .page {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 56px 56px 112px;
+  padding: 36px 88px 56px;
+}
+
+/* Generous Side-Edge Navigation Zones (< / >) */
+.side-nav-zone {
+  position: fixed;
+  top: 52px;
+  bottom: 0;
+  width: 74px;
+  border: none;
+  background: transparent;
+  color: rgba(55, 53, 47, 0.22);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  z-index: 15;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.side-nav-prev {
+  left: 0;
+}
+
+.side-nav-next {
+  right: 0;
+}
+
+.side-nav-zone:hover {
+  background: rgba(55, 53, 47, 0.045);
+  color: rgba(55, 53, 47, 0.82);
+}
+
+.side-nav-zone svg {
+  transition: transform 0.16s ease;
+}
+
+.side-nav-prev:hover svg {
+  transform: translateX(-2px);
+}
+
+.side-nav-next:hover svg {
+  transform: translateX(2px);
+}
+
+.side-nav-tip {
+  font-size: 11.5px;
+  color: var(--ink-2);
+  opacity: 0;
+  transition: opacity 0.16s ease;
+  white-space: nowrap;
+}
+
+.side-nav-zone:hover .side-nav-tip {
+  opacity: 1;
+}
+
+.side-nav-zone.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.export-footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mobile-step-nav {
+  display: none;
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  align-items: center;
+  justify-content: space-between;
 }
 
 .step {
@@ -192,8 +272,8 @@ select {
 }
 
 .page-title {
-  margin: 0 0 14px;
-  font-size: 38px;
+  margin: 0 0 10px;
+  font-size: 34px;
   font-weight: 700;
   line-height: 1.22;
   letter-spacing: -0.025em;
@@ -201,10 +281,10 @@ select {
 }
 
 .page-lead {
-  margin: 0 0 36px;
-  font-size: 16px;
+  margin: 0 0 24px;
+  font-size: 15.5px;
   color: var(--ink-2);
-  line-height: 1.7;
+  line-height: 1.65;
   max-width: 780px;
 }
 
@@ -1188,7 +1268,15 @@ input[type="range"]::-moz-range-thumb {
   transform: translateY(0);
 }
 
-@media (max-width: 820px) {
+@media (max-width: 900px) {
+  .side-nav-zone {
+    display: none;
+  }
+
+  .mobile-step-nav {
+    display: flex;
+  }
+
   .topbar-inner {
     padding: 0 18px;
   }
@@ -1198,11 +1286,11 @@ input[type="range"]::-moz-range-thumb {
   }
 
   .page {
-    padding: 32px 18px 72px;
+    padding: 28px 18px 56px;
   }
 
   .page-title {
-    font-size: 28px;
+    font-size: 26px;
   }
 
   .prop-row {
