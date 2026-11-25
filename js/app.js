@@ -1127,13 +1127,13 @@
           await navigator.clipboard.write([new window.ClipboardItem({ 'image/png': pngBlob })]);
           showToast('已复制 3x 超清图片到剪贴板，可直接粘贴');
         } else {
-          triggerDownload(pngBlob, 'ai-sub-ledger-summary-3x.png');
+          triggerDownload(pngBlob, 'do-you-really-need-gemini-pro-bf-3x.png');
           showToast('当前环境不支持剪贴板写图，已自动下载 3x 超清 PNG');
         }
       } catch {
         try {
           const pngBlob = await svgToHighResPngBlob(svg, 3);
-          triggerDownload(pngBlob, 'ai-sub-ledger-summary-3x.png');
+          triggerDownload(pngBlob, 'do-you-really-need-gemini-pro-bf-3x.png');
           showToast('已下载 3x 超清 PNG 图片');
         } catch {
           showToast('图片生成失败，请改用导出 SVG');
@@ -1146,7 +1146,7 @@
       const res = calculateLedger(state);
       const svg = buildSummarySvg(state, res);
       const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-      triggerDownload(blob, 'ai-sub-ledger-summary.svg');
+      triggerDownload(blob, 'do-you-really-need-gemini-pro-bf.svg');
       showToast('已导出矢量 SVG 图片');
     });
 
@@ -1155,7 +1155,7 @@
       const res = calculateLedger(state);
       const html = buildStandaloneHtml(state, res);
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-      triggerDownload(blob, 'ai-sub-ledger-report.html');
+      triggerDownload(blob, 'do-you-really-need-gemini-pro-bf-report.html');
       showToast('已导出独立 HTML 报告网页');
     });
 

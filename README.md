@@ -1,22 +1,27 @@
-# AI Subscription Ledger (Gemini 黑五包年决策账本)
+# Do You Really Need Gemini Pro Black Friday?
 
-面向个人重度 AI 用户的交互式订阅成本与模型周期率分析工具，采用 Notion 极简白底黑字文档风格，纯原生 HTML/CSS/ES Modules 实现，无需构建步骤，支持离线打开与本地持久化。
+> **AI 黑五包年决策账本** — Do you really need the Gemini Pro Black Friday deal?
+>
+> 面向个人重度 AI 用户的交互式订阅成本与模型周期率分析工具。采用原生 Notion 极简白底文档风格，零外部构建依赖，支持离线双击运行与本地持久化。
+
+Repository: [`L0dyv/do-you-really-need-gemini-pro-bf`](https://github.com/L0dyv/do-you-really-need-gemini-pro-bf)
 
 ## 核心能力
 
-- **12 个月交互式用量日历**：按月自由切换 `Ultra 5x`、`单号 Pro`、`双号 Pro`、`停用`，实时叠加模型生命周期阶段与里拉贬值预测。
-- **多区价格与汇率动态折算**：内置土区 App Store 黑五（3,600 TRY）、日区黑五（14,500 JPY）、土区/日区/美区 Ultra 5x 及月付 Pro，支持自定义里拉年化贬值率与 Google 中期二次涨价模拟。
-- **模型周期率与期望值 (EV) 引擎**：结合 Gemini 2.5 Pro（至 Claude Sonnet 4.5 约 6 个月、至 Opus 4.5 约 7.5 个月）与 3.1 Pro -> Gemini 4 的实证周期，实时计算盈亏平衡月数、期望净收益与胜率门槛。
-- **情景账本对照表与累积成本曲线**：直观对比「现在锁黑五」与「留现金按月买」在 4 种典型剧本下的总支出与差价。
+- **5 步向导式决策流**：方案选择 -> 12 个月不买 vs 买黑五并排对照 -> 续费/汇率/附带权益核对 -> 模型周期率与期望值评估 -> 最终账本与导出。
+- **Notion Database 风格 12 个月对照表**：左侧单列编辑「不买黑五时的原方案」（支持致空闲 Plan、三大厂多区月付订阅、自定义币种及 6 月调价追汇率），右侧一键开关展开「买黑五后」全年 12 个月黑五 Pro 生效取代与空闲状态；支持鼠标框选、Shift 连选、点空白处或 `Esc` 取消勾选。
+- **多币种与里拉贬值引擎**：内置土区 App Store 黑五（3,600 TRY）、日区黑五（14,500 JPY）与自定义多币种年费，按月复利模拟里拉贬值与单订阅年中调价。
+- **模型周期率与期望值 (EV)**：结合 Gemini 2.5 Pro -> 3.1 Pro -> Gemini 4 的历史实证周期，计算盈亏平衡月数、期望净收益 (EV)、赔率比与主观把握 vs 数学盈亏线。
+- **高清导出套件**：支持直接复制 3x 超清 PNG 图片到剪贴板、导出矢量 SVG 决策卡片、导出可离线分享的单文件 HTML 报告以及纯文本摘要。
 
 ## 本地运行与测试
 
-可直接双击打开 `index.html`，或在项目目录启动任意静态服务：
+可直接双击打开 `index.html`，或在项目目录启动本地静态服务：
 
 ```bash
-# 运行核心账本计算引擎单元测试
+# 运行核心计算引擎与导出单元测试
 node --test tests/calculator.test.mjs
 
-# 启动本地静态预览（可选，需 Python / uv 或 npx serve）
+# 启动本地静态预览
 uv run python -m http.server 8765
 ```

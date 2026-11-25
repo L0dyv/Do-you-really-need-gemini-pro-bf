@@ -115,8 +115,8 @@ test('Exporter generates valid vector SVG and standalone HTML with L0dyv attribu
   const html = buildStandaloneHtml(s, res);
 
   assert.ok(svg.startsWith('<?xml') && svg.includes('<svg') && svg.includes('</svg>'));
-  assert.ok(svg.includes('L0dyv') && svg.includes('L0dyv/ai-sub-ledger'));
-  assert.ok(html.startsWith('<!DOCTYPE html>') && html.includes('github.com/L0dyv/ai-sub-ledger'));
+  assert.ok(svg.includes('L0dyv') && svg.includes('L0dyv/do-you-really-need-gemini-pro-bf'));
+  assert.ok(html.startsWith('<!DOCTYPE html>') && html.includes('github.com/L0dyv/do-you-really-need-gemini-pro-bf'));
 
   const emojiRe = /\p{Extended_Pictographic}/u;
   assert.equal(emojiRe.test(svg), false, 'exported SVG should not contain emojis');

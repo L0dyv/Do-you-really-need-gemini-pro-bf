@@ -6,7 +6,7 @@
   root.SubLedgerExporter = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window, function () {
   const GITHUB_USER = 'L0dyv';
-  const GITHUB_REPO = 'ai-sub-ledger';
+  const GITHUB_REPO = 'do-you-really-need-gemini-pro-bf';
   const GITHUB_USER_URL = `https://github.com/${GITHUB_USER}`;
   const GITHUB_REPO_URL = `https://github.com/${GITHUB_USER}/${GITHUB_REPO}`;
 
@@ -168,7 +168,7 @@
   <rect width="${W}" height="${H}" fill="#ffffff"/>
 
   <!-- Header -->
-  <text x="${padX}" y="54" fill="#9b9a97" font-size="12" font-family="${fontMono}" letter-spacing="1">AI SUBSCRIPTION LEDGER · DECISION SUMMARY</text>
+  <text x="${padX}" y="54" fill="#9b9a97" font-size="12" font-family="${fontMono}" letter-spacing="1">DO YOU REALLY NEED GEMINI PRO BF? · DECISION SUMMARY</text>
   <text x="${padX}" y="92" fill="#37352f" font-size="28" font-weight="700" font-family="${fontSans}">AI 黑五包年决策账本</text>
 
   <!-- Verdict Pill -->
