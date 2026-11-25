@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gemini 黑五包年决策账本 · AI Subscription Ledger</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/notion.css" />
+</head>
+<body>
+  <div class="notion-shell" id="app-shell">
+    <!-- Left Sidebar -->
+    <aside class="notion-sidebar" aria-label="侧边导航">
+      <div class="sidebar-workspace">
+        <span class="workspace-mark">SL</span>
+        <span>Subscription Ledger</span>
+      </div>
+
+      <nav class="sidebar-group" aria-label="文档目录">
+        <div class="sidebar-group-title">目录导航</div>
+        <a class="sidebar-link is-active" href="#sec-overview">
+          <svg class="sidebar-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 6h6M5 9.5h4"/></svg>
+          <span>决策总览</span>
+        </a>
+        <a class="sidebar-link" href="#sec-calendar">
+          <svg class="sidebar-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 2v2M10.5 2v2"/></svg>
+          <span>12 个月用量日历</span>
+        </a>
+        <a class="sidebar-link" href="#sec-params">
+          <svg class="sidebar-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 4.5h10M3 8h10M3 11.5h10"/><circle cx="6" cy="4.5" r="1.4" fill="#f7f6f3"/><circle cx="10.5" cy="8" r="1.4" fill="#f7f6f3"/><circle cx="7.5" cy="11.5" r="1.4" fill="#f7f6f3"/></svg>
+          <span>价格、续费与汇率</span>
+        </a>
+        <a class="sidebar-link" href="#sec-lifecycle">
+          <svg class="sidebar-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 12.5 5.5 8.5 8.5 10 13.5 4"/><path d="M10.5 4h3v3"/></svg>
+          <span>模型周期与胜率</span>
+        </a>
+        <a class="sidebar-link" href="#sec-scenarios">
+          <svg class="sidebar-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M2 6h12M6.5 6v7.5"/></svg>
+          <span>情景账本对照表</span>
+        </a>
+        <a class="sidebar-link" href="#sec-reference">
+          <svg class="sidebar-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 2.5h6.5L13 5v8.5H4z"/><path d="M6.5 8h4M6.5 10.5h3"/></svg>
+          <span>历史实证与防坑</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-group">
+        <div class="sidebar-group-title">一键预设方案</div>
+        <div id="preset-list"></div>
+      </div>
+
+      <div class="sidebar-footer">
+        数据基准：2026年11月<br />
+        1 CNY ≈ 7.55 TRY / 23.81 JPY<br />
+        所有参数自动保存在本地浏览器。
+      </div>
+    </aside>
+
+    <!-- Main Column -->
+    <div class="notion-main">
+      <header class="notion-topbar">
+        <div class="topbar-left">
+          <button class="icon-btn" id="btn-toggle-sidebar" title="折叠或展开侧边栏" aria-label="切换侧边栏">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+              <rect x="2" y="2.5" width="12" height="11" rx="1.5"/>
+              <path d="M6 2.5v11"/>
+            </svg>
+          </button>
+          <div class="breadcrumb">
+            <span>AI 订阅账本</span>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-current">Gemini 黑五包年决策模型</span>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <button class="ghost-btn ghost-btn-bordered" id="btn-copy-summary">复制决策摘要</button>
+          <button class="ghost-btn" id="btn-reset">重置默认</button>
+        </div>
+      </header>
+
+      <main class="notion-doc">
+        <!-- Document Header -->
+        <header class="doc-header">
+          <div class="doc-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z"/>
+              <path d="M8 9h8M8 13h5M8 17h3"/>
+            </svg>
+          </div>
+          <h1 class="doc-title">Gemini 黑五包年决策账本</h1>
+          <p class="doc-subtitle">基于 12 个月真实用量节奏、土耳其里拉贬值曲线与大模型 SOTA 周期率，动态测算提前锁年付的真实期望收益。</p>
+
+          <div class="doc-properties">
+            <div class="prop-row">
+              <div class="prop-key">评估周期</div>
+              <div class="prop-val mono">2026年12月 — 2027年11月（12 个月）</div>
+            </div>
+            <div class="prop-row">
+              <div class="prop-key">历史周期参照</div>
+              <div class="prop-val">
+                <span>Gemini 2.5 Pro（2025.03）撑至 Opus 4.5 前（2025.11）约</span>
+                <span class="pill pill-gray mono">7 个月</span>
+                <span>；Gemini 4 按</span>
+                <span class="pill pill-gray mono">2026年11月</span>
+                <span>起算</span>
+              </div>
+            </div>
+            <div class="prop-row">
+              <div class="prop-key">当前实时结论</div>
+              <div class="prop-val" id="prop-verdict"></div>
+            </div>
+          </div>
+        </header>
+
+        <!-- Section 1: Overview & KPI -->
+        <section class="doc-section" id="sec-overview">
+          <div class="notion-callout" id="verdict-callout">
+            <div class="callout-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="9" cy="9" r="7"/>
+                <path d="M9 5.5v4.2M9 12.2v.3"/>
+              </svg>
+            </div>
+            <div class="callout-body">
+              <div class="callout-top">
+                <span class="pill" id="verdict-badge">计算中</span>
+                <span class="callout-headline" id="verdict-headline"></span>
+              </div>
+              <p class="callout-detail" id="verdict-detail"></p>
+            </div>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="kpi-cell">
+              <span class="kpi-label">黑五包年成本</span>
+              <span class="kpi-value mono" id="kpi-bf-cost">--</span>
+              <span class="kpi-sub mono" id="kpi-bf-monthly">--</span>
+            </div>
+            <div class="kpi-cell">
+              <span class="kpi-label">实际回本周期</span>
+              <span class="kpi-value mono" id="kpi-breakeven">--</span>
+              <span class="kpi-sub mono" id="kpi-avg-pro">--</span>
+            </div>
+            <div class="kpi-cell">
+              <span class="kpi-label">期望净收益 (EV)</span>
+              <span class="kpi-value mono" id="kpi-ev">--</span>
+              <span class="kpi-sub mono" id="kpi-prob-line">--</span>
+            </div>
+            <div class="kpi-cell">
+              <span class="kpi-label">最大赢 / 最大亏</span>
+              <span class="kpi-value mono" id="kpi-upside-downside">--</span>
+              <span class="kpi-sub" id="kpi-odds-sub">--</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section 2: 12-Month Usage Calendar -->
+        <section class="doc-section" id="sec-calendar">
+          <div class="section-header">
+            <h2 class="section-title">12 个月用量日历</h2>
+            <span class="section-hint">点击任意月份卡片循环切换：Ultra 5x → 单号 Pro → 双号 Pro → 停用</span>
+          </div>
+
+          <div class="toolbar-row">
+            <div class="quick-actions">
+              <button class="chip-btn" data-cal-preset="default">12-3月重度 + 4-11月Pro</button>
+              <button class="chip-btn" data-cal-preset="offseason_only">1-3月重度 + 4-8月淡季</button>
+              <button class="chip-btn" data-cal-preset="all_pro">全年单号 Pro</button>
+              <button class="chip-btn" data-cal-preset="heavy_double">12-3月双Pro + 4-8月Pro</button>
+            </div>
+            <div class="legend-row">
+              <span class="legend-item"><i class="legend-dot" style="background:#37352f"></i>Ultra 5x</span>
+              <span class="legend-item"><i class="legend-dot" style="background:#24536b"></i>单号 Pro</span>
+              <span class="legend-item"><i class="legend-dot" style="background:#6d5420"></i>双号 Pro</span>
+              <span class="legend-item"><i class="legend-dot" style="background:#d0cfcc"></i>停用</span>
+            </div>
+          </div>
+
+          <div class="calendar-grid" id="calendar-grid"></div>
+
+          <div class="calendar-summary" id="calendar-summary"></div>
+        </section>
+
+        <!-- Section 3: Pricing, Renewal & FX Parameters -->
+        <section class="doc-section" id="sec-params">
+          <div class="section-header">
+            <h2 class="section-title">订阅价格、续费与汇率参数</h2>
+            <span class="section-hint">修改任意滑块或数值，上方结论与下方账本实时重算</span>
+          </div>
+
+          <div class="param-grid">
+            <!-- Left: Deal & Ultra -->
+            <div class="param-card">
+              <h3 class="param-card-title">黑五包年与 Ultra 续费假设</h3>
+
+              <div class="field">
+                <label class="field-head" for="inp-bf-preset">
+                  <span>黑五包年渠道</span>
+                  <span class="field-val mono" id="lbl-bf-cny">¥477</span>
+                </label>
+                <select class="notion-select" id="inp-bf-preset">
+                  <option value="tr_ios">土区 iPadOS 黑五（3,600 TRY ≈ ¥477）</option>
+                  <option value="jp_web">日区官方黑五（14,500 JPY ≈ ¥608）</option>
+                  <option value="custom">自定义人民币年费</option>
+                </select>
+                <div class="input-inline" id="wrap-bf-custom" style="margin-top:4px;">
+                  <input class="notion-input mono" id="inp-bf-cost" type="number" min="0" max="3000" step="1" />
+                  <span class="input-unit">元 / 年</span>
+                </div>
+                <span class="field-help" id="help-bf-note"></span>
+              </div>
+
+              <div class="field">
+                <label class="field-head" for="inp-ultra-cny">
+                  <span>当前低价 Ultra 5x 月费（土区旧价）</span>
+                  <span class="field-val mono" id="lbl-ultra-cny">¥265 / 月</span>
+                </label>
+                <div class="input-inline">
+                  <input class="notion-input mono" id="inp-ultra-cny" type="number" min="100" max="1500" step="5" />
+                  <span class="input-unit">元 / 月</span>
+                </div>
+                <span class="field-help">含完整 YouTube Premium（可自动抵扣音乐软件费用）；将随里拉贬值同步折算。</span>
+              </div>
+
+              <div class="field">
+                <label class="field-head" for="inp-renewal-mode">
+                  <span>土区 Ultra 续费稳定性</span>
+                </label>
+                <select class="notion-select" id="inp-renewal-mode">
+                  <option value="always">全程可正常续费（保住 265 元旧价）</option>
+                  <option value="fail_at">中途某个月起断续 / 调回原价</option>
+                  <option value="immediate_fail">12 月起立即断续</option>
+                </select>
+              </div>
+
+              <div class="field" id="wrap-fail-month" style="display:none;">
+                <div class="field-head">
+                  <span>从哪个月开始无法按旧价续费</span>
+                  <span class="field-val mono" id="lbl-fail-month">2027年2月</span>
+                </div>
+                <input type="range" id="inp-fail-month" min="1" max="11" step="1" />
+              </div>
+
+              <div class="field" id="wrap-fallback-strategy" style="display:none;">
+                <label class="field-head" for="inp-fallback-strategy">
+                  <span>土区断续后，重度旺季的应对策略</span>
+                </label>
+                <select class="notion-select" id="inp-fallback-strategy">
+                  <option value="jp_ultra">改开日区 Ultra 5x（14,500 JPY ≈ ¥608/月，约 $91）</option>
+                  <option value="us_ultra">改开美区 Ultra 5x（$99.99 ≈ ¥667/月）</option>
+                  <option value="double_pro">放弃 Ultra，改用双号 Pro 轮切（黑五 Pro 可抵 1 槽）</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Right: Monthly Pro & FX -->
+            <div class="param-card">
+              <h3 class="param-card-title">月付 Pro 兜底、里拉汇率与音乐</h3>
+
+              <div class="field">
+                <label class="field-head" for="inp-pro-region">
+                  <span>不买黑五时的月付 Pro 基准</span>
+                  <span class="field-val mono" id="lbl-pro-now">¥115 / 月</span>
+                </label>
+                <select class="notion-select" id="inp-pro-region">
+                  <option value="tr">土区月付 Pro（870 TRY ≈ ¥115/月，吃里拉贬值）</option>
+                  <option value="jp">日区月付 Pro（2,900 JPY ≈ ¥122/月，汇率相对稳）</option>
+                </select>
+                <span class="field-help">注：Pro 附带的 YouTube Premium Lite 不含 YT Music，无法免广告息屏听歌。</span>
+              </div>
+
+              <div class="field">
+                <div class="field-head">
+                  <span>里拉年化贬值率（CNY/TRY 涨幅）</span>
+                  <span class="field-val mono" id="lbl-try-dep">22% / 年</span>
+                </div>
+                <input type="range" id="inp-try-dep" min="0" max="35" step="1" />
+                <span class="field-help" id="help-try-preview">近三年均值 +24%/年，2027 机构预测约 +20%~22%。</span>
+              </div>
+
+              <label class="switch-row">
+                <div>
+                  <div class="switch-label">假设 Google 明年 6 月对土区二次涨价</div>
+                  <div class="field-help">开启后，2027年6月起土区 Pro 价格回调至 ¥115/月锚点。</div>
+                </div>
+                <span class="notion-switch">
+                  <input type="checkbox" id="inp-midyear-hike" />
+                  <span class="switch-track"></span>
+                </span>
+              </label>
+
+              <div class="field">
+                <label class="field-head" for="inp-music-cny">
+                  <span>音乐订阅月费（酷狗 / 单买土区 YT Premium）</span>
+                  <span class="field-val mono" id="lbl-music-cny">¥17 / 月</span>
+                </label>
+                <div class="input-inline">
+                  <input class="notion-input mono" id="inp-music-cny" type="number" min="0" max="100" step="1" />
+                  <span class="input-unit">元 / 月</span>
+                </div>
+                <span class="field-help">开 Ultra 的月份自动省去此项；仅用 Pro 或停用月份计入总支出。</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section 4: Model Lifecycle & EV Simulation -->
+        <section class="doc-section" id="sec-lifecycle">
+          <div class="section-header">
+            <h2 class="section-title">模型周期率与胜率模拟</h2>
+            <span class="section-hint">量化“买年付怕模型掉队、不买又怕多花月费”的不对称赔率</span>
+          </div>
+
+          <div class="param-grid" style="margin-bottom: 16px;">
+            <div class="param-card">
+              <h3 class="param-card-title">Google 旗舰生命周期假设</h3>
+
+              <div class="field">
+                <div class="field-head">
+                  <span>单代旗舰实战有效时长（撑到被下代竞品彻底甩开）</span>
+                  <span class="field-val mono" id="lbl-sota-len">7 个月</span>
+                </div>
+                <input type="range" id="inp-sota-len" min="3" max="10" step="0.5" />
+                <span class="field-help">参考 2.5 Pro（2025.03.25）→ Opus 4.5 上线前（2025.11.01）约 7 个月；从 2026年11月起算可撑至 2027年6月。</span>
+              </div>
+
+              <div class="field">
+                <div class="field-head">
+                  <span>Google 下一代好用旗舰发布间隔（自 11 月起算）</span>
+                  <span class="field-val mono" id="lbl-next-interval">10 个月</span>
+                </div>
+                <input type="range" id="inp-next-interval" min="6" max="13" step="1" />
+                <span class="field-help">参考：2.5 Pro → 3.1 Pro 隔 11 个月，3.1 Pro → Gemini 4（11月）隔 9 个月；均值 10 个月即 2027年9月。</span>
+              </div>
+            </div>
+
+            <div class="param-card">
+              <h3 class="param-card-title">主观留存概率与盈亏标尺</h3>
+
+              <div class="field">
+                <div class="field-head">
+                  <span>明年 4 月后继续主力使用 Gemini 的把握 (p)</span>
+                  <span class="field-val mono" id="lbl-retain-prob">65%</span>
+                </div>
+                <input type="range" id="inp-retain-prob" min="0" max="100" step="5" />
+                <span class="field-help">综合评估“国产模型能否变说人话且降价 / 免费新 SWE 工具冲击 / Google 自身是否降智”。</span>
+              </div>
+
+              <div class="ev-meter">
+                <div class="field-head">
+                  <span style="font-size:12px;color:var(--ink-secondary)">你的主观把握 vs 盈亏平衡概率线</span>
+                  <span class="mono" style="font-size:12px;font-weight:600" id="lbl-ev-gap">--</span>
+                </div>
+                <div class="ev-track">
+                  <div class="ev-threshold-line" id="ev-threshold-line">
+                    <span class="ev-threshold-tag mono" id="ev-threshold-tag">盈亏线</span>
+                  </div>
+                  <div class="ev-user-dot" id="ev-user-dot" title="你的主观把握"></div>
+                </div>
+                <div class="ev-axis mono">
+                  <span>0%（必换别家）</span>
+                  <span>50%</span>
+                  <span>100%（必用满）</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="viz-stack">
+            <div class="viz-card">
+              <div class="viz-header">
+                <span class="viz-title">12 个月累积现金支出曲线（买黑五 Pro vs 不买按月付）</span>
+                <div class="legend-row">
+                  <span class="legend-item"><i class="legend-dot" style="background:#37352f"></i>买黑五 Pro（实线）</span>
+                  <span class="legend-item"><i class="legend-dot" style="background:#9b9a97"></i>不买按月付（虚线）</span>
+                </div>
+              </div>
+              <div class="chart-wrap" id="chart-container"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section 5: Scenarios Database Table -->
+        <section class="doc-section" id="sec-scenarios">
+          <div class="section-header">
+            <h2 class="section-title">情景账本对照表</h2>
+            <span class="section-hint">均含全年 12 个月音乐软件统一口径，直接对比总现金支出</span>
+          </div>
+
+          <div class="notion-table-wrap">
+            <table class="notion-table">
+              <thead>
+                <tr>
+                  <th>情景剧本</th>
+                  <th>定位</th>
+                  <th class="num-col">买黑五总支出</th>
+                  <th class="num-col">不买按月总支出</th>
+                  <th class="num-col">买黑五净省 / 净亏</th>
+                </tr>
+              </thead>
+              <tbody id="scenarios-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Section 6: Reference Toggles -->
+        <section class="doc-section" id="sec-reference">
+          <div class="section-header">
+            <h2 class="section-title">历史实证与实操备忘</h2>
+            <span class="section-hint">折叠块收纳本次测算引用的外部客观事实与防坑清单</span>
+          </div>
+
+          <div class="toggle-list">
+            <details class="notion-toggle" open>
+              <summary>
+                <svg class="toggle-arrow" viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 3.5L11 8l-5.5 4.5V3.5z"/></svg>
+                <span>历史模型周期率实证（2.5 Pro 实战 6~7.5 个月 / 旗舰 8~11 个月换代）</span>
+              </summary>
+              <div class="toggle-content">
+                <div class="notion-table-wrap">
+                  <table class="notion-table">
+                    <thead>
+                      <tr>
+                        <th>时间</th>
+                        <th>模型节点</th>
+                        <th>实战周期</th>
+                        <th>影响说明</th>
+                      </tr>
+                    </thead>
+                    <tbody id="timeline-tbody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+
+            <details class="notion-toggle">
+              <summary>
+                <svg class="toggle-arrow" viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 3.5L11 8l-5.5 4.5V3.5z"/></svg>
+                <span>土耳其里拉近三年汇率与 2027 订阅价格推算</span>
+              </summary>
+              <div class="toggle-content">
+                <div class="notion-table-wrap">
+                  <table class="notion-table">
+                    <thead>
+                      <tr>
+                        <th>时间节点</th>
+                        <th class="num-col">1 元换里拉</th>
+                        <th class="num-col">同比变化</th>
+                        <th class="num-col">土区 Pro (870 TRY)</th>
+                        <th class="num-col">土区 Ultra 新价 (4,750 TRY)</th>
+                      </tr>
+                    </thead>
+                    <tbody id="fx-tbody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+
+            <details class="notion-toggle">
+              <summary>
+                <svg class="toggle-arrow" viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 3.5L11 8l-5.5 4.5V3.5z"/></svg>
+                <span>iPadOS 土区 Apple ID 购买与权益防坑清单</span>
+              </summary>
+              <div class="toggle-content">
+                <ul class="checklist">
+                  <li><span class="check-box"></span><span><strong>严禁与 Ultra 主号共用同一个土区 Apple ID</strong>：iOS/iPadOS 内购按 Apple ID 一对一绑定 Google One 订阅链，共用会冲突或顶掉 265 元/月的旧价 Ultra。</span></li>
+                  <li><span class="check-box"></span><span><strong>防串号登录</strong>：在 iPadOS 打开 Google One / Gemini App 下单前，退出其他 Google 账号，仅保留目标日区副号登录。</span></li>
+                  <li><span class="check-box"></span><span><strong>不会更改 Google 账号区域</strong>：走 Apple 内购不经过 Google Pay，不会把日区 Google 账号变成土区，但后续退订只能在 Apple ID 订阅里操作。</span></li>
+                  <li><span class="check-box"></span><span><strong>立即关闭自动续费</strong>：付完 3,600 里拉（或日区 14,500 日元）后，立刻在系统订阅设置中关闭续订，避免次年按原价自动扣款。</span></li>
+                  <li><span class="check-box"></span><span><strong>听歌单独解耦</strong>：Pro 送的 YouTube Premium Lite 不含 YT Music（免费版听歌插广告且不能息屏），也无法补差价升级；需要听歌可留酷狗（17元/月）或用土区单开 YouTube Premium（官价 119.99 TRY ≈ 16元/月，苹果内购约 20~22元/月）。</span></li>
+                </ul>
+              </div>
+            </details>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="notion-toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script defer src="./js/data.js"></script>
+  <script defer src="./js/calculator.js"></script>
+  <script defer src="./js/app.js"></script>
+</body>
+</html>
