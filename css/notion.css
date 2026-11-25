@@ -437,18 +437,19 @@ select {
   border-bottom: 1px solid var(--border);
 }
 
-.notion-db-wrap.is-marquee-dragging {
+body.is-marquee-dragging {
   user-select: none;
   -webkit-user-select: none;
+  cursor: crosshair;
 }
 
 /* Authentic Notion Blue Marquee Selection Rectangle */
 .db-marquee-box {
   position: fixed;
-  z-index: 50;
+  z-index: 9999;
   pointer-events: none;
   background: rgba(35, 131, 226, 0.14);
-  border: 1px solid rgba(35, 131, 226, 0.48);
+  border: 1px solid rgba(35, 131, 226, 0.52);
   border-radius: 2px;
   display: none;
 }
@@ -509,6 +510,11 @@ select {
 
 .notion-db tbody tr:last-child td {
   border-bottom: none;
+}
+
+.notion-db tbody tr.db-row {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .notion-db tbody tr.db-row:hover td {

@@ -794,20 +794,27 @@
       showToast(`已应用到 ${indices.length} 个月份：${name}`);
     });
 
-    // Database Table Interactions + Shift-click + Notion-style Mouse Marquee Drag Selection
+    // Database Table Interactions + Shift-click + Authentic Notion Marquee Drag Selection
     const dbTbody = document.getElementById('db-months-tbody');
-    const dbWrap = dbTbody.closest('.notion-db-wrap');
+    const step1El = document.getElementById('step-1');
     const marqueeBox = document.createElement('div');
     marqueeBox.className = 'db-marquee-box';
     document.body.appendChild(marqueeBox);
 
     let marquee = null;
+    let suppressNextClick = false;
 
-    dbWrap.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return;
-      // Do not hijack direct clicks on buttons, inputs, selects, or checkboxes
-      if (e.target.closest('button, input, select, option, label, a')) return;
-      if (!e.target.closest('tbody')) return;
+    // Listen on the entire document during Step 2 so users can start dragging from
+    // blank page margins left/right of the table or directly on table rows (just like Notion!)
+    document.addEventListener('mousedown', (e) => {
+      if (currentStep !== 1 || e.button !== 0) return;
+      // Never hijack typing/selecting inside text/number inputs, dropdowns, or links
+      if (e.target.closest('input[type="text"], input[type="number"], textarea, select, option, a, .topbar, .step-footer')) return;
+      // Ignore if clicking inside an open inline row editor bar
+      if (e.target.closest('.db-inline-add-row, .db-bottom-custom, .db-selection-bar')) return;
+      // Must be within Step 2 area or its horizontal margins (below topbar, above footer)
+      const stepRect = step1El.getBoundingClientRect();
+      if (e.clientY < stepRect.top || e.clientY > stepRect.bottom + 40) return;
 
       marquee = {
         startX: e.clientX,
@@ -820,15 +827,27 @@
 
     window.addEventListener('mousemove', (e) => {
       if (!marquee) return;
+      // If mouse button was released outside window, cancel cleanly
+      if (e.buttons === 0) {
+        marquee = null;
+        document.body.classList.remove('is-marquee-dragging');
+        marqueeBox.style.display = 'none';
+        return;
+      }
+
       const dx = e.clientX - marquee.startX;
       const dy = e.clientY - marquee.startY;
       if (!marquee.active && Math.hypot(dx, dy) < 6) return;
 
       if (!marquee.active) {
         marquee.active = true;
-        dbWrap.classList.add('is-marquee-dragging');
+        document.body.classList.add('is-marquee-dragging');
         marqueeBox.style.display = 'block';
+        const sel = window.getSelection();
+        if (sel) sel.removeAllRanges();
       }
+
+      e.preventDefault();
 
       const left = Math.min(marquee.startX, e.clientX);
       const top = Math.min(marquee.startY, e.clientY);
@@ -867,12 +886,28 @@
       if (!marquee) return;
       const wasActive = marquee.active;
       marquee = null;
-      dbWrap.classList.remove('is-marquee-dragging');
+      document.body.classList.remove('is-marquee-dragging');
       marqueeBox.style.display = 'none';
       if (wasActive) {
+        suppressNextClick = true;
+        setTimeout(() => {
+          suppressNextClick = false;
+        }, 0);
         render();
       }
     });
+
+    // Prevent trailing click from accidentally triggering a row button after a marquee drag
+    document.addEventListener(
+      'click',
+      (e) => {
+        if (!suppressNextClick) return;
+        suppressNextClick = false;
+        e.stopPropagation();
+        e.preventDefault();
+      },
+      true
+    );
 
     dbTbody.addEventListener('click', (e) => {
       const chk = e.target.closest('[data-chk-month]');
