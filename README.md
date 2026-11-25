@@ -4,25 +4,25 @@
 
 ## 简介
 
-一个帮你算清「到底值不值得买 Gemini Pro 黑五包年」的小工具。
+计算订阅Gemini pro 黑五是否会亏损的工具,  避免不理智与冲动消费
 
-通过对比你未来 12 个月「不买黑五」与「买黑五后」的真实订阅安排，结合你对当前模型 SOTA 周期与后续留存把握的判断，直接给出期望净节省（支持 CNY / USD 结算）、回本时间节点、不同实际使用月数下的盈亏对照与累积支出曲线，并支持导出高清决策图与单文件报告。
+通过对比你未来 12 个月 不买黑五 与 买黑五后 的真实订阅安排，结合你对当前模型 SOTA 周期与后续留存把握的判断，直接给出期望净节省（支持 CNY / USD 结算）、回本时间节点、不同实际使用月数下的盈亏对照与累积支出曲线
 
 - 支持土 / 日 / 台 / 美 / 港五区黑五包年方案及自定义币种金额
-- 支持 12 个月多订阅叠加、多账号份数与买黑五后自动抵扣 1 份月付 Gemini Pro
+- 不购买黑五和购买黑五优惠的对比
 - 结合模型 SOTA 周期与留存概率给出加权期望值（EV）及分月对照切换
-- 中英双语界面，支持一键复制 3x 高清图、导出 SVG / HTML 报告与文字摘要
+- 支持 3x 高清图 / SVG / HTML 等格式导出
 
 ## Overview
 
-A lightweight interactive ledger that helps you decide whether the **Gemini Pro Black Friday annual deal** is actually worth buying.
+A tool for calculating whether buying the Gemini Pro Black Friday deal will lose you money, helping you avoid irrational and impulse spending.
 
-Compare your real 12-month subscription plan **without** vs. **with** the Black Friday annual deal, factor in how long the current model stays SOTA and your confidence in keeping it afterward, and get a clear expected net savings figure (in USD or CNY), cumulative payback timeline, fixed-month stress cases, and shareable exports.
+By comparing your real 12-month subscription plans without vs. with the Black Friday deal—together with your estimate of the current model's SOTA duration and post-SOTA retention confidence—it directly gives you expected net savings (in CNY / USD), payback timing, profit/loss comparisons across different active usage months, and a cumulative spend curve.
 
-- Built-in Black Friday deals across 5 regions (TR / JP / TW / US / HK) plus custom currency & pricing
-- 12-month multi-subscription & multi-seat planning with automatic 1-seat monthly Gemini Pro offset
-- Model SOTA lifecycle & retention probability weighting (EV) with interactive scenario switching
-- Bilingual UI (ZH / EN) with 3x HD PNG copy, SVG / standalone HTML export, and text summary
+- Built-in Black Friday annual plans across 5 regions (TR / JP / TW / US / HK), plus custom currency and pricing
+- Side-by-side comparison of your plans without vs. with the Black Friday deal
+- Probability-weighted Expected Value (EV) based on model SOTA duration and retention confidence, with interactive scenario switching by active months
+- Export as 3x HD PNG, SVG, standalone HTML, and more
 
 ## Acknowledgement
 
