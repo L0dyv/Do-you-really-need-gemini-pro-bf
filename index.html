@@ -301,12 +301,12 @@
         </nav>
       </div>
       <h1 class="page-title" data-i18n="modal.title">设定模型周期与留存把握</h1>
-      <p class="page-lead" data-i18n="modal.lead">参考历史实证：Gemini 2.5 Pro（2025.03.25）一直撑到 Claude Opus 4.5（2025.11.24）上线，实战约 8 个月；3.1 Pro 到 Gemini 4 间隔约 9 个月。</p>
+      <p class="page-lead" data-i18n="modal.lead">AI 模型迭代很快，包年值不值取决于这一代能撑多久，以及掉队后你还会不会继续用。按你的判断拖动下方滑块即可。</p>
 
       <div id="section-model-lifecycle">
         <div class="prop-group">
           <div class="prop-row">
-            <span class="prop-key" data-i18n="modal.sotaKey">维持 SOTA 时长</span>
+            <span class="prop-key" data-i18n="modal.sotaKey">你觉得 Gemini 能支棱多久</span>
             <div class="prop-val prop-val-slider">
               <input type="range" id="inp-sota-len" min="1" max="12" step="1" />
               <span class="mono val-badge" id="lbl-sota-len">7 个月</span>
@@ -370,7 +370,7 @@
             <div class="ev-dot" id="ev-user-dot"></div>
           </div>
           <div class="ev-axis mono">
-            <span data-i18n="modal.evLeft">0%（主力期止即停用）</span>
+            <span data-i18n="modal.evLeft">0%（SOTA 止即停用）</span>
             <span>50%</span>
             <span data-i18n="modal.evRight">100%（按计划用满全年）</span>
           </div>
