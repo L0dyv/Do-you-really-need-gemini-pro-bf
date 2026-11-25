@@ -107,11 +107,11 @@ select {
   max-width: 1260px;
   margin: 0 auto;
   height: 52px;
-  padding: 0 28px;
+  padding: 0 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .topbar-brand {

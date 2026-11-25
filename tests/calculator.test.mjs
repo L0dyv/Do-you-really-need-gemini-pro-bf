@@ -302,7 +302,31 @@ test('i18n dictionaries have full zh-CN / en-US key parity, valid HTML keys, Eng
   const resEn = calculateLedger(s, 'en-US');
   assert.equal(resEn.verdict.badge, 'Worth Buying');
   const svgEn = buildSummarySvg(s, resEn, 'en-US');
+  const htmlEn = buildStandaloneHtml(s, resEn, 'en-US');
   assert.ok(svgEn.includes('Gemini Pro Black Friday Ledger'));
+
+  // Strict zero-CJK-leak check across ALL English UI strings, tables, presets, and exports!
+  const hanRe = /\p{Script=Han}/u;
+  const { SCENARIO_PRESETS, HISTORICAL_TIMELINE, TRY_FX_HISTORY } = require('../js/data.js');
+  Object.entries(i18n.MESSAGES['en-US']).forEach(([k, v]) => {
+    if (k === 'nav.langTitle') return; // intentionally shows "中文 / English"
+    assert.equal(hanRe.test(v), false, `en-US key "${k}" leaked Chinese characters: ${v}`);
+  });
+  SCENARIO_PRESETS.forEach((p) => {
+    assert.ok(p.nameEn && !hanRe.test(p.nameEn), `preset ${p.id} missing clean English nameEn`);
+  });
+  HISTORICAL_TIMELINE.forEach((row) => {
+    assert.ok(row.summaryEn && !hanRe.test(row.summaryEn), `timeline ${row.date} missing clean summaryEn`);
+    assert.ok(row.durabilityEn && !hanRe.test(row.durabilityEn), `timeline ${row.date} missing clean durabilityEn`);
+  });
+  TRY_FX_HISTORY.forEach((row) => {
+    assert.ok(row.periodEn && !hanRe.test(row.periodEn), `fx history ${row.period} missing clean periodEn`);
+    assert.ok(row.yoyEn && !hanRe.test(row.yoyEn), `fx history ${row.period} missing clean yoyEn`);
+    assert.ok(row.pro870En && !hanRe.test(row.pro870En), `fx history ${row.period} missing clean pro870En`);
+    assert.ok(row.ultra4750En && !hanRe.test(row.ultra4750En), `fx history ${row.period} missing clean ultra4750En`);
+  });
+  assert.equal(hanRe.test(svgEn), false, 'English SVG export must contain zero Chinese characters');
+  assert.equal(hanRe.test(htmlEn), false, 'English HTML export must contain zero Chinese characters');
 
   const emojiRe = /\p{Extended_Pictographic}/u;
   assert.equal(emojiRe.test(i18nSrc), false, 'i18n.js should not contain emojis');

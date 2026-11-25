@@ -512,12 +512,7 @@
           <details class="notion-toggle">
             <summary data-i18n="step4.toggleNotes">多区账号与附带权益注意事项</summary>
             <div class="toggle-body">
-              <ul class="plain-list">
-                <li><strong>独立 Apple ID 隔离</strong>：iOS / iPadOS 内购按 Apple ID 一对一绑定 Google One 订阅链，不可与已有 Ultra 主号共用同一个 Apple ID。</li>
-                <li><strong>下单前仅登录目标 Google 账号</strong>：防止内购凭证误绑到其他 Google 账号；走苹果内购不会改变 Google 账号归属地。</li>
-                <li><strong>关闭自动续费</strong>：首年促销价到期后会自动按原价续订，下单后建议立即在系统订阅管理中关闭自动续费。</li>
-                <li><strong>附带权益口径</strong>：Pro 附带的 YouTube Premium Lite 不含 YT Music（听歌插广告且手机无法息屏）；Colab CU 流动性较低，未计入现金流折抵。</li>
-              </ul>
+              <ul class="plain-list" id="notes-list"></ul>
             </div>
           </details>
 
@@ -528,10 +523,10 @@
                 <table class="notion-db">
                   <thead>
                     <tr>
-                      <th>时间</th>
-                      <th>模型节点</th>
-                      <th>实战周期</th>
-                      <th>说明</th>
+                      <th data-i18n="step4.tlTime">时间</th>
+                      <th data-i18n="step4.tlModel">模型节点</th>
+                      <th data-i18n="step4.tlSpan">实战周期</th>
+                      <th data-i18n="step4.tlNote">说明</th>
                     </tr>
                   </thead>
                   <tbody id="timeline-tbody"></tbody>
@@ -547,11 +542,11 @@
                 <table class="notion-db">
                   <thead>
                     <tr>
-                      <th>时间节点</th>
-                      <th class="num">1元换里拉</th>
-                      <th class="num">同比</th>
-                      <th class="num">土区 Pro</th>
-                      <th class="num">Ultra 新价</th>
+                      <th data-i18n="step4.fxPeriod">时间节点</th>
+                      <th class="num" data-i18n="step4.fxRate">1元换里拉</th>
+                      <th class="num" data-i18n="step4.fxYoy">同比</th>
+                      <th class="num" data-i18n="step4.fxPro">土区 Pro</th>
+                      <th class="num" data-i18n="step4.fxUltra">Ultra 新价</th>
                     </tr>
                   </thead>
                   <tbody id="fx-tbody"></tbody>

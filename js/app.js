@@ -448,7 +448,7 @@
       const chips = activeFamily.variants
         .map((v) => {
           const isAct = v.catalogId === currentId;
-          return `<button type="button" class="np-region-chip ${isAct ? 'is-active' : ''}" data-pick-variant="${v.catalogId}">${escapeHtml(localizeRegion(v.region))} · ${escapeHtml(v.priceText)}</button>`;
+          return `<button type="button" class="np-region-chip ${isAct ? 'is-active' : ''}" data-pick-variant="${v.catalogId}">${escapeHtml(localizeRegion(v.region))} · ${escapeHtml(localizeItemShort(v.priceText))}</button>`;
         })
         .join('');
       regionHtml = `
@@ -804,33 +804,42 @@
   }
 
   function renderPresetOptions() {
+    const isEn = getLang() === 'en-US';
     const presetPicker = document.getElementById('inp-preset-picker');
     presetPicker.innerHTML =
       `<option value="">${escapeHtml(t('nav.presets'))}</option>` +
-      SCENARIO_PRESETS.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+      SCENARIO_PRESETS.map((p) => `<option value="${p.id}">${escapeHtml(isEn && p.nameEn ? p.nameEn : p.name)}</option>`).join('');
   }
 
   function renderStaticTables() {
+    const isEn = getLang() === 'en-US';
     renderPresetOptions();
+
+    const notesEl = document.getElementById('notes-list');
+    if (notesEl) {
+      notesEl.innerHTML = [1, 2, 3, 4]
+        .map((n) => `<li><strong>${escapeHtml(t(`step4.note${n}Title`))}</strong>${isEn ? ': ' : '：'}${escapeHtml(t(`step4.note${n}Body`))}</li>`)
+        .join('');
+    }
 
     document.getElementById('timeline-tbody').innerHTML = HISTORICAL_TIMELINE.map(
       (item) => `
         <tr>
-          <td class="mono" style="white-space:nowrap;">${item.date}</td>
-          <td style="font-weight:500;">${item.model}</td>
-          <td style="white-space:nowrap;"><span class="tag tag-gray">${item.durability}</span></td>
-          <td>${item.summary}</td>
+          <td class="mono" style="white-space:nowrap;">${escapeHtml(item.date)}</td>
+          <td style="font-weight:500;">${escapeHtml(item.model)}</td>
+          <td style="white-space:nowrap;"><span class="tag tag-gray">${escapeHtml(isEn && item.durabilityEn ? item.durabilityEn : item.durability)}</span></td>
+          <td>${escapeHtml(isEn && item.summaryEn ? item.summaryEn : item.summary)}</td>
         </tr>`
     ).join('');
 
     document.getElementById('fx-tbody').innerHTML = TRY_FX_HISTORY.map(
       (row) => `
         <tr>
-          <td>${row.period}</td>
-          <td class="num mono">${row.rate}</td>
-          <td class="num mono">${row.yoy}</td>
-          <td class="num mono">${row.pro870}</td>
-          <td class="num mono">${row.ultra4750}</td>
+          <td>${escapeHtml(isEn && row.periodEn ? row.periodEn : row.period)}</td>
+          <td class="num mono">${escapeHtml(row.rate)}</td>
+          <td class="num mono">${escapeHtml(isEn && row.yoyEn ? row.yoyEn : row.yoy)}</td>
+          <td class="num mono">${escapeHtml(isEn && row.pro870En ? row.pro870En : row.pro870)}</td>
+          <td class="num mono">${escapeHtml(isEn && row.ultra4750En ? row.ultra4750En : row.ultra4750)}</td>
         </tr>`
     ).join('');
   }
@@ -1547,13 +1556,13 @@
       syncInputsFromState();
       e.target.value = '';
       goToStep(4);
-      showToast(t('toast.presetLoaded', { name: found.name }));
+      showToast(t('toast.presetLoaded', { name: getLang() === 'en-US' && found.nameEn ? found.nameEn : found.name }));
     });
 
     document.getElementById('btn-lang-toggle').addEventListener('click', () => {
       const next = getLang() === 'zh-CN' ? 'en-US' : 'zh-CN';
       setLang(next);
-      renderPresetOptions();
+      renderStaticTables();
       render();
       showToast(t('toast.langSwitched'));
     });

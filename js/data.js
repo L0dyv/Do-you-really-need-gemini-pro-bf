@@ -1434,6 +1434,7 @@
     {
       id: 'tr_bf_baseline',
       name: '土区黑五 3,600 TRY（前4月 Ultra + 后8月 Pro）',
+      nameEn: 'TR BF 3,600 TRY (4m Ultra + 8m Pro)',
       desc: '12-3月保留土区旧价 Ultra，4-11月省下土区 Pro',
       patch: makePresetPatch('default', 'gemini_pro_tr', {
         bfPicked: true,
@@ -1443,6 +1444,7 @@
     {
       id: 'jp_bf_compare',
       name: '日区黑五 14,500 JPY（全年省下日区 Pro）',
+      nameEn: 'JP BF 14,500 JPY (12m JP Pro)',
       desc: '全年 12 个月直接用黑五替代日区月付 Pro',
       patch: makePresetPatch('all_pro', 'gemini_pro_jp', {
         bfPicked: true,
@@ -1456,6 +1458,7 @@
     {
       id: 'hk_bf_year',
       name: '港区黑五 794 HKD（全年省下港区 Pro）',
+      nameEn: 'HK BF 794 HKD (12m HK Pro)',
       desc: '港区半价年付对照港区 158 HKD 月付',
       patch: makePresetPatch('all_pro', 'gemini_pro_hk', {
         bfPicked: true,
@@ -1469,6 +1472,7 @@
     {
       id: 'us_bf_year',
       name: '美区黑五 $99.99（全年省下美区 Pro）',
+      nameEn: 'US BF $99.99 (12m US Pro)',
       desc: '美区半价年付对照美区 $19.99 月付',
       patch: makePresetPatch('all_pro', 'gemini_pro_us', {
         bfPicked: true,
@@ -1482,6 +1486,7 @@
     {
       id: 'apr_obsolete',
       name: '仅省淡季 5 个月（保守视角）',
+      nameEn: '5 Off-Season Months Only (Conservative)',
       desc: '1-3月保留 Ultra，4-8月省下 Pro，留存把握 45%',
       patch: makePresetPatch('offseason_only', 'gemini_pro_tr', {
         bfPicked: true,
@@ -1497,60 +1502,74 @@
       model: 'Gemini 2.5 Pro (03-25)',
       type: 'google',
       summary: '推理与长文本口碑爆发，成为主力 SOTA。',
+      summaryEn: 'Breakout reasoning & long-context quality; became primary SOTA.',
       durability: '起点',
+      durabilityEn: 'Start',
     },
     {
       date: '2025.05',
       model: '2.5 Pro (05-06) / Claude 4',
       type: 'rival',
       summary: '发布 6 周出现降智争议；Claude 4 发布开始分流代码用户，但尚未彻底淘汰 2.5 Pro。',
+      summaryEn: 'Regression debate at week 6; Claude 4 split coding users without fully displacing 2.5 Pro.',
       durability: '第 2 个月',
+      durabilityEn: 'Month 2',
     },
     {
       date: '2025.08',
       model: 'OpenAI GPT-5',
       type: 'rival',
       summary: '结束 2.5 Pro 独一档时期，风格差异使部分用户继续留存。',
+      summaryEn: 'Ended solo dominance of 2.5 Pro, though differentiated strengths retained part of the user base.',
       durability: '第 4.5 个月',
+      durabilityEn: 'Month 4.5',
     },
     {
       date: '2025.09',
       model: 'Claude Sonnet 4.5',
       type: 'rival',
       summary: '代码与 Agent 能力大幅拉高，但 2.5 Pro 仍在长文本与多模态场景保有竞争力。',
+      summaryEn: 'Major jump in coding & agents; 2.5 Pro still held up in long-context & multimodal tasks.',
       durability: '第 6 个月',
+      durabilityEn: 'Month 6',
     },
     {
       date: '2025.11',
       model: 'Claude Opus 4.5 (11-24) / Gemini 3.0 Pro',
       type: 'milestone',
       summary: '2.5 Pro（03-25）一直撑到 Opus 4.5 上线共约 8 个月；同期 Gemini 3.0 Pro 幻觉翻车，3 个月后由 3.1 Pro 修正。',
+      summaryEn: '2.5 Pro (03-25) lasted ~8 months until Opus 4.5; Gemini 3.0 Pro suffered hallucination issues fixed 3 months later by 3.1 Pro.',
       durability: '实战 8 个月',
+      durabilityEn: '~8 Months',
     },
     {
       date: '2026.02',
       model: 'Gemini 3.1 Pro',
       type: 'google',
       summary: '大幅压低幻觉，但 3~9 月仅发 Flash，进入春夏旗舰空窗期。',
+      summaryEn: 'Cut hallucinations sharply, followed by a spring-summer flagship gap with Flash releases only.',
       durability: '距 2.5 Pro 11个月',
+      durabilityEn: '11m from 2.5',
     },
     {
       date: '2026.11',
       model: 'Gemini 4 Neon / Argon',
       type: 'google',
       summary: '按 11 月起算（距 3.1 Pro 9 个月）；参照 2.5 Pro 撑到 Opus 4.5 约 8 个月，下代旗舰预计 2027年8~10月。',
+      summaryEn: 'Baseline Nov 2026 (9m after 3.1 Pro); mirroring the ~8m usable span, next flagship lands around Aug–Oct 2027.',
       durability: '当前起点',
+      durabilityEn: 'Baseline',
     },
   ];
 
   const TRY_FX_HISTORY = [
-    { period: '2023年11月', rate: '3.95', yoy: '基准', pro870: '220 元', ultra4750: '—' },
-    { period: '2024年11月', rate: '4.78', yoy: '+21.0%', pro870: '182 元', ultra4750: '—' },
-    { period: '2025年11月', rate: '6.02', yoy: '+25.9%', pro870: '145 元', ultra4750: '—' },
-    { period: '2026年11月（当前）', rate: '7.55', yoy: '+25.4%', pro870: '115 元', ultra4750: '629 元' },
-    { period: '2027年4月（预测）', rate: '8.05 ~ 8.30', yoy: '惯性阴跌', pro870: '105 ~ 108 元', ultra4750: '572 ~ 590 元' },
-    { period: '2027年7月（预测）', rate: '8.35 ~ 8.75', yoy: '淡季中段', pro870: '99 ~ 104 元', ultra4750: '543 ~ 569 元' },
-    { period: '2027年11月（预测）', rate: '8.75 ~ 9.45', yoy: '一年后', pro870: '92 ~ 99 元', ultra4750: '503 ~ 543 元' },
+    { period: '2023年11月', periodEn: 'Nov 2023', rate: '3.95', yoy: '基准', yoyEn: 'Base', pro870: '220 元', pro870En: '¥220', ultra4750: '—', ultra4750En: '—' },
+    { period: '2024年11月', periodEn: 'Nov 2024', rate: '4.78', yoy: '+21.0%', yoyEn: '+21.0%', pro870: '182 元', pro870En: '¥182', ultra4750: '—', ultra4750En: '—' },
+    { period: '2025年11月', periodEn: 'Nov 2025', rate: '6.02', yoy: '+25.9%', yoyEn: '+25.9%', pro870: '145 元', pro870En: '¥145', ultra4750: '—', ultra4750En: '—' },
+    { period: '2026年11月（当前）', periodEn: 'Nov 2026 (Spot)', rate: '7.55', yoy: '+25.4%', yoyEn: '+25.4%', pro870: '115 元', pro870En: '¥115', ultra4750: '629 元', ultra4750En: '¥629' },
+    { period: '2027年4月（预测）', periodEn: 'Apr 2027 (Est.)', rate: '8.05 ~ 8.30', yoy: '惯性阴跌', yoyEn: 'Drift', pro870: '105 ~ 108 元', pro870En: '¥105–108', ultra4750: '572 ~ 590 元', ultra4750En: '¥572–590' },
+    { period: '2027年7月（预测）', periodEn: 'Jul 2027 (Est.)', rate: '8.35 ~ 8.75', yoy: '淡季中段', yoyEn: 'Mid-year', pro870: '99 ~ 104 元', pro870En: '¥99–104', ultra4750: '543 ~ 569 元', ultra4750En: '¥543–569' },
+    { period: '2027年11月（预测）', periodEn: 'Nov 2027 (Est.)', rate: '8.75 ~ 9.45', yoy: '一年后', yoyEn: '12m Out', pro870: '92 ~ 99 元', pro870En: '¥92–99', ultra4750: '503 ~ 543 元', ultra4750En: '¥503–543' },
   ];
 
   return {

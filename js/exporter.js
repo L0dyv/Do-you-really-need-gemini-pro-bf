@@ -350,9 +350,14 @@
   function buildStandaloneHtml(state, res, lang) {
     const isEn = lang === 'en-US';
     const svg = buildSummarySvg(state, res, lang);
+    const i18nMod =
+      typeof module !== 'undefined' && module.exports
+        ? require('./i18n.js')
+        : (typeof window !== 'undefined' ? window.SubLedgerI18n : null);
     const fmtShortQty = (it) => {
+      const rawShort = i18nMod && isEn ? i18nMod.localizeItemShort(it.short, 'en-US') : it.short;
       const qty = Math.max(1, Number(it.qty) || 1);
-      return qty > 1 ? `${esc(it.short)} ×${qty}` : esc(it.short);
+      return qty > 1 ? `${esc(rawShort)} ×${qty}` : esc(rawShort);
     };
     const monthRowsHtml = res.monthlyRows
       .map((r, idx) => {
