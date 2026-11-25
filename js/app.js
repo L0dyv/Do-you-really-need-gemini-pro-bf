@@ -31,7 +31,7 @@
   let state = loadState();
   let currentStep = 0;
   let maxVisitedStep = 0;
-  let selectedMonths = new Set([0, 1, 2, 3]);
+  let selectedMonths = new Set();
   let inlineEditor = null; // { monthIdx, mode: 'add' | 'edit', itemId? }
 
   function loadState() {
@@ -117,13 +117,16 @@
   }
 
   function catalogOptionsHtml(selectedId) {
+    // Only show replaceable subscription plans in the alternative-plan dropdown (Ultra is separated into its own column!)
+    const replaceableItems = SUB_CATALOG.filter((c) => c.replaceableByBf);
     const groups = [];
-    SUB_CATALOG.forEach((c) => {
+    replaceableItems.forEach((c) => {
       if (!groups.includes(c.group)) groups.push(c.group);
     });
     return groups
       .map((g) => {
-        const opts = SUB_CATALOG.filter((c) => c.group === g)
+        const opts = replaceableItems
+          .filter((c) => c.group === g)
           .map((c) => {
             const sel = c.id === selectedId ? ' selected' : '';
             const priceLabel = c.amount > 0 ? ` · ${fmtNativeAmount(c.amount, c.currency)}` : '';
@@ -149,7 +152,6 @@
       SCENARIO_PRESETS.map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
 
     document.getElementById('inp-add-catalog').innerHTML = catalogOptionsHtml('gemini_pro_tr');
-    updateCatalogNote();
 
     document.getElementById('timeline-tbody').innerHTML = HISTORICAL_TIMELINE.map(
       (item) => `
@@ -173,12 +175,6 @@
     ).join('');
   }
 
-  function updateCatalogNote() {
-    const id = document.getElementById('inp-add-catalog').value;
-    const found = SUB_CATALOG.find((c) => c.id === id);
-    document.getElementById('help-catalog-note').textContent = found ? found.note : '';
-  }
-
   function syncInputsFromState() {
     document.getElementById('inp-bf-currency').value = state.bfCurrency || 'TRY';
     document.getElementById('inp-bf-raw').value = state.bfRawAmount != null ? state.bfRawAmount : state.bfCostCny;
@@ -186,7 +182,6 @@
     document.getElementById('inp-fail-month').value = state.ultraFailMonthIndex;
     document.getElementById('inp-fallback-strategy').value = state.fallbackUltraStrategy;
     document.getElementById('inp-try-dep').value = state.tryAnnualDepRate;
-    document.getElementById('inp-midyear-hike').checked = Boolean(state.googleMidYearHike);
     document.getElementById('inp-music-cny').value = state.musicMonthlyCny;
     document.getElementById('inp-colab-cny').value = state.colabProMonthlyCny || 0;
     document.getElementById('inp-sota-len').value = state.effectiveSotaMonths;
@@ -203,13 +198,10 @@
 
   function renderDatabaseTable(res) {
     const indices = getSelectedIndices();
-    const selLabel =
-      indices.length === 0
-        ? '未选月份'
-        : indices.length === 12
-          ? '已选全年 12 月'
-          : `已选 ${indices.length} 个月`;
-    document.getElementById('editor-selected-title').textContent = selLabel;
+    const selBar = document.getElementById('db-selection-bar');
+    selBar.style.display = indices.length > 0 ? 'flex' : 'none';
+    document.getElementById('editor-selected-title').textContent =
+      indices.length === 12 ? '已选全年 12 月' : `已选 ${indices.length} 个月`;
 
     const chkAll = document.getElementById('chk-select-all');
     chkAll.checked = indices.length === 12;
@@ -219,38 +211,54 @@
     tbody.innerHTML = res.monthlyRows
       .map((row) => {
         const isSel = selectedMonths.has(row.index);
-        const isIdleByUltra = row.hasUltraActive && row.replaceableSlots === 0;
+        const hasUltraItem = row.items.some((it) => it.isGeminiUltra || it.dynamicPrice === 'gemini_ultra_5x');
+        const replaceableItems = row.items.filter((it) => it.replaceableByBf && !it.isGeminiUltra);
         const isBfActive = row.monthSavedByBf > 0;
 
-        const statusTag = isBfActive
-          ? '<span class="tag tag-green">黑五平替生效</span>'
-          : isIdleByUltra
-            ? '<span class="tag tag-yellow">黑五空闲（Ultra）</span>'
-            : '<span class="tag tag-gray">黑五空闲</span>';
+        const ultraBtnHtml = hasUltraItem
+          ? `<button type="button" class="ultra-toggle-btn is-on" data-toggle-ultra="${row.index}" title="点击取消本月 Ultra">✓ 已开 Ultra · 黑五空闲</button>`
+          : `<button type="button" class="ultra-toggle-btn" data-toggle-ultra="${row.index}" title="点击标记本月已开 Ultra">未开（点此标记）</button>`;
 
-        const tokensHtml =
-          row.items.length === 0
-            ? '<span class="unit">未填（本月停用）</span>'
-            : row.items
-                .map((it) => {
-                  const toneCls = `tone-${it.tone || 'gray'}`;
-                  const priceText = it.id === 'none_idle'
-                    ? ''
-                    : it.isGeminiUltra
-                      ? ''
-                      : ` · ${fmtYen(it.unitCny)}`;
-                  const isEditing =
-                    inlineEditor &&
-                    inlineEditor.mode === 'edit' &&
-                    inlineEditor.monthIdx === row.index &&
-                    inlineEditor.itemId === it.id;
-                  return `
-                    <span class="sub-token ${toneCls}" style="${isEditing ? 'outline:1.5px solid #37352f;' : ''}">
-                      <button type="button" class="tok-main-btn" data-edit-tag="${row.index}" data-item-id="${escapeHtml(it.id)}" title="点击切换该月方案或币种">${escapeHtml(it.short)}${priceText} ▾</button>
-                      <button type="button" class="tok-del-btn" data-row-del="${row.index}" data-item-id="${escapeHtml(it.id)}" title="移除">×</button>
-                    </span>`;
-                })
-                .join('');
+        let planCellHtml;
+        if (hasUltraItem && !row.ultraFallbackToPro) {
+          planCellHtml = '<span class="plan-muted">本月由 Ultra 覆盖，黑五 Pro 处于空闲</span>';
+        } else if (hasUltraItem && row.ultraFallbackToPro) {
+          planCellHtml = '<span class="tag tag-blue">土区断续 · 已自动转为双号 Pro 兜底</span>';
+        } else if (replaceableItems.length === 0) {
+          planCellHtml = `
+            <div class="row-tokens">
+              <span class="plan-muted">未填（本月停用）</span>
+              <button type="button" class="row-add-btn" data-open-inline-add="${row.index}">+ 选平替订阅</button>
+            </div>`;
+        } else {
+          const tokensHtml = replaceableItems
+            .map((it) => {
+              const toneCls = `tone-${it.tone || 'blue'}`;
+              const priceText = ` · ${fmtYen(it.unitCny)}${it.midYearHike ? ' (6月调价)' : ''}`;
+              const isEditing =
+                inlineEditor &&
+                inlineEditor.mode === 'edit' &&
+                inlineEditor.monthIdx === row.index &&
+                inlineEditor.itemId === it.id;
+              return `
+                <span class="sub-token ${toneCls}" style="${isEditing ? 'outline:1.5px solid #37352f;' : ''}">
+                  <button type="button" class="tok-main-btn" data-edit-tag="${row.index}" data-item-id="${escapeHtml(it.id)}" title="点击切换地区/币种/金额/6月调价">${escapeHtml(it.short)}${priceText} ▾</button>
+                  <button type="button" class="tok-del-btn" data-row-del="${row.index}" data-item-id="${escapeHtml(it.id)}" title="移除">×</button>
+                </span>`;
+            })
+            .join('');
+          planCellHtml = `
+            <div class="row-tokens">
+              ${tokensHtml}
+              <button type="button" class="row-add-btn" data-open-inline-add="${row.index}">+</button>
+            </div>`;
+        }
+
+        const saveText = isBfActive
+          ? `<span class="mono">${fmtYen(row.monthSavedByBf)}/月</span>`
+          : hasUltraItem
+            ? '<span class="unit">黑五空闲</span>'
+            : '<span class="unit">—</span>';
 
         const mainRow = `
           <tr class="db-row ${isSel ? 'is-selected' : ''}">
@@ -261,14 +269,9 @@
               <span class="db-month-main">${row.month.label}</span>
               <span class="db-month-phase">${row.phase.label}</span>
             </td>
-            <td class="col-plan">
-              <div class="row-tokens">
-                ${tokensHtml}
-                <button type="button" class="row-add-btn" data-open-inline-add="${row.index}">+</button>
-              </div>
-            </td>
-            <td class="col-state">${statusTag}</td>
-            <td class="col-save num mono">${isBfActive ? `<span class="is-pos">+${fmtYen(row.monthSavedByBf)}</span>` : '<span class="unit">¥0</span>'}</td>
+            <td class="col-ultra">${ultraBtnHtml}</td>
+            <td class="col-plan">${planCellHtml}</td>
+            <td class="col-save num mono">${saveText}</td>
           </tr>`;
 
         if (!inlineEditor || inlineEditor.monthIdx !== row.index) return mainRow;
@@ -277,6 +280,7 @@
           const target = row.items.find((it) => it.id === inlineEditor.itemId);
           if (!target) return mainRow;
           const isDynamic = Boolean(target.dynamicPrice) || target.id === 'none_idle';
+          const isTry = (target.currency || 'CNY') === 'TRY' && !isDynamic;
           const editRow = `
             <tr class="db-inline-add-row">
               <td colspan="5">
@@ -285,6 +289,10 @@
                   <select class="flat-select" id="inline-edit-swap" style="min-width:240px;">${catalogOptionsHtml(target.id)}</select>
                   <select class="flat-select" id="inline-edit-currency" style="width:100px;" ${isDynamic ? 'disabled' : ''}>${currencyOptionsHtml(target.currency || 'CNY')}</select>
                   <input class="flat-input mono" id="inline-edit-amount" type="number" min="0" max="500000" step="any" value="${target.amount != null ? target.amount : Math.round(target.unitCny)}" style="width:92px;" ${isDynamic ? 'disabled' : ''} />
+                  <label class="check-inline" id="inline-edit-hike-wrap" style="display:${isTry ? 'inline-flex' : 'none'};white-space:nowrap;">
+                    <input type="checkbox" id="inline-edit-hike" ${target.midYearHike ? 'checked' : ''} />
+                    <span>6月调价追汇率</span>
+                  </label>
                   <button type="button" class="primary-btn btn-sm" data-save-edit-tag="${row.index}" data-item-id="${escapeHtml(target.id)}">应用</button>
                   <button type="button" class="text-btn text-btn-muted" data-close-inline-add="1">关闭</button>
                 </div>
@@ -317,10 +325,10 @@
     document.getElementById('db-months-tfoot').innerHTML = `
       <tr>
         <td></td>
-        <td class="mono" style="font-weight:600;">合计</td>
-        <td>平替生效 <strong>${res.proCoveredMonths}</strong> 月 · Ultra 空闲 <strong>${res.ultraOverlapMonths}</strong> 月 · 停用 <strong>${res.idleNoneMonths}</strong> 月</td>
-        <td class="mono">黑五成本 ${fmtYen(res.bfCost)}</td>
-        <td class="num mono" style="font-weight:600;">共可省 ${fmtYen(res.totalProValueSaved)}</td>
+        <td class="mono" style="font-weight:600;">排布统计</td>
+        <td>Ultra 空闲 <strong>${res.ultraOverlapMonths}</strong> 月</td>
+        <td>平替生效 <strong>${res.proCoveredMonths}</strong> 月 · 停用 <strong>${res.idleNoneMonths}</strong> 月</td>
+        <td class="num unit">第 5 步汇总计价</td>
       </tr>`;
   }
 
@@ -382,9 +390,22 @@
     const buyY = yAt(lastRow.cumBuy) <= yAt(lastRow.cumSkip) ? yAt(lastRow.cumBuy) - 10 : yAt(lastRow.cumBuy) + 16;
     const skipY = yAt(lastRow.cumBuy) <= yAt(lastRow.cumSkip) ? yAt(lastRow.cumSkip) + 16 : yAt(lastRow.cumSkip) - 10;
 
+    const nextGenIdx = rows.findIndex((r) => r.phase.key === 'next_gen');
+    let nextGenMarkerSvg = '';
+    if (nextGenIdx >= 0) {
+      const nx = xAt(nextGenIdx);
+      const ny = yAt(rows[nextGenIdx].cumBuy);
+      nextGenMarkerSvg = `
+        <line x1="${nx.toFixed(1)}" y1="${padT}" x2="${nx.toFixed(1)}" y2="${padT + plotH}" stroke="#787774" stroke-dasharray="2 3" stroke-width="1"/>
+        <circle cx="${nx.toFixed(1)}" cy="${(padT + plotH).toFixed(1)}" r="4.5" fill="#1c3829" stroke="#ffffff" stroke-width="1.5"/>
+        <text x="${Math.min(width - 132, Math.max(padL + 6, nx - 44)).toFixed(1)}" y="${(padT + 12).toFixed(1)}" fill="#1c3829" font-size="11.5" font-weight="600">● 下一代成为 SOTA 的模型 (${rows[nextGenIdx].month.short})</text>
+      `;
+    }
+
     container.innerHTML = `
       <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="12个月累积支出对比图">
         ${gridLines.join('')}
+        ${nextGenMarkerSvg}
         <polyline points="${skipPts}" fill="none" stroke="#9b9a97" stroke-width="2" stroke-dasharray="5 4"/>
         <polyline points="${buyPts}" fill="none" stroke="#37352f" stroke-width="2.2"/>
         ${xLabels}
@@ -433,13 +454,13 @@
       .map((r) => r.month.short);
     const idleText =
       res.ultraOverlapMonths > 0
-        ? `${idleUltraMonths.join('、')}（共 ${res.ultraOverlapMonths} 个月）因使用 Ultra，黑五 Pro 处于空闲状态，折合摊销约 ${fmtYen(res.ultraIdleCostCny)}；`
-        : '当前排布没有因 Ultra 导致的黑五空闲月；';
+        ? `其中 ${idleUltraMonths.join('、')}（共 ${res.ultraOverlapMonths} 个月）已标记为 Ultra，黑五 Pro 将处于空闲状态；`
+        : '当前排布没有被 Ultra 占用的黑五空闲月；';
 
     document.getElementById('insight-step-1-title').textContent =
-      `黑五平替生效 ${res.proCoveredMonths} 个月（共省 ${fmtYen(res.totalProValueSaved)}） · 因 Ultra 空闲 ${res.ultraOverlapMonths} 个月`;
+      `已排布：平替生效 ${res.proCoveredMonths} 个月 · Ultra 空闲 ${res.ultraOverlapMonths} 个月 · 停用 ${res.idleNoneMonths} 个月`;
     document.getElementById('insight-step-1-detail').textContent =
-      `${idleText}对比黑五成本 ${fmtYen(res.bfCost)}，若全年按表格执行，黑五净${res.fullPlanNetSavings >= 0 ? `省 ${fmtYen(res.fullPlanNetSavings)}` : `亏 ${fmtYen(Math.abs(res.fullPlanNetSavings))}`}。`;
+      `${idleText}具体汇率折算、模型周期与最终盈亏将在后续步骤统一计算。`;
 
     // STEP 3
     document.querySelectorAll('[data-renewal]').forEach((btn) => {
@@ -449,16 +470,12 @@
     document.getElementById('wrap-fallback-strategy').style.display = state.ultraRenewalMode !== 'always' ? 'grid' : 'none';
     document.getElementById('lbl-fail-month').textContent = MONTHS[state.ultraFailMonthIndex]?.label || '';
 
-    document.querySelectorAll('[data-pro-region]').forEach((btn) => {
-      btn.classList.toggle('is-active', btn.dataset.proRegion === state.monthlyProRegion);
-    });
-    document.getElementById('wrap-tr-fx').style.display = state.monthlyProRegion === 'tr' ? 'block' : 'none';
     document.getElementById('lbl-try-dep').textContent = `${state.tryAnnualDepRate}%`;
 
     const aprRate = getTryRateAtOffset(5, state.tryAnnualDepRate);
     const novRate = getTryRateAtOffset(12, state.tryAnnualDepRate);
     document.getElementById('help-try-preview').textContent =
-      `汇率推算：2027年4月 1元≈${aprRate.toFixed(2)} TRY（870 TRY≈¥${Math.round(870 / aprRate)}），11月 1元≈${novRate.toFixed(2)} TRY（≈¥${Math.round(870 / novRate)}）。所有以 TRY 计价的订阅均会自动跟随贬值。`;
+      `按此贬值速率：2027年4月 1元≈${aprRate.toFixed(2)} TRY，11月 1元≈${novRate.toFixed(2)} TRY。若需模拟某个 TRY 订阅在 6 月调价追汇率，可在第 2 步点击该订阅标签单独勾选。`;
 
     document.getElementById('insight-step-2-title').textContent =
       `折算后平替项月均价约 ¥${Math.round(res.avgProPrice)}/月，需生效 ${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) : '--'} 个月回本`;
@@ -468,13 +485,24 @@
         : `表格中仅有 ${res.proCoveredMonths} 个生效月份，低于回本线，直接按月买更划算。`;
 
     // STEP 4
+    const sotaUntilText = formatFutureMonth(2026, 11, state.effectiveSotaMonths);
+    const nextWhenText = formatFutureMonth(2026, 11, state.nextFlagshipInterval);
     document.getElementById('lbl-sota-len').textContent = `${state.effectiveSotaMonths} 个月`;
     document.getElementById('lbl-next-interval').textContent = `${state.nextFlagshipInterval} 个月`;
     document.getElementById('lbl-retain-prob').textContent = `${state.retainProbPct}%`;
     document.getElementById('help-sota-until').textContent =
-      `自 2026年11月起算 ${state.effectiveSotaMonths} 个月，预计稳态可用至 ${formatFutureMonth(2026, 11, state.effectiveSotaMonths)}。`;
+      `指你认为当前这一代模型能维持 SOTA 水准、足够作为主力生产力使用的时长。自 2026年11月起算 ${state.effectiveSotaMonths} 个月，预计可用至 ${sotaUntilText}。`;
     document.getElementById('help-next-when').textContent =
-      `自 2026年11月起算 ${state.nextFlagshipInterval} 个月，下代好用旗舰预计在 ${formatFutureMonth(2026, 11, state.nextFlagshipInterval)} 登场。`;
+      `指 Google 下一代能够重新成为 SOTA 的旗舰模型出现间隔。自 2026年11月起算 ${state.nextFlagshipInterval} 个月，预计在 ${nextWhenText} 登场。`;
+
+    // Update Step 4 lifecycle timeline nodes (12-month scale, 2..15m clamped smoothly)
+    const sotaPct = Math.min(94, Math.max(8, (state.effectiveSotaMonths / 12) * 100));
+    const nextPct = Math.min(96, Math.max(12, (state.nextFlagshipInterval / 12) * 100));
+    document.getElementById('lc-active-seg').style.width = `${sotaPct}%`;
+    document.getElementById('lc-sota-node').style.left = `${sotaPct}%`;
+    document.getElementById('lc-sota-label').textContent = `主力期止 (${sotaUntilText.slice(2)})`;
+    document.getElementById('lc-next-node').style.left = `${nextPct}%`;
+    document.getElementById('lc-next-label').textContent = `下一代成为 SOTA 的模型 (${nextWhenText.slice(2)})`;
 
     const thresholdClamped = Math.min(96, Math.max(4, res.breakEvenProbPct));
     document.getElementById('ev-threshold-line').style.left = `${thresholdClamped}%`;
@@ -585,7 +613,7 @@
 
     document.getElementById('btn-reset').addEventListener('click', () => {
       state = cloneState(DEFAULT_STATE);
-      selectedMonths = new Set([0, 1, 2, 3]);
+      selectedMonths = new Set();
       inlineEditor = null;
       syncInputsFromState();
       goToStep(0);
@@ -621,18 +649,10 @@
     document.getElementById('inp-bf-currency').addEventListener('change', updateCustomBfCost);
     document.getElementById('inp-bf-raw').addEventListener('input', updateCustomBfCost);
 
-    // Step 2: Range Selection
-    document.querySelectorAll('[data-select-range]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const key = btn.dataset.selectRange;
-        if (key === 'peak') selectedMonths = new Set([0, 1, 2, 3]);
-        else if (key === 'jan_mar') selectedMonths = new Set([1, 2, 3]);
-        else if (key === 'offseason') selectedMonths = new Set([4, 5, 6, 7, 8]);
-        else if (key === 'autumn') selectedMonths = new Set([9, 10, 11]);
-        else if (key === 'all') selectedMonths = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-        else if (key === 'none') selectedMonths = new Set();
-        render();
-      });
+    // Step 2: Table Selection & Contextual Batch Actions
+    document.getElementById('btn-unselect-all').addEventListener('click', () => {
+      selectedMonths = new Set();
+      render();
     });
 
     document.getElementById('chk-select-all').addEventListener('change', (e) => {
@@ -652,9 +672,22 @@
       showToast('已套用整年模板');
     });
 
-    document.getElementById('inp-add-catalog').addEventListener('change', updateCatalogNote);
+    // Batch Set Ultra (causes Black Friday Pro to be idle)
+    document.getElementById('btn-batch-ultra').addEventListener('click', () => {
+      const indices = getSelectedIndices();
+      if (indices.length === 0) {
+        showToast('请先勾选至少 1 个月份');
+        return;
+      }
+      inlineEditor = null;
+      mutateMonths(indices, (arr) => {
+        arr.length = 0;
+        arr.push(makeSubItem('ultra_idle', 1));
+      });
+      showToast(`已将 ${indices.length} 个月设为 Ultra（黑五空闲）`);
+    });
 
-    // Batch Replace selected months with chosen catalog item
+    // Batch Set Replaceable Subscription
     document.getElementById('btn-replace-catalog').addEventListener('click', () => {
       const indices = getSelectedIndices();
       if (indices.length === 0) {
@@ -662,35 +695,12 @@
         return;
       }
       const catalogId = document.getElementById('inp-add-catalog').value;
+      inlineEditor = null;
       mutateMonths(indices, (arr) => {
         arr.length = 0;
-        if (catalogId !== 'none_idle') {
-          arr.push(makeSubItem(catalogId, 1));
-        }
+        arr.push(makeSubItem(catalogId, 1));
       });
-      showToast(`已将 ${indices.length} 个月份设为该方案`);
-    });
-
-    // Batch Append chosen catalog item
-    document.getElementById('btn-add-catalog').addEventListener('click', () => {
-      const indices = getSelectedIndices();
-      if (indices.length === 0) {
-        showToast('请先勾选至少 1 个月份');
-        return;
-      }
-      const catalogId = document.getElementById('inp-add-catalog').value;
-      if (catalogId === 'none_idle') {
-        mutateMonths(indices, (arr) => {
-          arr.length = 0;
-        });
-        return;
-      }
-      mutateMonths(indices, (arr) => {
-        if (!arr.find((it) => it.id === catalogId)) {
-          arr.push(makeSubItem(catalogId, 1));
-        }
-      });
-      showToast(`已追加到 ${indices.length} 个月份`);
+      showToast(`已将 ${indices.length} 个月设为该平替订阅`);
     });
 
     document.getElementById('btn-clear-selected-months').addEventListener('click', () => {
@@ -751,6 +761,7 @@
         if (found) {
           const curEl = document.getElementById('inline-edit-currency');
           const amtEl = document.getElementById('inline-edit-amount');
+          const hikeWrap = document.getElementById('inline-edit-hike-wrap');
           const disabled = Boolean(found.dynamicPrice) || found.id === 'none_idle';
           if (curEl) {
             curEl.value = found.currency;
@@ -760,11 +771,33 @@
             amtEl.value = found.amount;
             amtEl.disabled = disabled;
           }
+          if (hikeWrap) {
+            hikeWrap.style.display = found.currency === 'TRY' && !disabled ? 'inline-flex' : 'none';
+          }
         }
+      }
+      if (e.target.id === 'inline-edit-currency') {
+        const hikeWrap = document.getElementById('inline-edit-hike-wrap');
+        if (hikeWrap) hikeWrap.style.display = e.target.value === 'TRY' ? 'inline-flex' : 'none';
       }
     });
 
     dbTbody.addEventListener('click', (e) => {
+      // Dedicated Ultra column toggle (clearly separated from replaceable plans)
+      const ultraBtn = e.target.closest('[data-toggle-ultra]');
+      if (ultraBtn) {
+        const mIdx = Number(ultraBtn.dataset.toggleUltra);
+        inlineEditor = null;
+        mutateMonths([mIdx], (arr) => {
+          const hasUltra = arr.some((it) => it.isGeminiUltra || it.dynamicPrice === 'gemini_ultra_5x');
+          arr.length = 0;
+          if (!hasUltra) {
+            arr.push(makeSubItem('ultra_idle', 1));
+          }
+        });
+        return;
+      }
+
       const delBtn = e.target.closest('[data-row-del]');
       if (delBtn) {
         const mIdx = Number(delBtn.dataset.rowDel);
@@ -799,9 +832,11 @@
         const swapEl = document.getElementById('inline-edit-swap');
         const curEl = document.getElementById('inline-edit-currency');
         const amtEl = document.getElementById('inline-edit-amount');
+        const hikeEl = document.getElementById('inline-edit-hike');
         const newCatId = swapEl ? swapEl.value : oldId;
         const currency = curEl ? curEl.value : 'CNY';
         const amount = Math.max(0, Number(amtEl && amtEl.value) || 0);
+        const midYearHike = currency === 'TRY' && Boolean(hikeEl && hikeEl.checked);
 
         inlineEditor = null;
         mutateMonths([mIdx], (arr) => {
@@ -812,8 +847,9 @@
           } else if (arr[idx].isCustom && newCatId === oldId) {
             arr[idx].currency = currency;
             arr[idx].amount = amount;
+            arr[idx].midYearHike = midYearHike;
           } else {
-            arr.splice(idx, 1, makeSubItem(newCatId, 1, { currency, amount }));
+            arr.splice(idx, 1, makeSubItem(newCatId, 1, { currency, amount, midYearHike }));
           }
         });
         return;
@@ -884,13 +920,6 @@
       render();
     });
 
-    document.getElementById('pro-region-segment').addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-pro-region]');
-      if (!btn) return;
-      state.monthlyProRegion = btn.dataset.proRegion;
-      render();
-    });
-
     document.getElementById('inp-ultra-cny').addEventListener('input', (e) => {
       state.currentUltraCny = Math.max(0, Number(e.target.value) || 0);
       render();
@@ -908,11 +937,6 @@
 
     document.getElementById('inp-try-dep').addEventListener('input', (e) => {
       state.tryAnnualDepRate = Number(e.target.value);
-      render();
-    });
-
-    document.getElementById('inp-midyear-hike').addEventListener('change', (e) => {
-      state.googleMidYearHike = e.target.checked;
       render();
     });
 

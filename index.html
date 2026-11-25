@@ -94,60 +94,37 @@
     <!-- STEP 2: Authentic Notion Database Table -->
     <section class="step" data-step="1" id="step-1">
       <div class="step-kicker mono">STEP 02 / 05</div>
-      <h1 class="page-title">如果不买黑五，这 12 个月原本怎么用？</h1>
-      <p class="page-lead">只填写<strong>会被黑五 Pro 顶替</strong>的月份订阅，以及<strong>已开 Ultra 导致黑五空闲</strong>的月份。无论买不买黑五都会固定保留的无关订阅不需要填入表格。</p>
+      <h1 class="page-title">如果不买黑五，这 12 个月原本会买什么订阅？</h1>
+      <p class="page-lead">核心比较的是<strong>「买黑五 Google Pro」对比「不买它时你原本要买的替代订阅」</strong>（如单买 Gemini Pro、ChatGPT Plus、Claude Pro 或其他套餐）。已开 Ultra 导致黑五空闲的月份选 Ultra 即可；无论如何都会固定保留的无关订阅不需要填入。</p>
 
-      <!-- Notion Database Toolbar (Batch Edit) -->
-      <div class="db-toolbar">
-        <div class="db-toolbar-row">
-          <div class="db-toolbar-group">
-            <span class="db-toolbar-label">批量勾选</span>
-            <button type="button" class="text-btn" data-select-range="peak">12–3月</button>
-            <button type="button" class="text-btn" data-select-range="jan_mar">1–3月</button>
-            <button type="button" class="text-btn" data-select-range="offseason">4–8月</button>
-            <button type="button" class="text-btn" data-select-range="autumn">9–11月</button>
-            <button type="button" class="text-btn" data-select-range="all">全选</button>
-            <button type="button" class="text-btn text-btn-muted" data-select-range="none">取消</button>
-          </div>
-
-          <select class="ghost-select" id="inp-plan-template" aria-label="整年模板">
-            <option value="">整年模板...</option>
-            <option value="default">12-3月 Ultra 空闲 / 4-11月平替土区 Pro</option>
-            <option value="offseason_only">1-3月 Ultra 空闲 / 4-8月 Pro / 9-11月停用</option>
-            <option value="all_pro">全年 12 个月平替土区 Pro</option>
-            <option value="replace_gpt">12-3月 Ultra 空闲 / 4-11月平替 ChatGPT Plus</option>
-            <option value="empty">清空全年</option>
-          </select>
+      <!-- Minimal Notion Database Header (Unified UI) -->
+      <div class="db-header-line">
+        <div class="db-header-left">
+          <span class="db-view-title">12 个月边际方案</span>
+          <span class="db-view-hint">勾选左侧复选框可批量修改；直接点表格内按钮可单月编辑</span>
         </div>
-
-        <div class="db-toolbar-row db-toolbar-actions">
-          <span class="db-count-badge mono" id="editor-selected-title">已选 4 个月</span>
-          <select class="flat-select db-catalog-select" id="inp-add-catalog" aria-label="批量设为以下方案"></select>
-          <button type="button" class="primary-btn btn-sm" id="btn-replace-catalog">批量设为</button>
-          <button type="button" class="subtle-btn btn-sm" id="btn-add-catalog">追加一项</button>
-          <button type="button" class="text-btn text-btn-muted" id="btn-clear-selected-months">清空所选</button>
-        </div>
-
-        <div class="db-toolbar-sub">
-          <span class="muted-note" id="help-catalog-note" style="margin:0;"></span>
-          <details class="mini-toggle" id="toggle-custom-sub">
-            <summary>+ 自定义可被黑五平替的订阅（支持 TRY / JPY / USD / CNY）</summary>
-            <div class="custom-row">
-              <input class="flat-input" id="inp-custom-name" type="text" placeholder="订阅名称" />
-              <select class="flat-select" id="inp-custom-currency" style="width:106px;">
-                <option value="TRY">TRY ₺</option>
-                <option value="JPY">JPY ¥</option>
-                <option value="USD">USD $</option>
-                <option value="CNY">CNY ¥</option>
-              </select>
-              <input class="flat-input mono" id="inp-custom-price" type="number" min="0" max="500000" step="1" placeholder="原币月费" style="width:104px;" />
-              <button type="button" class="subtle-btn btn-sm" id="btn-add-custom">应用到所选月</button>
-            </div>
-          </details>
-        </div>
+        <select class="ghost-select" id="inp-plan-template" aria-label="整年模板">
+          <option value="">整年模板...</option>
+          <option value="default">12-3月 Ultra 空闲 / 4-11月平替土区 Pro</option>
+          <option value="offseason_only">1-3月 Ultra 空闲 / 4-8月 Pro / 9-11月停用</option>
+          <option value="all_pro">全年 12 个月平替土区 Pro</option>
+          <option value="replace_gpt">12-3月 Ultra 空闲 / 4-11月平替 ChatGPT Plus</option>
+          <option value="empty">清空全年</option>
+        </select>
       </div>
 
-      <!-- Authentic Notion Database Table (Horizontal + Vertical #E9E9E7 Gridlines) -->
+      <!-- Contextual Notion Selection Bar (Only visible when rows are checked) -->
+      <div class="db-selection-bar" id="db-selection-bar" style="display:none;">
+        <span class="db-count-badge mono" id="editor-selected-title">已选 0 个月</span>
+        <button type="button" class="subtle-btn btn-sm" id="btn-batch-ultra">设为 Ultra（空闲）</button>
+        <span class="toolbar-divider" aria-hidden="true"></span>
+        <select class="flat-select db-catalog-select" id="inp-add-catalog" aria-label="批量设为平替订阅"></select>
+        <button type="button" class="primary-btn btn-sm" id="btn-replace-catalog">设为平替</button>
+        <button type="button" class="text-btn text-btn-muted" id="btn-clear-selected-months">清空</button>
+        <button type="button" class="text-btn text-btn-muted" id="btn-unselect-all" style="margin-left:auto;">取消勾选</button>
+      </div>
+
+      <!-- Authentic Notion Database Table (Separate Ultra-Idle Column vs Replaceable-Plan Column) -->
       <div class="notion-db-wrap">
         <table class="notion-db">
           <thead>
@@ -158,14 +135,14 @@
               <th class="col-month">
                 <span class="th-inner"><span class="th-icon">Aa</span>月份</span>
               </th>
-              <th class="col-plan">
-                <span class="th-inner"><span class="th-icon">◉</span>不买黑五时的原方案（点击标签可切换地区与币种）</span>
+              <th class="col-ultra">
+                <span class="th-inner"><svg class="th-svg" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8.2L7.2 10.4L11 5.8"/></svg>已开 Ultra（致黑五空闲）</span>
               </th>
-              <th class="col-state">
-                <span class="th-inner"><span class="th-icon">≡</span>黑五状态</span>
+              <th class="col-plan">
+                <span class="th-inner"><span class="th-icon">◉</span>不买黑五时的平替订阅（点标签可改区/币种）</span>
               </th>
               <th class="col-save num">
-                <span class="th-inner th-right"><span class="th-icon">#</span>黑五可省</span>
+                <span class="th-inner th-right"><span class="th-icon">#</span>参考月费</span>
               </th>
             </tr>
           </thead>
@@ -174,7 +151,22 @@
         </table>
       </div>
 
-      <div class="callout" style="margin-top: 28px;">
+      <!-- Bottom Inline Custom Input Bar (Clean Notion "+ New" footer style) -->
+      <div class="db-bottom-custom">
+        <span class="db-bottom-label">自定义平替订阅</span>
+        <input class="flat-input" id="inp-custom-name" type="text" placeholder="输入名称（先勾选上方月份）" style="flex:1;min-width:170px;" />
+        <select class="flat-select" id="inp-custom-currency" style="width:104px;">
+          <option value="TRY">TRY ₺</option>
+          <option value="JPY">JPY ¥</option>
+          <option value="USD">USD $</option>
+          <option value="CNY">CNY ¥</option>
+        </select>
+        <input class="flat-input mono" id="inp-custom-price" type="number" min="0" max="500000" step="1" placeholder="原币月费" style="width:104px;" />
+        <button type="button" class="subtle-btn btn-sm" id="btn-add-custom">应用到勾选月</button>
+      </div>
+
+      <!-- Step 2: Factual Schedule Summary Only (No Premature Pricing Verdict) -->
+      <div class="callout" style="margin-top: 24px;">
         <div class="callout-title" id="insight-step-1-title"></div>
         <p class="callout-text" id="insight-step-1-detail"></p>
       </div>
@@ -227,38 +219,27 @@
         </div>
       </div>
 
-      <div class="section-label" style="margin-top: 36px;">汇率走势与月付基准</div>
+      <div class="section-label" style="margin-top: 36px;">外币汇率走势（作用于表格中所有对应币种订阅）</div>
       <div class="prop-group">
         <div class="prop-row">
-          <span class="prop-key">默认月付 Pro 基准</span>
-          <div class="prop-val">
-            <div class="pill-switch" id="pro-region-segment">
-              <button type="button" class="pill-opt" data-pro-region="tr">土区 870 TRY</button>
-              <button type="button" class="pill-opt" data-pro-region="jp">日区 2,900 JPY</button>
-            </div>
+          <span class="prop-key">当前基准汇率</span>
+          <div class="prop-val mono">
+            <span>1 CNY ≈ 7.55 TRY</span>
+            <span class="unit">·</span>
+            <span>1 CNY ≈ 23.81 JPY</span>
+            <span class="unit">·</span>
+            <span>1 USD ≈ 6.67 CNY</span>
           </div>
         </div>
 
-        <div id="wrap-tr-fx">
-          <div class="prop-row">
-            <span class="prop-key">里拉年化贬值率</span>
-            <div class="prop-val prop-val-slider">
-              <input type="range" id="inp-try-dep" min="0" max="35" step="1" />
-              <span class="mono val-badge" id="lbl-try-dep">22%</span>
-            </div>
-          </div>
-          <p class="muted-note" id="help-try-preview" style="padding: 6px 4px 10px;"></p>
-
-          <div class="prop-row">
-            <label class="prop-key" for="inp-midyear-hike">年中二次调价假设</label>
-            <div class="prop-val">
-              <label class="check-inline">
-                <input type="checkbox" id="inp-midyear-hike" />
-                <span>假设次年 6 月土区调价回当前人民币锚点</span>
-              </label>
-            </div>
+        <div class="prop-row">
+          <span class="prop-key">里拉年化贬值率</span>
+          <div class="prop-val prop-val-slider">
+            <input type="range" id="inp-try-dep" min="0" max="35" step="1" />
+            <span class="mono val-badge" id="lbl-try-dep">22%</span>
           </div>
         </div>
+        <p class="muted-note" id="help-try-preview" style="padding: 6px 4px 10px;"></p>
       </div>
 
       <div class="section-label" style="margin-top: 36px;">附带权益折抵（默认均按 ¥0）</div>
@@ -302,24 +283,43 @@
 
       <div class="prop-group">
         <div class="prop-row">
-          <span class="prop-key">单代旗舰有效时长</span>
+          <span class="prop-key">维持 SOTA / 可当主力时长</span>
           <div class="prop-val prop-val-slider">
-            <input type="range" id="inp-sota-len" min="3" max="10" step="0.5" />
+            <input type="range" id="inp-sota-len" min="1" max="12" step="0.5" />
             <span class="mono val-badge" id="lbl-sota-len">7 个月</span>
           </div>
         </div>
-        <p class="muted-note" id="help-sota-until" style="padding: 4px 4px 8px;"></p>
+        <p class="muted-note" id="help-sota-until" style="padding: 4px 4px 10px;"></p>
 
         <div class="prop-row">
-          <span class="prop-key">下代好用旗舰间隔</span>
+          <span class="prop-key">下代成为 SOTA 的模型间隔</span>
           <div class="prop-val prop-val-slider">
-            <input type="range" id="inp-next-interval" min="6" max="13" step="1" />
+            <input type="range" id="inp-next-interval" min="2" max="15" step="1" />
             <span class="mono val-badge" id="lbl-next-interval">10 个月</span>
           </div>
         </div>
-        <p class="muted-note" id="help-next-when" style="padding: 4px 4px 8px;"></p>
+        <p class="muted-note" id="help-next-when" style="padding: 4px 4px 10px;"></p>
 
-        <div class="prop-row">
+        <!-- Minimalist Model Lifecycle Timeline with Labeled Nodes -->
+        <div class="lifecycle-bar" id="lifecycle-bar">
+          <div class="lifecycle-line">
+            <div class="lifecycle-seg-active" id="lc-active-seg"></div>
+            <div class="lc-node lc-node-start" style="left:0%;">
+              <span class="lc-dot"></span>
+              <span class="lc-label">当前旗舰 (11月)</span>
+            </div>
+            <div class="lc-node" id="lc-sota-node">
+              <span class="lc-dot lc-dot-hollow"></span>
+              <span class="lc-label" id="lc-sota-label">维持 SOTA 截止</span>
+            </div>
+            <div class="lc-node lc-node-next" id="lc-next-node">
+              <span class="lc-dot lc-dot-green"></span>
+              <span class="lc-label lc-label-green" id="lc-next-label">下一代成为 SOTA 的模型</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="prop-row" style="margin-top: 12px;">
           <span class="prop-key">中后期留存把握 (p)</span>
           <div class="prop-val prop-val-slider">
             <input type="range" id="inp-retain-prob" min="0" max="100" step="5" />

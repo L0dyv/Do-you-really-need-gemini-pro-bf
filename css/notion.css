@@ -288,22 +288,24 @@ select {
   color: var(--ink-2);
 }
 
-/* Notion Callout */
+/* Authentic Notion Quote Block (Pure white canvas + 3px ink vertical bar, zero gray slab) */
 .callout {
-  background: var(--callout-bg);
-  border-radius: 4px;
-  padding: 18px 20px;
+  background: transparent;
+  border-left: 3px solid var(--ink);
+  border-radius: 0;
+  padding: 2px 0 2px 18px;
 }
 
 .callout-title {
   font-size: 15.5px;
   font-weight: 600;
   color: var(--ink);
+  line-height: 1.5;
 }
 
 .callout-text {
-  margin: 6px 0 0;
-  font-size: 14.5px;
+  margin: 4px 0 0;
+  font-size: 15px;
   color: var(--ink-2);
   line-height: 1.7;
 }
@@ -350,98 +352,81 @@ select {
   color: var(--ink-3);
 }
 
-/* Step 2: Notion Database Toolbar (Batch Edit) */
-.db-toolbar {
-  padding: 16px 18px;
-  background: var(--surface);
-  border-radius: 4px;
-  margin-bottom: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.db-toolbar-row {
+/* Step 2: Unified Notion Database Header, Contextual Selection Bar & Bottom Input */
+.db-header-line {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding: 6px 2px 10px;
   flex-wrap: wrap;
 }
 
-.db-toolbar-group {
+.db-header-left {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  align-items: baseline;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.db-toolbar-label {
-  font-size: 13.5px;
+.db-view-title {
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink);
-  margin-right: 8px;
 }
 
-.db-toolbar-actions {
-  justify-content: flex-start;
+.db-view-hint {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.db-selection-bar {
+  display: flex;
+  align-items: center;
   gap: 10px;
+  padding: 9px 14px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(15, 15, 15, 0.05);
+  flex-wrap: wrap;
 }
 
 .db-count-badge {
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
-  padding: 4px 10px;
-  border-radius: 4px;
-  background: rgba(55, 53, 47, 0.08);
   white-space: nowrap;
 }
 
 .db-catalog-select {
-  min-width: 300px;
-  max-width: 400px;
+  min-width: 260px;
+  max-width: 360px;
+  height: 34px;
   background: var(--bg);
   border: 1px solid var(--border-2);
 }
 
-.db-toolbar-sub {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.mini-toggle summary {
-  cursor: pointer;
-  font-size: 13.5px;
-  color: var(--ink-2);
-  padding: 4px 0;
-  user-select: none;
-}
-
-.mini-toggle summary:hover {
-  color: var(--ink);
-}
-
-.custom-row {
+.db-bottom-custom {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 10px;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
 
-.custom-row input[type="text"] {
-  flex: 1;
-  min-width: 180px;
-  background: var(--bg);
-  border: 1px solid var(--border-2);
+.db-bottom-label {
+  font-size: 13.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
 }
 
-.custom-row input[type="number"],
-.custom-row select {
-  background: var(--bg);
-  border: 1px solid var(--border-2);
+.db-bottom-custom .flat-input,
+.db-bottom-custom .flat-select {
+  height: 34px;
+  font-size: 13.5px;
 }
 
 /* Authentic Notion Database Table (Horizontal + Vertical #E9E9E7 Gridlines) */
@@ -489,6 +474,11 @@ select {
   font-size: 11.5px;
   color: var(--ink-3);
   font-weight: 500;
+}
+
+.th-svg {
+  color: var(--ink-3);
+  flex-shrink: 0;
 }
 
 .notion-db td {
@@ -542,13 +532,47 @@ select {
   color: var(--ink-3);
 }
 
-.notion-db .col-state {
-  width: 170px;
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-2);
+  margin: 0 2px;
+}
+
+.notion-db .col-ultra {
+  width: 205px;
   white-space: nowrap;
 }
 
+.ultra-toggle-btn {
+  border: none;
+  background: transparent;
+  padding: 3px 9px;
+  border-radius: 3px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--ink-3);
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.ultra-toggle-btn:hover {
+  background: var(--active);
+  color: var(--ink);
+}
+
+.ultra-toggle-btn.is-on {
+  background: var(--tag-yellow-bg);
+  color: var(--tag-yellow-fg);
+  font-weight: 500;
+}
+
+.plan-muted {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
 .notion-db .col-save {
-  width: 130px;
+  width: 136px;
   white-space: nowrap;
 }
 
@@ -717,23 +741,24 @@ select {
   height: 36px;
   padding: 0 11px;
   border-radius: 4px;
-  border: 1px solid transparent;
-  background: var(--surface);
+  border: 1px solid var(--border-2);
+  background: var(--bg);
   font-size: 14.5px;
   color: var(--ink);
   outline: none;
-  transition: border-color 0.12s ease, background-color 0.12s ease;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .flat-input:hover,
 .flat-select:hover {
-  background: #efeee9;
+  border-color: var(--ink-2);
 }
 
 .flat-input:focus,
 .flat-select:focus {
   background: var(--bg);
   border-color: var(--ink);
+  box-shadow: 0 0 0 2px rgba(55, 53, 47, 0.08);
 }
 
 /* Inline Notion Pill Switch */
@@ -811,6 +836,82 @@ input[type="range"]::-moz-range-thumb {
   border: 2px solid #ffffff;
   box-shadow: 0 0 0 1px var(--ink);
   cursor: pointer;
+}
+
+/* Minimalist Model Lifecycle Timeline (Step 4) */
+.lifecycle-bar {
+  padding: 36px 14px 28px;
+  border-bottom: 1px solid var(--border);
+}
+
+.lifecycle-line {
+  position: relative;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.lifecycle-seg-active {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--ink);
+  border-radius: 2px;
+  transition: width 0.15s ease;
+}
+
+.lc-node {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: left 0.15s ease;
+}
+
+.lc-node-start {
+  transform: translate(0, -50%);
+  align-items: flex-start;
+}
+
+.lc-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+.lc-dot-hollow {
+  background: #ffffff;
+  border: 2px solid var(--ink);
+  box-shadow: none;
+}
+
+.lc-dot-green {
+  background: var(--tag-green-fg);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px var(--tag-green-fg);
+}
+
+.lc-label {
+  position: absolute;
+  top: 16px;
+  font-size: 12px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.lc-node-next .lc-label {
+  top: -26px;
+}
+
+.lc-label-green {
+  color: var(--tag-green-fg);
+  font-weight: 600;
 }
 
 /* EV Ruler */
