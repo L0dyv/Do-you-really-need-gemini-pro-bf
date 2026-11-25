@@ -164,7 +164,7 @@
         syncedB = derived.buyMonthSynced;
       }
       return Object.assign(createInitialUiState(), parsed, {
-        fxAnnualChangePct: mergedFx,
+        fxAnnualChangePct: Object.assign({}, DEFAULT_FX_ANNUAL_PCT),
         monthPlans: plansA,
         buyMonthPlans: plansB,
         buyMonthSynced: syncedB,
@@ -721,108 +721,46 @@
   function renderDynamicFxPanel(res) {
     const panel = document.getElementById('fx-dynamic-panel');
     const active = res.activeFxCurrencies || [];
-    const key = `${getLang()}|${active.map((c) => c.currency).join(',')}`;
 
     if (active.length === 0) {
-      if (panel.dataset.fxKey !== `${getLang()}|__empty__`) {
-        panel.dataset.fxKey = `${getLang()}|__empty__`;
-        panel.innerHTML = `
-          <div class="prop-row">
-            <span class="prop-key">${escapeHtml(t('step3.fxNoneKey'))}</span>
-            <div class="prop-val">
-              <span class="unit">${escapeHtml(t('step3.fxNoneVal'))}</span>
-            </div>
-          </div>`;
-      }
+      panel.innerHTML = `
+        <div class="prop-row">
+          <span class="prop-key">${escapeHtml(t('step3.fxNoneKey'))}</span>
+          <div class="prop-val">
+            <span class="unit">${escapeHtml(t('step3.fxNoneVal'))}</span>
+          </div>
+        </div>`;
       return;
     }
 
-    if (panel.dataset.fxKey !== key) {
-      panel.dataset.fxKey = key;
-      panel.innerHTML = active
-        .map((entry, idx) => {
-          const code = entry.currency;
-          const meta = FX_CURRENCY_META[code];
-          if (!meta) return '';
-          const loc = localizeCurrencyMeta(code, meta);
-          const pct = state.fxAnnualChangePct && state.fxAnnualChangePct[code] != null
-            ? Number(state.fxAnnualChangePct[code])
-            : meta.defaultAnnualPct;
-          const d = fmtFxDelta(pct);
-          const preview = buildFxPreviewText(code, pct);
-
-          if (idx === 0) {
-            return `
-              <div class="fx-card-block" data-fx-block="${code}">
-                <div class="prop-row">
-                  <span class="prop-key">${escapeHtml(t('step3.fxBaseKey', { name: loc.name }))}</span>
-                  <div class="prop-val mono">
-                    <span>${escapeHtml(meta.displayBase)}</span>
-                    <span class="unit" data-fx-months="${code}">${escapeHtml(t('step3.fxMonths', { n: entry.monthsCount }))}</span>
-                  </div>
-                </div>
-                <div class="prop-row">
-                  <span class="prop-key">${escapeHtml(t('step3.fxDeltaKey', { name: loc.name }))}</span>
-                  <div class="prop-val prop-val-slider">
-                    <input type="range" data-fx-slider="${code}" min="${meta.minPct}" max="${meta.maxPct}" step="1" value="${pct}" />
-                    <span class="mono val-badge ${d.cls}" data-fx-badge="${code}">${d.text}</span>
-                  </div>
-                </div>
-                <p class="muted-note" data-fx-preview="${code}" style="padding: 2px 6px 6px;">${escapeHtml(preview)}</p>
-              </div>`;
-          }
-
-          return `
-            <details class="fx-extra-toggle" data-fx-block="${code}">
-              <summary>
-                <span><strong>${escapeHtml(loc.name)} (${code})</strong> <span class="unit" data-fx-months="${code}">${escapeHtml(t('step3.fxMonthsShort', { n: entry.monthsCount, base: meta.displayBase }))}</span></span>
-                <span class="mono ${d.cls}" data-fx-badge="${code}" style="font-weight:600;">${d.text}</span>
-              </summary>
-              <div class="fx-extra-body">
-                <div class="prop-row" style="border-bottom:none;min-height:40px;padding:4px 0;">
-                  <span class="prop-key">${escapeHtml(t('step3.fxDeltaKey', { name: loc.name }))}</span>
-                  <div class="prop-val prop-val-slider">
-                    <input type="range" data-fx-slider="${code}" min="${meta.minPct}" max="${meta.maxPct}" step="1" value="${pct}" />
-                    <span class="mono val-badge ${d.cls}" data-fx-badge2="${code}">${d.text}</span>
-                  </div>
-                </div>
-                <p class="muted-note" data-fx-preview="${code}" style="padding: 2px 0 4px;">${escapeHtml(preview)}</p>
+    panel.innerHTML = active
+      .map((entry) => {
+        const code = entry.currency;
+        const meta = FX_CURRENCY_META[code];
+        if (!meta) return '';
+        const loc = localizeCurrencyMeta(code, meta);
+        const pct = meta.defaultAnnualPct;
+        const d = fmtFxDelta(pct);
+        const preview = buildFxPreviewText(code, pct);
+        return `
+          <div class="fx-card-block" data-fx-block="${code}">
+            <div class="prop-row">
+              <span class="prop-key">${escapeHtml(t('step3.fxBaseKey', { name: loc.name }))}</span>
+              <div class="prop-val mono">
+                <span>${escapeHtml(meta.displayBase)}</span>
+                <span class="unit">${escapeHtml(t('step3.fxMonths', { n: entry.monthsCount }))}</span>
               </div>
-            </details>`;
-        })
-        .join('');
-      return;
-    }
-
-    active.forEach((entry) => {
-      const code = entry.currency;
-      const meta = FX_CURRENCY_META[code];
-      if (!meta) return;
-      const pct = state.fxAnnualChangePct && state.fxAnnualChangePct[code] != null
-        ? Number(state.fxAnnualChangePct[code])
-        : meta.defaultAnnualPct;
-      const d = fmtFxDelta(pct);
-      const preview = buildFxPreviewText(code, pct);
-
-      const slider = panel.querySelector(`[data-fx-slider="${code}"]`);
-      if (slider && Number(slider.value) !== pct) slider.value = pct;
-
-      panel.querySelectorAll(`[data-fx-badge="${code}"], [data-fx-badge2="${code}"]`).forEach((el) => {
-        el.textContent = d.text;
-        el.classList.remove('fx-dir-up', 'fx-dir-down', 'fx-dir-flat');
-        el.classList.add(d.cls);
-      });
-
-      const monthsEl = panel.querySelector(`[data-fx-months="${code}"]`);
-      if (monthsEl) {
-        monthsEl.textContent = monthsEl.closest('summary')
-          ? t('step3.fxMonthsShort', { n: entry.monthsCount, base: meta.displayBase })
-          : t('step3.fxMonths', { n: entry.monthsCount });
-      }
-
-      const prevEl = panel.querySelector(`[data-fx-preview="${code}"]`);
-      if (prevEl) prevEl.textContent = preview;
-    });
+            </div>
+            <div class="prop-row">
+              <span class="prop-key">${escapeHtml(t('step3.fxDeltaKey', { name: loc.name }))}</span>
+              <div class="prop-val">
+                <span class="mono ${d.cls}" style="font-weight:600;">${escapeHtml(d.text)}</span>
+              </div>
+            </div>
+            <p class="muted-note" style="padding: 2px 6px 6px;">${escapeHtml(preview)}</p>
+          </div>`;
+      })
+      .join('');
   }
 
   function renderStaticTables() {
@@ -1080,73 +1018,6 @@
       </tr>`;
 
     renderNotionPicker();
-  }
-
-  // SVG Bidirectional Payoff Bar (Downside D vs Upside U on shared zero axis)
-  function renderPayoffBar(res) {
-    const container = document.getElementById('payoff-bar-container');
-    const ratioEl = document.getElementById('payoff-ratio-badge');
-
-    const D = res.downsideNet;
-    const U = res.upsideNet;
-    const wU = Math.round(Number(state.retainProbPct) || 0);
-    const wD = 100 - wU;
-
-    const oppositeSigns = (D < 0 && U > 0) || (D > 0 && U < 0);
-    if (D < 0 && U > 0) {
-      ratioEl.textContent = t('step4.payoffRatio', { ratio: (U / Math.abs(D)).toFixed(2) });
-    } else if (U < 0 && D > 0) {
-      ratioEl.textContent = t('step4.payoffRatio', { ratio: (D / Math.abs(U)).toFixed(2) });
-    } else {
-      ratioEl.textContent = '';
-    }
-
-    const W = 760;
-    const H = 86;
-    const padL = 168;
-    const padR = 128;
-    const trackW = W - padL - padR;
-
-    const maxAbs = Math.max(100, Math.abs(D), Math.abs(U));
-    const minVal = Math.min(0, D, U);
-    const maxVal = Math.max(0, D, U);
-    const span = oppositeSigns ? maxAbs * 2 : Math.max(100, maxVal - minVal);
-    const xZero = oppositeSigns
-      ? padL + trackW / 2
-      : minVal < 0
-        ? padL + trackW
-        : padL;
-    const scale = oppositeSigns ? (trackW / 2) / maxAbs : trackW / span;
-
-    function barGeom(val) {
-      const px = Math.abs(val) * scale;
-      if (val >= 0) return { x: xZero, w: Math.max(2, px), fill: '#dbeddb', stroke: '#1c3829', textCls: '#1c3829' };
-      return { x: xZero - Math.max(2, px), w: Math.max(2, px), fill: '#ffe2dd', stroke: '#5d1715', textCls: '#5d1715' };
-    }
-
-    const gD = barGeom(D);
-    const gU = barGeom(U);
-    const lblD = t('step4.payoffDownLabel', { k: res.sotaCutoff });
-    const lblU = t('step4.payoffUpLabel');
-
-    const zeroAxisLabel = getDisplayCurrency() === 'USD' ? '$0' : '¥0';
-    container.innerHTML = `
-      <svg class="payoff-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Downside and Upside payoff comparison">
-        <line x1="${xZero.toFixed(1)}" y1="8" x2="${xZero.toFixed(1)}" y2="${H - 8}" stroke="#d3d1cb" stroke-width="1.2"/>
-        <text x="${xZero.toFixed(1)}" y="${H - 1}" text-anchor="middle" fill="#9b9a97" font-size="10.5" font-family="JetBrains Mono, monospace">${zeroAxisLabel}</text>
-
-        <!-- Row 1: Downside D -->
-        <text x="2" y="27" fill="#37352f" font-size="12.5" font-weight="500">${escapeHtml(lblD)}</text>
-        <text x="2" y="40" fill="#9b9a97" font-size="11" font-family="JetBrains Mono, monospace">${escapeHtml(t('step4.payoffWeight', { w: wD }))}</text>
-        <rect x="${gD.x.toFixed(1)}" y="16" width="${gD.w.toFixed(1)}" height="18" rx="2.5" fill="${gD.fill}" stroke="${gD.stroke}" stroke-opacity="0.28" stroke-width="1"/>
-        <text x="${W - 4}" y="29" text-anchor="end" fill="${gD.textCls}" font-size="13" font-weight="600" font-family="JetBrains Mono, monospace">${escapeHtml(fmtYen(D, true))}</text>
-
-        <!-- Row 2: Upside U -->
-        <text x="2" y="61" fill="#37352f" font-size="12.5" font-weight="500">${escapeHtml(lblU)}</text>
-        <text x="2" y="74" fill="#9b9a97" font-size="11" font-family="JetBrains Mono, monospace">${escapeHtml(t('step4.payoffWeight', { w: wU }))}</text>
-        <rect x="${gU.x.toFixed(1)}" y="50" width="${gU.w.toFixed(1)}" height="18" rx="2.5" fill="${gU.fill}" stroke="${gU.stroke}" stroke-opacity="0.28" stroke-width="1"/>
-        <text x="${W - 4}" y="63" text-anchor="end" fill="${gU.textCls}" font-size="13" font-weight="600" font-family="JetBrains Mono, monospace">${escapeHtml(fmtYen(U, true))}</text>
-      </svg>`;
   }
 
   // Cumulative Chart with Day 0 ("今日" / "Now") upfront anchor
@@ -1411,7 +1282,16 @@
     document.getElementById('th-scen-buy').textContent = t('step4.scenColBuyCur', { cur: dispCur });
     document.getElementById('th-scen-skip').textContent = t('step4.scenColSkipCur', { cur: dispCur });
     document.getElementById('th-scen-diff').textContent = t('step4.scenColDiffCur', { cur: dispCur });
-    document.getElementById('scen-footnote').textContent = t('step4.scenFootnoteCur', { cur: dispCur });
+    const wU = Math.min(100, Math.max(0, Math.round(Number(state.retainProbPct) || 0)));
+    const wD = 100 - wU;
+    document.getElementById('scen-footnote').textContent = t('step4.scenFootnoteCur', {
+      cur: dispCur,
+      ev: fmtYen(res.expectedNetSavings, true),
+      wD,
+      d: fmtYen(res.downsideNet, true),
+      wU,
+      u: fmtYen(res.upsideNet, true),
+    });
 
     const badge = document.getElementById('verdict-badge');
     badge.className = `tag tag-${res.verdict.tone}`;
@@ -1512,8 +1392,7 @@
     document.getElementById('legacy-ultra-risk-note').style.display =
       res.hasLegacyTurkeyUltra ? 'block' : 'none';
 
-    // Bidirectional Payoff Bar, Cumulative Chart, Scenario Table, 3x3 Sensitivity Matrix
-    renderPayoffBar(res);
+    // Cumulative Chart, 4-Scenario Table, 3x3 Sensitivity Matrix
     renderChart(res);
 
     document.getElementById('scenarios-tbody').innerHTML = res.scenarios
@@ -2257,21 +2136,7 @@
     dbTbody.addEventListener('click', (e) => handlePlanTableClick(e, 'A'));
     dbBTbody.addEventListener('click', (e) => handlePlanTableClick(e, 'B'));
 
-    // Step 3: Dynamic Multi-Currency Bidirectional FX Sliders
-    document.getElementById('fx-dynamic-panel').addEventListener('input', (e) => {
-      const slider = e.target.closest('[data-fx-slider]');
-      if (!slider) return;
-      const code = slider.dataset.fxSlider;
-      recordUndoSnapshot(`fx-${code}`);
-      const val = Number(slider.value);
-      if (!state.fxAnnualChangePct || typeof state.fxAnnualChangePct !== 'object') {
-        state.fxAnnualChangePct = Object.assign({}, DEFAULT_FX_ANNUAL_PCT);
-      }
-      state.fxAnnualChangePct[code] = val;
-      render();
-    });
-
-    // Center Peek Modal: Model Lifecycle & Retention Sliders
+    // Step 4: Model Lifecycle & Retention Sliders
     document.getElementById('inp-sota-len').addEventListener('input', (e) => {
       recordUndoSnapshot('sota-len');
       state.effectiveSotaMonths = Number(e.target.value);

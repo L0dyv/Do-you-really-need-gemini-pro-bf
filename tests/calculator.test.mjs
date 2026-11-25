@@ -247,6 +247,8 @@ test('All static DOM IDs referenced in app.js exist in index.html and contain ze
   assert.deepEqual(missing, []);
   assert.equal(html.includes('id="inp-plan-template"'), false, 'Step 2 template dropdown must remain removed');
   assert.equal(html.includes('id="btn-auto-drop-pro"'), false, 'Step 3 duplicate drop-pro button must remain removed');
+  assert.equal(html.includes('id="payoff-bar-block"'), false, 'Redundant payoff bar block must remain removed');
+  assert.equal(app.includes('data-fx-slider'), false, 'FX valuation basis must be read-only without draggable sliders');
 
   const emojiRe = /\p{Extended_Pictographic}/u;
   assert.equal(emojiRe.test(html), false, 'index.html should not contain emojis');

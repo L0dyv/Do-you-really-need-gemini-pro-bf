@@ -426,13 +426,26 @@
         <p class="callout-text" data-i18n="step4.legacyUltraNote">提示：账本中含土区旧价 Ultra，当前默认其在对应月份可正常续费；如需测算中途断续或换用其他方案的影响，可直接返回第 2 步修改对应月份。</p>
       </div>
 
-      <!-- SVG Bidirectional Payoff Bar (Downside D vs Upside U on shared zero axis) -->
-      <div class="doc-block" id="payoff-bar-block">
+      <!-- 4-Scenario Early-Abandonment Stress Test directly below Hero EV -->
+      <div class="doc-block">
         <div class="block-head">
-          <h2 class="block-title" data-i18n="step4.payoffTitle">两端结果与留存权重</h2>
-          <span class="block-note mono" id="payoff-ratio-badge"></span>
+          <h2 class="block-title" data-i18n="step4.scenTitle">提前弃用风险对照</h2>
+          <span class="block-note mono" id="scen-unit-note">单位：CNY · 假设中途弃用黑五后改回方案 A</span>
         </div>
-        <div class="payoff-wrap" id="payoff-bar-container"></div>
+        <div class="notion-db-wrap">
+          <table class="notion-db fin-table">
+            <thead>
+              <tr>
+                <th data-i18n="step4.scenColTitle">情景</th>
+                <th class="num" id="th-scen-buy">买入支出 (CNY)</th>
+                <th class="num" id="th-scen-skip">不买黑五 (CNY)</th>
+                <th class="num" id="th-scen-diff">净节省 (CNY)</th>
+              </tr>
+            </thead>
+            <tbody id="scenarios-tbody"></tbody>
+          </table>
+        </div>
+        <p class="fin-footnote" id="scen-footnote"></p>
       </div>
 
       <div class="doc-block">
@@ -441,27 +454,6 @@
           <span class="block-note" data-i18n="step4.chartNote">实线：买黑五 Pro（含今日预付）· 虚线：不买黑五按原方案月付</span>
         </div>
         <div class="chart-wrap" id="chart-container"></div>
-      </div>
-
-      <div class="doc-block">
-        <div class="block-head">
-          <h2 class="block-title" data-i18n="step4.scenTitle">四种情景对照</h2>
-          <span class="block-note mono" id="scen-unit-note">单位：CNY · 买入支出含今日预付</span>
-        </div>
-        <div class="notion-db-wrap">
-          <table class="notion-db fin-table">
-            <thead>
-              <tr>
-                <th data-i18n="step4.scenColTitle">情景</th>
-                <th class="num" id="th-scen-buy">买入支出 (CNY)</th>
-                <th class="num" id="th-scen-skip">月付支出 (CNY)</th>
-                <th class="num" id="th-scen-diff">净节省 (CNY)</th>
-              </tr>
-            </thead>
-            <tbody id="scenarios-tbody"></tbody>
-          </table>
-        </div>
-        <p class="fin-footnote" id="scen-footnote"></p>
       </div>
 
       <div class="doc-block">
@@ -489,9 +481,9 @@
         <h2 class="block-title" style="margin-bottom: 12px;" data-i18n="step4.notesTitle">汇率口径、敏感性验证与实证参考</h2>
         <div class="toggles">
           <details class="notion-toggle" id="fx-basis-toggle">
-            <summary id="fx-basis-summary" data-i18n="step4.toggleFxBasis">汇率计价口径（已按即期汇率与历史趋势自动代入，展开可微调）</summary>
+            <summary id="fx-basis-summary" data-i18n="step4.toggleFxBasis">汇率计价口径（固定市场基准 · 只读说明）</summary>
             <div class="toggle-body">
-              <p class="muted-note" style="margin: 0 0 12px;" data-i18n="step3.spotNote">今日黑五包年按 t = 0 即期汇率一次性付清，不受后续汇率波动影响；未来各月按月付费的外币订阅按 FX(t) = FX(0) × (1 + r)^(t/12) 折算为名义人民币。以下已按最新市场汇率自动代入，一般无需修改，如需压力测试可直接微调。</p>
+              <p class="muted-note" style="margin: 0 0 12px;" data-i18n="step3.spotNote">今日黑五包年按 t = 0 即期汇率一次性付清，不受后续汇率波动影响。未来外币月付采用固定市场口径（主流币种按即期汇率 0% 计价，土耳其里拉按近三年历史趋势 -18%/年 折算），不开放主观拖动；汇率波动的影响可直接查看下方 3 × 3 敏感性矩阵。</p>
               <div class="prop-group" id="fx-dynamic-panel"></div>
             </div>
           </details>

@@ -84,7 +84,7 @@
     const cur = displayCurrency || res.displayCurrency || (isEn ? 'USD' : 'CNY');
     const M = makeMoneyHelpers(cur);
     const W = 960;
-    const H = 960;
+    const H = 880;
     const padX = 56;
     const contentW = W - padX * 2;
     const fontSans = 'Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif';
@@ -106,6 +106,8 @@
       : '';
 
     const pPct = Math.round(Number(state.retainProbPct) || 0);
+    const wU = Math.min(100, Math.max(0, pPct));
+    const wD = 100 - wU;
     let probSub;
     if (res.breakEvenProbStatus === 'already_even') {
       probSub = isEn ? 'Locked even in SOTA span (0% line)' : '主力期内已锁定回本（盈亏线 0%）';
@@ -143,44 +145,39 @@
       ? `Upfront ${M.fmtMoney(res.bfCost)}  ·  Avg ${M.fmtMoneyDec(res.bfMonthlyAvg, 1)}/mo  ·  Plan A ${M.fmtMoney(res.totalSkipCost)} vs Plan B ${M.fmtMoney(res.totalBuyCost)}  ·  FX: ${fxSummary}`
       : `今日预付 ${M.fmtMoney(res.bfCost)}  ·  年费月均 ${M.fmtMoneyDec(res.bfMonthlyAvg, 1)}/月  ·  不买 ${M.fmtMoney(res.totalSkipCost)} vs 买黑五 ${M.fmtMoney(res.totalBuyCost)}  ·  汇率：${fxSummary}`;
 
-    // 2. Bidirectional Payoff Bar (y = 368..452)
-    const payTop = 368;
-    const D = res.downsideNet;
-    const U = res.upsideNet;
-    const wU = pPct;
-    const wD = 100 - wU;
-    const oppositeSigns = (D < 0 && U > 0) || (D > 0 && U < 0);
-    const ratioText = D < 0 && U > 0
-      ? (isEn ? `Payoff Ratio ${(U / Math.abs(D)).toFixed(2)}×` : `盈亏比 ${(U / Math.abs(D)).toFixed(2)}×`)
-      : U < 0 && D > 0
-        ? (isEn ? `Payoff Ratio ${(D / Math.abs(U)).toFixed(2)}×` : `盈亏比 ${(D / Math.abs(U)).toFixed(2)}×`)
-        : '';
+    // 2. 4-Scenario Early-Abandonment Stress Test directly under Hero EV (y = 376..568)
+    const tblHeadY = 384;
+    const tblRowH = 42;
+    const scenRows = res.scenarios
+      .map((sc, i) => {
+        const y = tblHeadY + 12 + i * tblRowH;
+        const rounded = Math.round(M.conv(sc.diff));
+        const pillBg = rounded > 0 ? '#dbeddb' : rounded < 0 ? '#ffe2dd' : '#e3e2e0';
+        const pillFg = rounded > 0 ? '#1c3829' : rounded < 0 ? '#5d1715' : '#32302c';
+        const rowBg = sc.isBaseline ? `<rect x="${padX}" y="${y}" width="${contentW}" height="${tblRowH}" fill="#f7f6f3"/>` : '';
+        const topStroke = sc.isBaseline ? '#d3d1cb' : '#e9e9e7';
+        const topWidth = sc.isBaseline ? '1.5' : '1';
+        return `
+          ${rowBg}
+          <line x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}" stroke="${topStroke}" stroke-width="${topWidth}"/>
+          <text x="${padX + 6}" y="${y + 18}" fill="#37352f" font-size="12.5" font-weight="500" font-family="${fontSans}">${esc(sc.title)}</text>
+          <text x="${padX + 6}" y="${y + 34}" fill="#9b9a97" font-size="10.5" font-family="${fontSans}">${esc(sc.periodNote || '')}</text>
+          <text x="${W - padX - 216}" y="${y + 25}" text-anchor="end" fill="#37352f" font-size="12.5" font-family="${fontMono}">${esc(M.fmtNum(sc.buyTotal))}</text>
+          <text x="${W - padX - 112}" y="${y + 25}" text-anchor="end" fill="#37352f" font-size="12.5" font-family="${fontMono}">${esc(M.fmtNum(sc.skipTotal))}</text>
+          <rect x="${W - padX - 84}" y="${y + 10}" width="80" height="22" rx="3" fill="${pillBg}"/>
+          <text x="${W - padX - 10}" y="${y + 25}" text-anchor="end" fill="${pillFg}" font-size="12.5" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(sc.diff, true))}</text>
+        `;
+      })
+      .join('');
 
-    const payTrackL = padX + 190;
-    const payTrackR = W - padX - 118;
-    const payTrackW = payTrackR - payTrackL;
-    const maxAbsPay = Math.max(100, Math.abs(D), Math.abs(U));
-    const paySpan = oppositeSigns ? maxAbsPay * 2 : Math.max(100, Math.max(0, D, U) - Math.min(0, D, U));
-    const payZero = oppositeSigns
-      ? payTrackL + payTrackW / 2
-      : Math.min(0, D, U) < 0
-        ? payTrackR
-        : payTrackL;
-    const payScale = oppositeSigns ? (payTrackW / 2) / maxAbsPay : payTrackW / paySpan;
-
-    function payGeom(val) {
-      const px = Math.max(2, Math.abs(val) * payScale);
-      if (val >= 0) return { x: payZero, w: px, fill: '#dbeddb', stroke: '#1c3829', fg: '#1c3829' };
-      return { x: payZero - px, w: px, fill: '#ffe2dd', stroke: '#5d1715', fg: '#5d1715' };
-    }
-    const gD = payGeom(D);
-    const gU = payGeom(U);
-    const lblD = isEn ? `Drop after Mo ${res.sotaCutoff} (D)` : `第 ${res.sotaCutoff} 月止回退 (D)`;
-    const lblU = isEn ? 'Full-Year Plan B (U)' : '全年执行方案 B (U)';
+    const tblBottomY = tblHeadY + 12 + res.scenarios.length * tblRowH;
+    const evFormulaLine = isEn
+      ? `Expected Net Savings ${M.fmtMoney(res.expectedNetSavings, true)} = ${wD}% × (${M.fmtMoney(res.downsideNet, true)}) + ${wU}% × (${M.fmtMoney(res.upsideNet, true)}) · Net Saved = Without BF − Buy (${cur}).`
+      : `上方期望净节省 ${M.fmtMoney(res.expectedNetSavings, true)} = ${wD}% × (${M.fmtMoney(res.downsideNet, true)}) + ${wU}% × (${M.fmtMoney(res.upsideNet, true)})。净节省 = 不买黑五 − 买入支出（${cur}）。`;
 
     // 3. Cumulative Chart with Day 0 ("今日" / "Now")
-    const chartTop = 510;
-    const chartH = 124;
+    const chartTop = 656;
+    const chartH = 148;
     const chartLeft = padX + 54;
     const chartRight = W - padX - 10;
     const chartW = chartRight - chartLeft;
@@ -248,33 +245,6 @@
     const buyEndY = yAt(lastRow.cumBuy) <= yAt(lastRow.cumSkip) ? yAt(lastRow.cumBuy) - 8 : yAt(lastRow.cumBuy) + 15;
     const skipEndY = yAt(lastRow.cumBuy) <= yAt(lastRow.cumSkip) ? yAt(lastRow.cumSkip) + 15 : yAt(lastRow.cumSkip) - 8;
 
-    // 4. Financial-Statement Scenario Table
-    const tblHeadY = 712;
-    const tblRowH = 42;
-    const scenRows = res.scenarios
-      .map((sc, i) => {
-        const y = tblHeadY + 12 + i * tblRowH;
-        const rounded = Math.round(M.conv(sc.diff));
-        const pillBg = rounded > 0 ? '#dbeddb' : rounded < 0 ? '#ffe2dd' : '#e3e2e0';
-        const pillFg = rounded > 0 ? '#1c3829' : rounded < 0 ? '#5d1715' : '#32302c';
-        const rowBg = sc.isBaseline ? `<rect x="${padX}" y="${y}" width="${contentW}" height="${tblRowH}" fill="#f7f6f3"/>` : '';
-        const topStroke = sc.isBaseline ? '#d3d1cb' : '#e9e9e7';
-        const topWidth = sc.isBaseline ? '1.5' : '1';
-        return `
-          ${rowBg}
-          <line x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}" stroke="${topStroke}" stroke-width="${topWidth}"/>
-          <text x="${padX + 6}" y="${y + 18}" fill="#37352f" font-size="12.5" font-weight="500" font-family="${fontSans}">${esc(sc.title)}</text>
-          <text x="${padX + 6}" y="${y + 34}" fill="#9b9a97" font-size="10.5" font-family="${fontSans}">${esc(sc.periodNote || '')}</text>
-          <text x="${W - padX - 216}" y="${y + 25}" text-anchor="end" fill="#37352f" font-size="12.5" font-family="${fontMono}">${esc(M.fmtNum(sc.buyTotal))}</text>
-          <text x="${W - padX - 112}" y="${y + 25}" text-anchor="end" fill="#37352f" font-size="12.5" font-family="${fontMono}">${esc(M.fmtNum(sc.skipTotal))}</text>
-          <rect x="${W - padX - 84}" y="${y + 10}" width="80" height="22" rx="3" fill="${pillBg}"/>
-          <text x="${W - padX - 10}" y="${y + 25}" text-anchor="end" fill="${pillFg}" font-size="12.5" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(sc.diff, true))}</text>
-        `;
-      })
-      .join('');
-
-    const tblBottomY = tblHeadY + 12 + res.scenarios.length * tblRowH;
-
     return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="#ffffff"/>
@@ -312,21 +282,16 @@
   <text x="${padX}" y="${heroBot + 24}" fill="#787774" font-size="12" font-family="${fontMono}">${esc(stripText)}</text>
   <line x1="${padX}" y1="${heroBot + 36}" x2="${W - padX}" y2="${heroBot + 36}" stroke="#e9e9e7" stroke-width="1"/>
 
-  <!-- Bidirectional Payoff Bar -->
-  <text x="${padX}" y="${payTop - 10}" fill="#37352f" font-size="13.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Payoff Endpoints &amp; Retention Weights' : '两端结果与留存权重'}</text>
-  <text x="${W - padX}" y="${payTop - 10}" text-anchor="end" fill="#787774" font-size="12" font-family="${fontMono}">${esc(ratioText)}</text>
-  <line x1="${payZero.toFixed(1)}" y1="${payTop + 4}" x2="${payZero.toFixed(1)}" y2="${payTop + 80}" stroke="#d3d1cb" stroke-width="1.2"/>
-  <text x="${payZero.toFixed(1)}" y="${payTop + 92}" text-anchor="middle" fill="#9b9a97" font-size="10" font-family="${fontMono}">${M.sym}0</text>
-
-  <text x="${padX}" y="${payTop + 22}" fill="#37352f" font-size="12" font-weight="500" font-family="${fontSans}">${esc(lblD)}</text>
-  <text x="${padX}" y="${payTop + 36}" fill="#9b9a97" font-size="10.5" font-family="${fontMono}">${isEn ? `Weight ${wD}%` : `权重 ${wD}%`}</text>
-  <rect x="${gD.x.toFixed(1)}" y="${payTop + 11}" width="${gD.w.toFixed(1)}" height="18" rx="2.5" fill="${gD.fill}" stroke="${gD.stroke}" stroke-opacity="0.28" stroke-width="1"/>
-  <text x="${W - padX}" y="${payTop + 25}" text-anchor="end" fill="${gD.fg}" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtMoney(D, true))}</text>
-
-  <text x="${padX}" y="${payTop + 58}" fill="#37352f" font-size="12" font-weight="500" font-family="${fontSans}">${esc(lblU)}</text>
-  <text x="${padX}" y="${payTop + 72}" fill="#9b9a97" font-size="10.5" font-family="${fontMono}">${isEn ? `Weight ${wU}%` : `权重 ${wU}%`}</text>
-  <rect x="${gU.x.toFixed(1)}" y="${payTop + 47}" width="${gU.w.toFixed(1)}" height="18" rx="2.5" fill="${gU.fill}" stroke="${gU.stroke}" stroke-opacity="0.28" stroke-width="1"/>
-  <text x="${W - padX}" y="${payTop + 61}" text-anchor="end" fill="${gU.fg}" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtMoney(U, true))}</text>
+  <!-- 4-Scenario Early-Abandonment Stress Test (directly beneath Hero EV) -->
+  <text x="${padX}" y="${tblHeadY - 14}" fill="#37352f" font-size="13.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Early-Abandonment Stress Test' : '提前弃用风险对照'}</text>
+  <text x="${W - padX}" y="${tblHeadY - 14}" text-anchor="end" fill="#9b9a97" font-size="11" font-family="${fontMono}">${isEn ? `Unit: ${cur} · Reverts to Plan A if BF dropped early` : `单位：${cur} · 假设中途弃用黑五后改回方案 A`}</text>
+  <text x="${padX + 6}" y="${tblHeadY + 4}" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Scenario' : '情景'}</text>
+  <text x="${W - padX - 216}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? `Buy (${cur})` : `买入支出 (${cur})`}</text>
+  <text x="${W - padX - 112}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? `Without BF (${cur})` : `不买黑五 (${cur})`}</text>
+  <text x="${W - padX - 6}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Net Saved' : '净节省'}</text>
+  ${scenRows}
+  <line x1="${padX}" y1="${tblBottomY}" x2="${W - padX}" y2="${tblBottomY}" stroke="#e9e9e7" stroke-width="1"/>
+  <text x="${padX}" y="${tblBottomY + 19}" fill="#787774" font-size="11" font-family="${fontSans}">${esc(evFormulaLine)}</text>
 
   <!-- Cumulative Chart -->
   <text x="${padX}" y="${chartTop - 16}" fill="#37352f" font-size="13.5" font-weight="600" font-family="${fontSans}">${isEn ? '12-Month Cumulative Marginal Spend' : '12 个月累积边际支出对比'}</text>
@@ -341,17 +306,6 @@
   ${chartXLabels}
   <text x="${(xAt(rows.length) - 6).toFixed(1)}" y="${buyEndY.toFixed(1)}" text-anchor="end" fill="#37352f" font-size="11.5" font-weight="600" font-family="${fontMono}">${esc(isEn ? `Buy:${M.fmtMoney(lastRow.cumBuy)}` : `买:${M.fmtMoney(lastRow.cumBuy)}`)}</text>
   <text x="${(xAt(rows.length) - 6).toFixed(1)}" y="${skipEndY.toFixed(1)}" text-anchor="end" fill="#787774" font-size="11.5" font-family="${fontMono}">${esc(isEn ? `No BF:${M.fmtMoney(lastRow.cumSkip)}` : `不买:${M.fmtMoney(lastRow.cumSkip)}`)}</text>
-
-  <!-- Financial Statement Scenario Table -->
-  <text x="${padX}" y="${tblHeadY - 14}" fill="#37352f" font-size="13.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Four-Scenario Comparison' : '四种情景对照'}</text>
-  <text x="${W - padX}" y="${tblHeadY - 14}" text-anchor="end" fill="#9b9a97" font-size="11" font-family="${fontMono}">${isEn ? `Unit: ${cur} · Buy includes upfront` : `单位：${cur} · 买入支出含今日预付`}</text>
-  <text x="${padX + 6}" y="${tblHeadY + 4}" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Scenario' : '情景'}</text>
-  <text x="${W - padX - 216}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? `Buy (${cur})` : `买入支出 (${cur})`}</text>
-  <text x="${W - padX - 112}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? `No BF (${cur})` : `月付支出 (${cur})`}</text>
-  <text x="${W - padX - 6}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Net Saved' : '净节省'}</text>
-  ${scenRows}
-  <line x1="${padX}" y1="${tblBottomY}" x2="${W - padX}" y2="${tblBottomY}" stroke="#e9e9e7" stroke-width="1"/>
-  <text x="${padX}" y="${tblBottomY + 18}" fill="#9b9a97" font-size="10.5" font-family="${fontSans}">${isEn ? `Net Saved = Without BF − Buy BF (${cur}, spot 1 USD ≈ 6.67 CNY; Buy includes upfront).` : `净节省 = 月付支出 − 买入支出。按当前结算币种（${cur}，基准 1 USD ≈ 6.67 CNY）折算，买入支出含今日预付。`}</text>
 
   <!-- Quiet Bottom-Right Attribution -->
   <text x="${W - padX}" y="${H - 22}" text-anchor="end" fill="#b5b4b0" font-size="10.5" font-family="${fontSans}">Made by ${GITHUB_USER} · github.com/${GITHUB_USER}/${GITHUB_REPO}</text>

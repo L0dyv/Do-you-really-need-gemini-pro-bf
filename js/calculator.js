@@ -247,9 +247,11 @@
     };
   }
 
-  function buildComparisonScenarios(baseRows, bfCost, cutoffs, lang) {
+  function buildComparisonScenarios(baseRows, bfCost, cutoffs, lang, retainProbPct) {
     const isEn = lang === 'en-US';
     const { sotaCutoff, nextGenCutoff } = cutoffs;
+    const wU = Math.min(100, Math.max(0, Math.round(Number(retainProbPct) || 0)));
+    const wD = 100 - wU;
 
     const s0 = simulateCutoff(baseRows, bfCost, 0);
     const sK = simulateCutoff(baseRows, bfCost, sotaCutoff);
@@ -263,11 +265,19 @@
       ? (isEn ? `Mo 1–${nextGenCutoff}` : `前 ${nextGenCutoff} 个月`)
       : (isEn ? '0 months' : '0 个月');
 
+    const afterSotaLabel = sotaCutoff < 12
+      ? (isEn
+          ? `Reverts to Plan A after Mo ${sotaCutoff} · ${wD}% weight in EV`
+          : `第 ${sotaCutoff + 1} 月起改回方案 A · 按 ${wD}% 弃用概率计入上方期望`)
+      : (isEn
+          ? `Full 12 months within SOTA span · ${wD}% weight in EV`
+          : `全年均在主力期内 · 按 ${wD}% 权重计入上方期望`);
+
     return [
       {
         id: 'immediate_stop',
-        title: isEn ? 'Immediate Drop: Unused from Month 1' : '最差底线：买完即闲置（全程未替代）',
-        periodNote: isEn ? '0 active months (upfront sunk cost)' : '0 个月替代生效（纯预付沉没成本）',
+        title: isEn ? 'Worst Case: Abandoned Immediately (0 mo)' : '极端情况：买完即弃用（0 个月）',
+        periodNote: isEn ? 'Plan unused from Month 1; upfront fee lost' : '计划完全落空，白花今日预付年费',
         tag: isEn ? 'Floor' : '风控底线',
         tone: 'red',
         buyTotal: s0.buyTotal,
@@ -277,10 +287,10 @@
       {
         id: 'sota_cutoff',
         title: isEn
-          ? `SOTA Span Cutoff: Active ${sotaEndLabel}, then dropped`
-          : `主力期结束停用：仅使用 ${sotaEndLabel}（EV 下行分支 D）`,
-        periodNote: isEn ? `Active ${sotaEndLabel} · Weight (1 - p)` : `生效至第 ${sotaCutoff} 月 · 对应下行分支 D`,
-        tag: isEn ? 'Downside D' : '下行分支 D',
+          ? `Drop After SOTA Span (Active ${sotaEndLabel})`
+          : `主力期后弃用（仅生效${sotaEndLabel}）`,
+        periodNote: afterSotaLabel,
+        tag: isEn ? `${wD}% Weight` : `${wD}% 权重`,
         tone: 'amber',
         buyTotal: sK.buyTotal,
         skipTotal: sK.skipTotal,
@@ -289,9 +299,9 @@
       {
         id: 'next_gen_review',
         title: isEn
-          ? `Hold Until Next-Gen Window: Active ${nextEndLabel}`
-          : `延用至下代旗舰复评：使用 ${nextEndLabel}`,
-        periodNote: isEn ? `Before next-gen SOTA arrival (${nextEndLabel})` : `下代 SOTA 登场前复评（第 ${nextGenCutoff} 月止）`,
+          ? `Hold Until Next-Gen Launch (Active ${nextEndLabel})`
+          : `撑到下代旗舰前（生效${nextEndLabel}）`,
+        periodNote: isEn ? `Follows Plan B until est. next Gemini SOTA (${nextEndLabel})` : `下代 Gemini SOTA 发布前按方案 B 执行（第 ${nextGenCutoff} 月止）`,
         tag: isEn ? 'Review' : '复评节点',
         tone: 'blue',
         buyTotal: sNext.buyTotal,
@@ -300,9 +310,11 @@
       },
       {
         id: 'full_plan',
-        title: isEn ? 'Current 12-Month Plan · Baseline' : '当前 12 个月排布完整执行 · 基准',
-        periodNote: isEn ? 'Full 12 months as configured (EV Upside U)' : '按第 2 步表格全量执行（EV 上行分支 U）',
-        tag: isEn ? 'Baseline U' : '基准 U',
+        title: isEn ? 'Full 12-Month Plan Executed · Baseline' : '按第 3 步计划执行满全年（12 个月 · 基准）',
+        periodNote: isEn
+          ? `Executes your Step 3 plan in full · ${wU}% retention weight in EV`
+          : `完整执行你填写的 12 个月方案 · 按 ${wU}% 留存把握计入上方期望`,
+        tag: isEn ? `${wU}% Weight` : `${wU}% 权重`,
         tone: 'green',
         isBaseline: true,
         buyTotal: sFull.buyTotal,
@@ -567,7 +579,7 @@
 
     const core = computeCoreLedger(state);
     const cutoffs = getLifecycleCutoffs(state);
-    const scenarios = buildComparisonScenarios(core.monthlyRows, core.bfCost, cutoffs, lang);
+    const scenarios = buildComparisonScenarios(core.monthlyRows, core.bfCost, cutoffs, lang, state.retainProbPct);
     const sensitivity = buildSensitivityMatrix(state, core.activeFxCurrencies);
 
     const pPct = Number(state.retainProbPct) || 0;
