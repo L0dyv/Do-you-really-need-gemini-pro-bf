@@ -484,29 +484,28 @@
       </div>
 
       <div class="doc-block">
-        <div class="block-head">
-          <h2 class="block-title" data-i18n="step4.compareTitle">12 个月双方案逐月对照</h2>
-          <span class="block-note mono" data-i18n="step4.compareNote">方案 A（不买黑五）vs 方案 B（含黑五 Pro）</span>
-        </div>
-        <div class="notion-db-wrap">
-          <table class="notion-db fin-table">
-            <thead>
-              <tr>
-                <th data-i18n="step4.cmpMonth">月份</th>
-                <th data-i18n="step4.cmpPlanA">不买黑五 (A)</th>
-                <th data-i18n="step4.cmpPlanB">买黑五后 (B)</th>
-                <th class="num" data-i18n="step4.cmpDiff">当月差额</th>
-                <th class="num" data-i18n="step4.cmpCum">累计净省</th>
-              </tr>
-            </thead>
-            <tbody id="compare-12m-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="doc-block">
-        <h2 class="block-title" style="margin-bottom: 12px;" data-i18n="step4.notesTitle">汇率口径、敏感性验证与实证参考</h2>
+        <h2 class="block-title" style="margin-bottom: 12px;" data-i18n="step4.notesTitle">账本明细、汇率口径与实证参考</h2>
         <div class="toggles">
+          <details class="notion-toggle" id="compare-12m-toggle">
+            <summary data-i18n="step4.toggleCompare12m">12 个月双方案逐月对照（方案 A vs 方案 B）</summary>
+            <div class="toggle-body">
+              <div class="notion-db-wrap">
+                <table class="notion-db fin-table">
+                  <thead>
+                    <tr>
+                      <th data-i18n="step4.cmpMonth">月份</th>
+                      <th data-i18n="step4.cmpPlanA">不买黑五 (A)</th>
+                      <th data-i18n="step4.cmpPlanB">买黑五后 (B)</th>
+                      <th class="num" data-i18n="step4.cmpDiff">当月差额</th>
+                      <th class="num" data-i18n="step4.cmpCum">累计净省</th>
+                    </tr>
+                  </thead>
+                  <tbody id="compare-12m-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </details>
+
           <details class="notion-toggle" id="fx-basis-toggle">
             <summary id="fx-basis-summary" data-i18n="step4.toggleFxBasis">汇率计价口径（固定市场基准 · 只读说明）</summary>
             <div class="toggle-body">

@@ -2603,6 +2603,23 @@ input[type="range"]::-moz-range-thumb {
   color: var(--ink-2);
 }
 
+.scen-cell-inline {
+  align-items: center;
+  gap: 8px;
+}
+
+.fin-table-tiered tbody tr.fin-row-secondary .scen-radio-dot {
+  width: 11px;
+  height: 11px;
+  margin-top: 0;
+}
+
+.fin-scen-inline-meta {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  margin-left: 2px;
+}
+
 .fin-table-tiered tbody tr.fin-row-secondary .fin-scen-title {
   font-size: 12.5px;
   font-weight: 500;

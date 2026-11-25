@@ -265,21 +265,13 @@
       ? (isEn ? `Mo 1–${nextGenCutoff}` : `前 ${nextGenCutoff} 个月`)
       : (isEn ? '0 months' : '0 个月');
 
-    const afterSotaLabel = sotaCutoff < 12
-      ? (isEn
-          ? `Stops using BF as primary after Mo ${sotaCutoff} · ${wD}% weight`
-          : `第 ${sotaCutoff + 1} 月起不再用黑五当主力、改回方案 A · 权重 ${wD}%`)
-      : (isEn
-          ? `All 12 months within SOTA span · ${wD}% weight`
-          : `全年均在主力期内 · 权重 ${wD}%`);
-
     return [
       {
         id: 'immediate_stop',
         cutoff: 0,
-        title: isEn ? '0 mo as primary (dropped immediately)' : '0 个月主力（买完即弃用）',
-        periodNote: isEn ? 'BF Gemini Pro unused from Month 1; upfront fee lost' : '全程未把黑五 Gemini Pro 当主力，白花今日预付年费',
-        tag: isEn ? 'Floor' : '风控底线',
+        title: isEn ? '0 mo primary' : '0 个月主力',
+        periodNote: isEn ? 'Immediate drop' : '买完弃用',
+        tag: isEn ? 'Floor' : '底线',
         tone: 'red',
         buyTotal: s0.buyTotal,
         skipTotal: s0.skipTotal,
@@ -288,11 +280,9 @@
       {
         id: 'sota_cutoff',
         cutoff: sotaCutoff,
-        title: isEn
-          ? `First ${sotaCutoff} mo as primary (dropped after SOTA)`
-          : `前 ${sotaCutoff} 个月主力（主力期后弃用）`,
-        periodNote: afterSotaLabel,
-        tag: isEn ? `${wD}% Weight` : `${wD}% 权重`,
+        title: isEn ? `First ${sotaCutoff} mo primary` : `前 ${sotaCutoff} 个月主力`,
+        periodNote: isEn ? `SOTA end · ${wD}%` : `主力期止 · 权重 ${wD}%`,
+        tag: isEn ? `${wD}%` : `${wD}%`,
         tone: 'amber',
         buyTotal: sK.buyTotal,
         skipTotal: sK.skipTotal,
@@ -301,11 +291,9 @@
       {
         id: 'next_gen_review',
         cutoff: nextGenCutoff,
-        title: isEn
-          ? `First ${nextGenCutoff} mo as primary (until next flagship)`
-          : `前 ${nextGenCutoff} 个月主力（撑到下代旗舰前）`,
-        periodNote: isEn ? `Uses BF Gemini Pro as primary until est. next Gemini SOTA` : `下代 Gemini SOTA 发布前持续把黑五当主力`,
-        tag: isEn ? 'Review' : '复评节点',
+        title: isEn ? `First ${nextGenCutoff} mo primary` : `前 ${nextGenCutoff} 个月主力`,
+        periodNote: isEn ? 'Until next SOTA' : '下代 SOTA 前',
+        tag: isEn ? 'Review' : '复评',
         tone: 'blue',
         buyTotal: sNext.buyTotal,
         skipTotal: sNext.skipTotal,
@@ -314,11 +302,9 @@
       {
         id: 'full_plan',
         cutoff: 12,
-        title: isEn ? 'All 12 mo as primary (full Plan B)' : '全年 12 个月主力（完整执行方案 B）',
-        periodNote: isEn
-          ? `Uses BF per your full 12-month plan · ${wU}% weight`
-          : `全年按你排布的方案使用黑五 · 权重 ${wU}%`,
-        tag: isEn ? `${wU}% Weight` : `${wU}% 权重`,
+        title: isEn ? 'All 12 mo primary' : '全年 12 个月主力',
+        periodNote: isEn ? `Full Plan B · ${wU}%` : `完整执行 · 权重 ${wU}%`,
+        tag: isEn ? `${wU}%` : `${wU}%`,
         tone: 'green',
         isBaseline: true,
         buyTotal: sFull.buyTotal,

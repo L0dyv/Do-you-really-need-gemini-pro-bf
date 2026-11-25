@@ -1560,12 +1560,10 @@
         return `
           <tr class="${rowCls}" data-scenario-id="${escapeHtml(sc.id)}" role="button" tabindex="0" aria-pressed="${isActive ? 'true' : 'false'}">
             <td>
-              <div class="scen-cell-wrap">
+              <div class="scen-cell-wrap scen-cell-inline">
                 <span class="scen-radio-dot" aria-hidden="true"></span>
-                <div>
-                  <div class="fin-scen-title">${escapeHtml(sc.title)}</div>
-                  <div class="fin-scen-sub">${escapeHtml(sc.periodNote || '')}</div>
-                </div>
+                <span class="fin-scen-title">${escapeHtml(sc.title)}</span>
+                <span class="fin-scen-inline-meta">${escapeHtml(sc.periodNote || '')}</span>
               </div>
             </td>
             <td class="num mono">${fmtNum(sc.buyTotal)}</td>
