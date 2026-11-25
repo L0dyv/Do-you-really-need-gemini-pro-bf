@@ -42,15 +42,14 @@ test('Turkey monthly Pro depreciates in CNY without mid-year hike', () => {
   assert.ok(julPrice > 95 && julPrice < 105);
 });
 
-test('Mid-year Google price hike resets June TRY Pro back to current CNY anchor', () => {
-  const s = Object.assign(clone(DEFAULT_STATE), {
-    monthlyProRegion: 'tr',
-    tryAnnualDepRate: 22,
-    googleMidYearHike: true,
-  });
-  const junePrice = getMonthlyProCny(6, s);
-  const expectedBase = 870 / 7.55;
-  assert.ok(Math.abs(junePrice - expectedBase) < 0.1);
+test('Per-subscription TRY midYearHike resets June TRY item back to initial CNY anchor without affecting other items', () => {
+  const s = clone(DEFAULT_STATE);
+  s.monthPlans[6] = [makeSubItem('gpt_plus_tr', 1, { midYearHike: true })];
+  s.monthPlans[7] = [makeSubItem('gpt_plus_tr', 1, { midYearHike: false })];
+  const res = calculateLedger(s);
+  const expectedBase = 999.99 / 7.55;
+  assert.ok(Math.abs(res.monthlyRows[6].monthSavedByBf - expectedBase) < 0.2);
+  assert.ok(res.monthlyRows[7].monthSavedByBf < expectedBase - 10);
 });
 
 test('Default 477 CNY Turkey Black Friday marginal plan has clean 4 idle + 8 replaceable months', () => {

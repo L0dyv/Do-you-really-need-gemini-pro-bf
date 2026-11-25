@@ -77,11 +77,11 @@
       tone: 'blue',
       currency: 'TRY',
       amount: 870,
-      dynamicPrice: 'gemini_pro',
+      dynamicPrice: null,
       isGeminiPro: true,
       replaceableByBf: true,
       includesMusic: false,
-      note: '870 TRY/月，随里拉贬值自动折算；买黑五可省下此项',
+      note: '870 TRY/月，随里拉贬值自动折算；可在标签上单独勾选是否年中调价',
     },
     {
       id: 'gemini_pro_jp',
@@ -243,6 +243,7 @@
         replaceableByBf: customOverride && customOverride.replaceableByBf != null
           ? Boolean(customOverride.replaceableByBf)
           : Boolean(base.replaceableByBf),
+        midYearHike: Boolean(customOverride && customOverride.midYearHike),
         includesMusic: Boolean(base.includesMusic),
         isCustom: false,
       };
@@ -264,6 +265,7 @@
       replaceableByBf: customOverride && customOverride.replaceableByBf != null
         ? Boolean(customOverride.replaceableByBf)
         : true,
+      midYearHike: Boolean(customOverride && customOverride.midYearHike),
       includesMusic: false,
       isCustom: true,
     };

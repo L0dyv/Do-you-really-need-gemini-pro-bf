@@ -77,7 +77,7 @@
   function getModelPhase(monthIndex, state) {
     const elapsed = Number(state.monthsSinceLaunch) + monthIndex + 1;
     const sotaLen = Math.max(1, Number(state.effectiveSotaMonths));
-    const nextInterval = Math.max(3, Number(state.nextFlagshipInterval));
+    const nextInterval = Math.max(2, Number(state.nextFlagshipInterval));
 
     if (elapsed >= nextInterval) {
       return { key: 'next_gen', label: '新旗舰窗口', tone: 'green' };
@@ -93,17 +93,21 @@
 
   function getItemUnitPrice(item, monthIndex, state) {
     const offset = MONTHS[monthIndex].offsetFromNow;
-    if (item.dynamicPrice === 'gemini_pro') {
-      return getMonthlyProCny(monthIndex, state);
-    }
     if (item.dynamicPrice === 'gemini_ultra_5x') {
       const price = getUltraCostForMonth(monthIndex, state);
       if (price != null) return price;
       return getMonthlyProCny(monthIndex, state) * 2;
     }
-    // Multi-currency conversion (supports legacy priceCny fallback)
     const currency = item.currency || 'CNY';
     const rawAmount = item.amount != null ? item.amount : item.priceCny;
+    // Per-subscription TRY mid-year price adjustment (rebases TRY price to initial CNY anchor from month 6 onward)
+    if (currency === 'TRY' && item.midYearHike && monthIndex >= 6) {
+      const baseCnyNow = (Math.max(0, Number(rawAmount) || 0)) / FX_RATES.TRY_PER_CNY;
+      const rateAtJune = getTryRateAtOffset(MONTHS[6].offsetFromNow, state.tryAnnualDepRate);
+      const hikedTry = baseCnyNow * rateAtJune;
+      const rateNow = getTryRateAtOffset(offset, state.tryAnnualDepRate);
+      return hikedTry / rateNow;
+    }
     return convertToCny(rawAmount, currency, offset, state.tryAnnualDepRate);
   }
 
