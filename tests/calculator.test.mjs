@@ -5,10 +5,11 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { DEFAULT_STATE, buildMonthPlan, makeSubItem } = require('../js/data.js');
+const { BF_DEAL_PRESETS, DEFAULT_STATE, buildMonthPlan, makeSubItem } = require('../js/data.js');
 const {
   calculateLedger,
   convertToCny,
+  getCnyPerUnit,
   getMonthlyProCny,
   getTryRateAtOffset,
 } = require('../js/calculator.js');
@@ -121,4 +122,66 @@ test('Exporter generates valid vector SVG and standalone HTML with L0dyv attribu
   const emojiRe = /\p{Extended_Pictographic}/u;
   assert.equal(emojiRe.test(svg), false, 'exported SVG should not contain emojis');
   assert.equal(emojiRe.test(html), false, 'exported HTML should not contain emojis');
+});
+
+test('Bidirectional FX sliders change monthly bills but never alter today upfront Black Friday cost', () => {
+  const sUp = Object.assign(clone(DEFAULT_STATE), {
+    bfPreset: 'jp_web',
+    bfCurrency: 'JPY',
+    bfRawAmount: 14500,
+    bfCostCny: BF_DEAL_PRESETS.jp_web.cnyCost,
+    monthPlans: buildMonthPlan('all_pro', 'gemini_pro_jp'),
+    fxAnnualChangePct: { TRY: -18, JPY: 15, HKD: 0, TWD: 0, USD: 0 },
+  });
+  const sDown = Object.assign(clone(sUp), {
+    fxAnnualChangePct: { TRY: -18, JPY: -15, HKD: 0, TWD: 0, USD: 0 },
+  });
+  const resUp = calculateLedger(sUp);
+  const resDown = calculateLedger(sDown);
+
+  assert.equal(resUp.bfCost, resDown.bfCost, 'Upfront Black Friday cost must remain constant');
+  assert.ok(resUp.monthlyRows[11].monthSavedByBf > resDown.monthlyRows[11].monthSavedByBf);
+  assert.ok(getCnyPerUnit('JPY', 12, sUp) > getCnyPerUnit('JPY', 0, sUp));
+  assert.ok(getCnyPerUnit('JPY', 12, sDown) < getCnyPerUnit('JPY', 0, sDown));
+});
+
+test('Dynamic FX panel and Legacy Ultra decoupling reflect actual Step 2 monthly plans across all 5 regions', () => {
+  const sHk = Object.assign(clone(DEFAULT_STATE), {
+    bfPreset: 'hk_web',
+    bfCurrency: 'HKD',
+    bfRawAmount: 794,
+    bfCostCny: BF_DEAL_PRESETS.hk_web.cnyCost,
+    monthPlans: buildMonthPlan('all_pro', 'gemini_pro_hk'),
+  });
+  // Mix 2 months of USD Claude Pro into HK plan
+  sHk.monthPlans[10] = [makeSubItem('claude_pro_us', 1)];
+  sHk.monthPlans[11] = [makeSubItem('claude_pro_us', 1)];
+
+  const resHk = calculateLedger(sHk);
+  assert.equal(resHk.needsLegacyUltraRenewal, false);
+  assert.deepEqual(
+    resHk.activeFxCurrencies.map((c) => c.currency),
+    ['HKD', 'USD']
+  );
+  assert.equal(resHk.activeFxCurrencies[0].monthsCount, 10);
+  assert.equal(resHk.activeFxCurrencies[1].monthsCount, 2);
+
+  // Legacy Ultra immediate_fail -> fallback JP Ultra keeps needsLegacyUltraRenewal=true and surfaces JPY
+  const sFail = Object.assign(clone(DEFAULT_STATE), {
+    ultraRenewalMode: 'immediate_fail',
+    fallbackUltraStrategy: 'jp_ultra',
+  });
+  const resFail = calculateLedger(sFail);
+  assert.equal(resFail.needsLegacyUltraRenewal, true);
+  assert.ok(resFail.activeFxCurrencies.some((c) => c.currency === 'JPY'));
+});
+
+test('TRY mid-year hike only raises sticker price on depreciation and never discounts on appreciation', () => {
+  const sApp = clone(DEFAULT_STATE);
+  sApp.fxAnnualChangePct = { TRY: 10, JPY: 0, HKD: 0, TWD: 0, USD: 0 };
+  sApp.monthPlans[6] = [makeSubItem('gemini_pro_tr', 1, { midYearHike: true })];
+  sApp.monthPlans[7] = [makeSubItem('gemini_pro_tr', 1, { midYearHike: false })];
+  const res = calculateLedger(sApp);
+  const expectedM6 = convertToCny(870, 'TRY', 7, sApp);
+  assert.ok(Math.abs(res.monthlyRows[6].monthSavedByBf - expectedM6) < 0.05);
 });

@@ -20,25 +20,111 @@
     { id: '2027-11', label: '2027年11月', short: '11月', offsetFromNow: 12 },
   ];
 
+  // Verified Nov 2026 baseline FX rates
   const FX_RATES = {
     TRY_PER_CNY: 7.55,
     JPY_PER_CNY: 23.81,
+    HKD_PER_CNY: 1.176,
+    TWD_PER_CNY: 4.94,
     CNY_PER_USD: 6.67,
+  };
+
+  // Unified internal rate: CNY per 1 unit of foreign currency
+  const FX_BASE_CNY_PER_UNIT = {
+    CNY: 1,
+    TRY: 1 / FX_RATES.TRY_PER_CNY,
+    JPY: 1 / FX_RATES.JPY_PER_CNY,
+    HKD: 1 / FX_RATES.HKD_PER_CNY,
+    TWD: 1 / FX_RATES.TWD_PER_CNY,
+    USD: FX_RATES.CNY_PER_USD,
+  };
+
+  // Bidirectional FX slider metadata (+ = foreign currency appreciates / costs more CNY, - = depreciates / costs less CNY)
+  const FX_CURRENCY_META = {
+    TRY: {
+      code: 'TRY',
+      name: '土耳其里拉',
+      symbol: '₺',
+      displayBase: '1 CNY ≈ 7.55 TRY',
+      defaultAnnualPct: -18,
+      minPct: -60,
+      maxPct: 25,
+      sampleAmount: 870,
+      sampleLabel: '870 TRY 月费',
+      supportsMidYearHike: true,
+      note: '负数表示里拉相对人民币贬值（月付越付越便宜）；仅 TRY 月付支持在第 2 步「改价」中单独勾选 6 月追调标价。',
+    },
+    JPY: {
+      code: 'JPY',
+      name: '日元',
+      symbol: 'JP¥',
+      displayBase: '1 CNY ≈ 23.81 JPY',
+      defaultAnnualPct: 0,
+      minPct: -25,
+      maxPct: 25,
+      sampleAmount: 2900,
+      sampleLabel: '2,900 JPY 月费',
+      supportsMidYearHike: false,
+      note: '正数表示日元相对人民币升值（未来月付变贵），负数表示贬值（未来月付变便宜）。',
+    },
+    HKD: {
+      code: 'HKD',
+      name: '港币',
+      symbol: 'HK$',
+      displayBase: '1 CNY ≈ 1.18 HKD',
+      defaultAnnualPct: 0,
+      minPct: -15,
+      maxPct: 15,
+      sampleAmount: 158,
+      sampleLabel: '158 HKD 月费',
+      supportsMidYearHike: false,
+      note: '港币实行联系汇率盯住美元（7.75–7.85），兑人民币走势通常与美元高度联动。',
+    },
+    TWD: {
+      code: 'TWD',
+      name: '新台币',
+      symbol: 'NT$',
+      displayBase: '1 CNY ≈ 4.94 TWD',
+      defaultAnnualPct: 0,
+      minPct: -20,
+      maxPct: 20,
+      sampleAmount: 650,
+      sampleLabel: '650 TWD 月费',
+      supportsMidYearHike: false,
+      note: '正数表示新台币相对人民币升值（月付变贵），负数表示贬值（月付变便宜）。',
+    },
+    USD: {
+      code: 'USD',
+      name: '美元',
+      symbol: '$',
+      displayBase: '1 USD ≈ 6.67 CNY',
+      defaultAnnualPct: 0,
+      minPct: -15,
+      maxPct: 15,
+      sampleAmount: 19.99,
+      sampleLabel: '$19.99 月费',
+      supportsMidYearHike: false,
+      note: '正数表示美元相对人民币升值（月付变贵），负数表示贬值（月付变便宜）。',
+    },
+  };
+
+  const DEFAULT_FX_ANNUAL_PCT = {
+    TRY: FX_CURRENCY_META.TRY.defaultAnnualPct,
+    JPY: FX_CURRENCY_META.JPY.defaultAnnualPct,
+    HKD: FX_CURRENCY_META.HKD.defaultAnnualPct,
+    TWD: FX_CURRENCY_META.TWD.defaultAnnualPct,
+    USD: FX_CURRENCY_META.USD.defaultAnnualPct,
   };
 
   const CURRENCIES = [
     { code: 'TRY', symbol: '₺', label: 'TRY 里拉' },
     { code: 'JPY', symbol: 'JP¥', label: 'JPY 日元' },
+    { code: 'HKD', symbol: 'HK$', label: 'HKD 港币' },
+    { code: 'TWD', symbol: 'NT$', label: 'TWD 新台币' },
     { code: 'USD', symbol: '$', label: 'USD 美元' },
     { code: 'CNY', symbol: '¥', label: 'CNY 人民币' },
   ];
 
-  /**
-   * Two cleanly separated catalogs:
-   * 1) IDLE_PLAN_CATALOG: Higher-tier or external plans that make Black Friday Pro sit idle
-   *    (e.g., Google Ultra, Claude Max, ChatGPT Pro, Team/School seat, or custom).
-   * 2) SUB_CATALOG (replaceableByBf: true): Subscriptions that Black Friday Pro would replace.
-   */
   const IDLE_PLAN_CATALOG = [
     {
       id: 'ultra_idle',
@@ -47,7 +133,7 @@
       short: 'Ultra 5x · 土旧',
       tone: 'yellow',
       currency: 'TRY',
-      amount: 2000,
+      amount: 2000.75,
       dynamicPrice: 'gemini_ultra_5x',
       isIdlePlan: true,
       isGeminiUltra: true,
@@ -68,7 +154,7 @@
       isGeminiUltra: true,
       replaceableByBf: false,
       includesMusic: true,
-      note: '14,500 JPY/月 ≈ ¥608，含完整 YouTube Music',
+      note: '14,500 JPY/月 ≈ ¥609，含完整 YouTube Music',
     },
     {
       id: 'idle_ultra_20x',
@@ -149,7 +235,7 @@
       note: '本月无订阅需求，黑五 Pro 闲置',
     },
 
-    // Replaceable: Google Gemini Pro
+    // Replaceable: Google Gemini Pro (5 regions)
     {
       id: 'gemini_pro_tr',
       group: '黑五可平替 · Google Gemini',
@@ -162,7 +248,7 @@
       isGeminiPro: true,
       replaceableByBf: true,
       includesMusic: false,
-      note: '870 TRY/月，随里拉贬值自动折算；可在标签上单独勾选是否年中调价',
+      note: '870 TRY/月，随里拉汇率走势自动折算；可单独勾选 6 月追调标价',
     },
     {
       id: 'gemini_pro_jp',
@@ -176,7 +262,35 @@
       isGeminiPro: true,
       replaceableByBf: true,
       includesMusic: false,
-      note: '2,900 JPY/月 ≈ ¥122；买黑五可省下此项',
+      note: '2,900 JPY/月 ≈ ¥122',
+    },
+    {
+      id: 'gemini_pro_hk',
+      group: '黑五可平替 · Google Gemini',
+      name: 'Gemini Pro（港区）',
+      short: 'Gemini Pro · 港区',
+      tone: 'blue',
+      currency: 'HKD',
+      amount: 158,
+      dynamicPrice: null,
+      isGeminiPro: true,
+      replaceableByBf: true,
+      includesMusic: false,
+      note: '158 HKD/月 ≈ ¥134',
+    },
+    {
+      id: 'gemini_pro_tw',
+      group: '黑五可平替 · Google Gemini',
+      name: 'Gemini Pro（台区）',
+      short: 'Gemini Pro · 台区',
+      tone: 'blue',
+      currency: 'TWD',
+      amount: 650,
+      dynamicPrice: null,
+      isGeminiPro: true,
+      replaceableByBf: true,
+      includesMusic: false,
+      note: '650 TWD/月 ≈ ¥132',
     },
     {
       id: 'gemini_pro_us',
@@ -190,7 +304,7 @@
       isGeminiPro: true,
       replaceableByBf: true,
       includesMusic: false,
-      note: '$19.99/月 ≈ ¥133；买黑五可省下此项',
+      note: '$19.99/月 ≈ ¥133',
     },
 
     // Replaceable: OpenAI ChatGPT
@@ -205,7 +319,7 @@
       dynamicPrice: null,
       replaceableByBf: true,
       includesMusic: false,
-      note: '999.99 TRY/月 ≈ ¥132（若黑五 Pro 可平替此项则计入节省）',
+      note: '999.99 TRY/月 ≈ ¥132',
     },
     {
       id: 'gpt_plus_jp',
@@ -276,30 +390,67 @@
     },
   ];
 
+  // 5 Major Regional Black Friday Deals + Custom
   const BF_DEAL_PRESETS = {
     tr_ios: {
       id: 'tr_ios',
-      label: '土区 App Store 黑五（3,600 TRY）',
+      regionLabel: '土区',
+      label: '土区 App Store 黑五 Pro',
       currency: 'TRY',
       amount: 3600,
-      cnyCost: Math.round(3600 / FX_RATES.TRY_PER_CNY),
-      note: '使用独立 Apple ID 走内购，避免与已有 Google One 订阅冲突',
+      cnyCost: Math.round(3600 * FX_BASE_CNY_PER_UNIT.TRY), // 477
+      defaultMonthlyProId: 'gemini_pro_tr',
+      note: '折合 ¥39.7/月 · 独立 Apple ID 内购，同区月付 870 TRY',
     },
     jp_web: {
       id: 'jp_web',
-      label: '日区官方黑五（14,500 JPY）',
+      regionLabel: '日区',
+      label: '日区官方黑五 Pro',
       currency: 'JPY',
       amount: 14500,
-      cnyCost: 608,
-      note: '首年半价，次年按 29,000 JPY 自动续费',
+      cnyCost: Math.round(14500 * FX_BASE_CNY_PER_UNIT.JPY), // 609
+      defaultMonthlyProId: 'gemini_pro_jp',
+      note: '折合 ¥50.8/月 · 首年半价，同区月付 2,900 JPY',
+    },
+    hk_web: {
+      id: 'hk_web',
+      regionLabel: '港区',
+      label: '港区官方黑五 Pro',
+      currency: 'HKD',
+      amount: 794,
+      cnyCost: Math.round(794 * FX_BASE_CNY_PER_UNIT.HKD), // 675
+      defaultMonthlyProId: 'gemini_pro_hk',
+      note: '折合 ¥56.3/月 · 约原年费 1,588 HKD 半价，同区月付 158 HKD',
+    },
+    tw_web: {
+      id: 'tw_web',
+      regionLabel: '台区',
+      label: '台区官方黑五 Pro',
+      currency: 'TWD',
+      amount: 3250,
+      cnyCost: Math.round(3250 * FX_BASE_CNY_PER_UNIT.TWD), // 658
+      defaultMonthlyProId: 'gemini_pro_tw',
+      note: '折合 ¥54.8/月 · 约原年费 6,500 TWD 半价，同区月付 650 TWD',
+    },
+    us_web: {
+      id: 'us_web',
+      regionLabel: '美区',
+      label: '美区官方黑五 Pro',
+      currency: 'USD',
+      amount: 99.99,
+      cnyCost: Math.round(99.99 * FX_BASE_CNY_PER_UNIT.USD), // 667
+      defaultMonthlyProId: 'gemini_pro_us',
+      note: '折合 ¥55.6/月 · 原年费 $199.99 半价，同区月付 $19.99',
     },
     custom: {
       id: 'custom',
+      regionLabel: '自定义',
       label: '自定义币种与年费',
-      currency: 'TRY',
-      amount: 3600,
-      cnyCost: 477,
-      note: '支持 TRY / JPY / USD / CNY 实时折算',
+      currency: 'CNY',
+      amount: 500,
+      cnyCost: 500,
+      defaultMonthlyProId: null,
+      note: '手动填写任意实付人民币或外币包年金额',
     },
   };
 
@@ -357,27 +508,28 @@
     };
   }
 
-  function buildMonthPlan(templateKey) {
+  function buildMonthPlan(templateKey, regionProId) {
+    const proId = regionProId || 'gemini_pro_tr';
     const plans = [];
     for (let i = 0; i < 12; i++) {
       if (templateKey === 'default') {
         if (i <= 3) {
           plans.push([makeSubItem('ultra_idle', 1)]);
         } else {
-          plans.push([makeSubItem('gemini_pro_tr', 1)]);
+          plans.push([makeSubItem(proId, 1)]);
         }
       } else if (templateKey === 'offseason_only') {
         if (i === 0) {
-          plans.push([makeSubItem('gemini_pro_tr', 1)]);
+          plans.push([makeSubItem(proId, 1)]);
         } else if (i >= 1 && i <= 3) {
           plans.push([makeSubItem('ultra_idle', 1)]);
         } else if (i >= 4 && i <= 8) {
-          plans.push([makeSubItem('gemini_pro_tr', 1)]);
+          plans.push([makeSubItem(proId, 1)]);
         } else {
           plans.push([]);
         }
-      } else if (templateKey === 'all_pro') {
-        plans.push([makeSubItem('gemini_pro_tr', 1)]);
+      } else if (templateKey === 'all_pro' || templateKey === 'region_pro') {
+        plans.push([makeSubItem(proId, 1)]);
       } else if (templateKey === 'replace_gpt') {
         if (i <= 3) {
           plans.push([makeSubItem('ultra_idle', 1)]);
@@ -392,12 +544,14 @@
   }
 
   const DEFAULT_STATE = {
+    schemaVersion: 2,
     monthPlans: buildMonthPlan('default'),
+    monthEdited: Array(12).fill(false),
     bfPicked: false,
     bfPreset: 'tr_ios',
     bfCurrency: 'TRY',
     bfRawAmount: 3600,
-    bfCostCny: 477,
+    bfCostCny: BF_DEAL_PRESETS.tr_ios.cnyCost,
     currentUltraCny: 265,
     ultraRenewalMode: 'always',
     ultraFailMonthIndex: 2,
@@ -405,6 +559,7 @@
     monthlyProRegion: 'tr',
     monthlyProBaseTry: 870,
     monthlyProBaseJpy: 2900,
+    fxAnnualChangePct: Object.assign({}, DEFAULT_FX_ANNUAL_PCT),
     tryAnnualDepRate: 22,
     googleMidYearHike: false,
     musicMonthlyCny: 0,
@@ -418,33 +573,54 @@
   const SCENARIO_PRESETS = [
     {
       id: 'tr_bf_baseline',
-      name: '土区黑五 3,600 TRY（基准）',
-      desc: '12-3月 Ultra 空闲，4-11月平替土区 Pro',
+      name: '土区黑五 3,600 TRY（Ultra 空闲 + 淡季 Pro）',
+      desc: '12-3月土区旧价 Ultra 空闲，4-11月取代土区 Pro',
       patch: Object.assign({}, DEFAULT_STATE, {
         bfPicked: true,
-        monthPlans: buildMonthPlan('default'),
+        monthPlans: buildMonthPlan('default', 'gemini_pro_tr'),
+        monthEdited: Array(12).fill(true),
       }),
     },
     {
       id: 'jp_bf_compare',
-      name: '日区黑五 14,500 JPY（对照）',
-      desc: '同样排布，对比日区 608 元黑五',
+      name: '日区黑五 14,500 JPY（全年取代日区 Pro）',
+      desc: '无土区 Ultra 依赖，全年 12 个月取代日区月付 Pro',
       patch: Object.assign({}, DEFAULT_STATE, {
         bfPicked: true,
-        monthPlans: buildMonthPlan('default'),
         bfPreset: 'jp_web',
         bfCurrency: 'JPY',
         bfRawAmount: 14500,
-        bfCostCny: 608,
+        bfCostCny: BF_DEAL_PRESETS.jp_web.cnyCost,
+        monthPlans: buildMonthPlan('all_pro', 'gemini_pro_jp'),
+        monthEdited: Array(12).fill(false),
       }),
     },
     {
-      id: 'all_pro_year',
-      name: '全年 12 个月平替月付 Pro',
-      desc: '无 Ultra 空闲月，全年使用黑五 Pro',
+      id: 'hk_bf_year',
+      name: '港区黑五 794 HKD（全年取代港区 Pro）',
+      desc: '港区半价年付对照港区 158 HKD 月付',
       patch: Object.assign({}, DEFAULT_STATE, {
         bfPicked: true,
-        monthPlans: buildMonthPlan('all_pro'),
+        bfPreset: 'hk_web',
+        bfCurrency: 'HKD',
+        bfRawAmount: 794,
+        bfCostCny: BF_DEAL_PRESETS.hk_web.cnyCost,
+        monthPlans: buildMonthPlan('all_pro', 'gemini_pro_hk'),
+        monthEdited: Array(12).fill(false),
+      }),
+    },
+    {
+      id: 'us_bf_year',
+      name: '美区黑五 $99.99（全年取代美区 Pro）',
+      desc: '美区半价年付对照美区 $19.99 月付',
+      patch: Object.assign({}, DEFAULT_STATE, {
+        bfPicked: true,
+        bfPreset: 'us_web',
+        bfCurrency: 'USD',
+        bfRawAmount: 99.99,
+        bfCostCny: BF_DEAL_PRESETS.us_web.cnyCost,
+        monthPlans: buildMonthPlan('all_pro', 'gemini_pro_us'),
+        monthEdited: Array(12).fill(false),
       }),
     },
     {
@@ -453,7 +629,8 @@
       desc: '1-3月 Ultra 空闲，4-8月 Pro，留存把握 45%',
       patch: Object.assign({}, DEFAULT_STATE, {
         bfPicked: true,
-        monthPlans: buildMonthPlan('offseason_only'),
+        monthPlans: buildMonthPlan('offseason_only', 'gemini_pro_tr'),
+        monthEdited: Array(12).fill(true),
         retainProbPct: 45,
       }),
     },
@@ -524,6 +701,9 @@
   return {
     MONTHS,
     FX_RATES,
+    FX_BASE_CNY_PER_UNIT,
+    FX_CURRENCY_META,
+    DEFAULT_FX_ANNUAL_PCT,
     CURRENCIES,
     IDLE_PLAN_CATALOG,
     SUB_CATALOG,
