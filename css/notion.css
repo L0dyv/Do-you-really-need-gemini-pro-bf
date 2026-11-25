@@ -2023,9 +2023,9 @@ input[type="range"]::-moz-range-thumb {
   cursor: pointer;
 }
 
-/* Minimalist Unified 12-Month Model Lifecycle Axis (Step 4) */
+/* Minimalist Unified Timeline Axis: Nov 2026 Dashed Lead-In + Dec 2026..Nov 2027 Repeating Cycles */
 .lifecycle-bar {
-  padding: 46px 18px 44px;
+  padding: 50px 18px 48px;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   margin-top: 8px;
@@ -2034,18 +2034,47 @@ input[type="range"]::-moz-range-thumb {
 .lifecycle-line {
   position: relative;
   height: 4px;
-  background: var(--border);
+  background: transparent;
   border-radius: 2px;
+}
+
+.lifecycle-seg-pre {
+  position: absolute;
+  left: 0;
+  width: 10%;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    to right,
+    var(--ink-2) 0 4px,
+    transparent 4px 8px
+  );
+  border-radius: 2px 0 0 2px;
+}
+
+.lifecycle-track-main {
+  position: absolute;
+  left: 10%;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--border);
+  border-radius: 0 2px 2px 0;
+}
+
+.lifecycle-segments,
+.lifecycle-nodes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 .lifecycle-seg-active {
   position: absolute;
-  left: 0;
   top: 0;
   bottom: 0;
   background: var(--ink);
-  border-radius: 2px 0 0 2px;
-  transition: width 0.15s ease;
+  transition: left 0.15s ease, width 0.15s ease;
 }
 
 .lifecycle-seg-extra {
@@ -2053,7 +2082,6 @@ input[type="range"]::-moz-range-thumb {
   top: 0;
   bottom: 0;
   background: #2383e2;
-  border-radius: 0 2px 2px 0;
   transition: left 0.15s ease, width 0.15s ease;
 }
 
@@ -2062,7 +2090,6 @@ input[type="range"]::-moz-range-thumb {
   top: 0;
   bottom: 0;
   background: #0f7b6c;
-  border-radius: 0 2px 2px 0;
   transition: left 0.15s ease, width 0.15s ease;
 }
 
@@ -2096,6 +2123,12 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 0 0 1px var(--ink);
 }
 
+.lc-dot-pre {
+  background: #ffffff;
+  border: 2px dashed var(--ink-2);
+  box-shadow: none;
+}
+
 .lc-dot-hollow {
   background: #ffffff;
   border: 2px solid var(--ink);
@@ -2114,6 +2147,12 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 0 0 1px #0f7b6c;
 }
 
+.lc-dot-green-hollow {
+  background: #ffffff;
+  border: 2px solid #0f7b6c;
+  box-shadow: none;
+}
+
 .lc-month {
   position: absolute;
   bottom: 16px;
@@ -2122,6 +2161,11 @@ input[type="range"]::-moz-range-thumb {
   color: var(--ink);
   white-space: nowrap;
   line-height: 1.2;
+}
+
+.lc-month-muted {
+  color: var(--ink-2);
+  font-weight: 500;
 }
 
 .lc-month-blue {
@@ -2139,6 +2183,10 @@ input[type="range"]::-moz-range-thumb {
   color: var(--ink-2);
   white-space: nowrap;
   line-height: 1.2;
+}
+
+.lc-label-muted {
+  color: var(--ink-3);
 }
 
 .lc-label-blue {

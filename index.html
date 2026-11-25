@@ -308,8 +308,8 @@
           <div class="prop-row">
             <span class="prop-key" data-i18n="modal.sotaKey">维持 SOTA 时长</span>
             <div class="prop-val prop-val-slider">
-              <input type="range" id="inp-sota-len" min="1" max="12" step="1" />
-              <span class="mono val-badge" id="lbl-sota-len">7 个月</span>
+              <input type="range" id="inp-sota-len" min="1" max="13" step="1" />
+              <span class="mono val-badge" id="lbl-sota-len">8 个月</span>
             </div>
           </div>
           <p class="muted-note lifecycle-help-note" id="help-sota-until"></p>
@@ -318,7 +318,7 @@
             <span class="prop-key" data-i18n="modal.nextKey">下代成为 SOTA 的模型间隔</span>
             <div class="prop-val prop-val-slider">
               <input type="range" id="inp-next-interval" min="2" max="24" step="1" />
-              <span class="mono val-badge" id="lbl-next-interval">10 个月</span>
+              <span class="mono val-badge" id="lbl-next-interval">11 个月</span>
             </div>
           </div>
           <p class="muted-note lifecycle-help-note" id="help-next-when"></p>
@@ -332,32 +332,13 @@
           </div>
           <p class="muted-note lifecycle-help-note" id="help-post-sota-extra"></p>
 
-          <!-- Single Unified 12-Month Timeline Axis (SOTA -> Willing-to-Continue -> Next-Gen SOTA) -->
+          <!-- Single Unified Timeline Axis: Nov 2026 Dashed Launch Lead-In + Dec 2026..Nov 2027 Repeating Cycles -->
           <div class="lifecycle-bar" id="lifecycle-bar">
             <div class="lifecycle-line">
-              <div class="lifecycle-seg-active" id="lc-active-seg"></div>
-              <div class="lifecycle-seg-extra" id="lc-extra-seg"></div>
-              <div class="lifecycle-seg-next" id="lc-next-seg"></div>
-              <div class="lc-node lc-node-start" style="left:0%;">
-                <span class="lc-month mono" data-i18n="modal.axisStart">26年12月</span>
-                <span class="lc-dot"></span>
-                <span class="lc-label" data-i18n="modal.nodeStart">起算 (12月1日)</span>
-              </div>
-              <div class="lc-node" id="lc-sota-node">
-                <span class="lc-month mono" id="lc-sota-month">27年6月</span>
-                <span class="lc-dot lc-dot-hollow"></span>
-                <span class="lc-label" id="lc-sota-label" data-i18n="modal.nodeSotaShort">SOTA 截止</span>
-              </div>
-              <div class="lc-node lc-node-extra" id="lc-extra-node">
-                <span class="lc-month lc-month-blue mono" id="lc-extra-month">27年9月</span>
-                <span class="lc-dot lc-dot-blue"></span>
-                <span class="lc-label lc-label-blue" id="lc-extra-label" data-i18n="modal.nodeExtraShort">愿意用至</span>
-              </div>
-              <div class="lc-node lc-node-next" id="lc-next-node">
-                <span class="lc-month lc-month-green mono" id="lc-next-month">27年9月</span>
-                <span class="lc-dot lc-dot-green"></span>
-                <span class="lc-label lc-label-green" id="lc-next-label" data-i18n="modal.nodeNextShort">下代 SOTA</span>
-              </div>
+              <div class="lifecycle-seg-pre" id="lc-pre-seg"></div>
+              <div class="lifecycle-track-main"></div>
+              <div class="lifecycle-segments" id="lc-segments"></div>
+              <div class="lifecycle-nodes" id="lc-nodes"></div>
             </div>
           </div>
 

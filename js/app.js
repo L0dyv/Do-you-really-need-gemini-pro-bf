@@ -165,8 +165,10 @@
         plansB = derived.buyMonthPlans;
         syncedB = derived.buyMonthSynced;
       }
-      const sotaLen = Math.min(12, Math.max(1, Number(parsed.effectiveSotaMonths) || DEFAULT_STATE.effectiveSotaMonths));
-      const maxExtra = Math.max(0, 12 - sotaLen);
+      const launched = DEFAULT_STATE.monthsSinceLaunch;
+      const sotaLen = Math.min(13, Math.max(1, Number(parsed.effectiveSotaMonths) || DEFAULT_STATE.effectiveSotaMonths));
+      const sotaCutoff = Math.min(12, Math.max(0, sotaLen - launched));
+      const maxExtra = Math.max(0, 12 - sotaCutoff);
       let migratedExtra;
       if (parsed.postSotaExtraMonths != null && Number.isFinite(Number(parsed.postSotaExtraMonths))) {
         migratedExtra = Math.min(maxExtra, Math.max(0, Math.round(Number(parsed.postSotaExtraMonths))));
@@ -178,6 +180,7 @@
       }
       return Object.assign(createInitialUiState(), parsed, {
         fxAnnualChangePct: Object.assign({}, DEFAULT_FX_ANNUAL_PCT),
+        monthsSinceLaunch: launched,
         effectiveSotaMonths: sotaLen,
         postSotaExtraMonths: migratedExtra,
         monthPlans: plansA,
@@ -821,7 +824,9 @@
     document.getElementById('inp-bf-raw').value = state.bfRawAmount != null ? state.bfRawAmount : state.bfCostCny;
     document.getElementById('inp-sota-len').value = state.effectiveSotaMonths;
     document.getElementById('inp-next-interval').value = state.nextFlagshipInterval;
-    const maxExtra = Math.max(0, 12 - (Number(state.effectiveSotaMonths) || 7));
+    const launched = state.monthsSinceLaunch != null ? Number(state.monthsSinceLaunch) : DEFAULT_STATE.monthsSinceLaunch;
+    const sotaCutoff = Math.min(12, Math.max(0, (Number(state.effectiveSotaMonths) || DEFAULT_STATE.effectiveSotaMonths) - launched));
+    const maxExtra = Math.max(0, 12 - sotaCutoff);
     const extraEl = document.getElementById('inp-post-sota-extra');
     extraEl.max = String(maxExtra);
     extraEl.value = String(Math.min(maxExtra, Math.max(0, Number(state.postSotaExtraMonths) || 0)));
@@ -1071,7 +1076,7 @@
 
   function formatSpanParts(res, lang) {
     const isEn = lang === 'en-US';
-    return (isEn
+    const str = (isEn
       ? [
           res.sotaActiveMonths > 0 ? `${res.sotaActiveMonths}m SOTA` : null,
           res.postSotaUsedMonths > 0 ? `${res.postSotaUsedMonths}m extra` : null,
@@ -1082,6 +1087,7 @@
           res.postSotaUsedMonths > 0 ? `后续 ${res.postSotaUsedMonths} 月` : null,
           res.nextGenActiveMonths > 0 ? `下代 SOTA ${res.nextGenActiveMonths} 月` : null,
         ]).filter(Boolean).join(' + ');
+    return str || (isEn ? '0m' : '0 个月');
   }
 
   // Compute row-by-row cash flows for either a fixed cutoff (number) or a 12-month active mask (boolean[])
@@ -1343,11 +1349,11 @@
 
     renderDynamicFxPanel(res);
 
-    // Step 4: Model Lifecycle & Post-SOTA Continuation Months
-    const sotaUntilText = formatFutureMonth(2026, 11, state.effectiveSotaMonths);
+    // Step 4: Periodic Multi-Cycle Model Lifecycle (Anchored at Gemini 4 Launch = Nov 1, 2026)
+    const sotaUntilText = formatFutureMonth(2026, 11, Math.max(0, state.effectiveSotaMonths - 1));
     const nextWhenText = formatFutureMonth(2026, 11, state.nextFlagshipInterval);
-    const willingUntilText = formatFutureMonth(2026, 11, res.willingEndMonth);
     const fmtNodeMonth = (txt) => (lang === 'en-US' ? txt : txt.slice(2));
+    const spanPartsText = formatSpanParts(res, lang);
 
     const extraSlider = document.getElementById('inp-post-sota-extra');
     extraSlider.max = String(res.maxPostSotaExtra);
@@ -1361,98 +1367,206 @@
         ? t('modal.extraMonthsFull')
         : t('modal.extraMonthsVal', { n: res.postSotaExtraMonths });
     document.getElementById('help-sota-until').textContent =
-      t('modal.sotaHelp', { n: state.effectiveSotaMonths, until: sotaUntilText });
+      t('modal.sotaHelp', { n: state.effectiveSotaMonths, until: sotaUntilText, inTerm: res.sotaCutoff });
     document.getElementById('help-next-when').textContent =
       t('modal.nextHelp', { n: state.nextFlagshipInterval, when: nextWhenText });
 
-    const nextRangeText = res.nextGenStartMonth >= 12 ? '12' : `${res.nextGenStartMonth}–12`;
     let extraHelpTxt;
-    if (res.expectedActiveMonths >= 12 && res.nextGenInTerm && res.willingEndMonth < 12) {
-      extraHelpTxt = t('modal.retainHelpFullNext', { nextStart: res.nextGenStartMonth });
-    } else if (res.willingEndMonth >= 12) {
-      extraHelpTxt = t('modal.retainHelpFull', { k: res.sotaCutoff, extra: res.postSotaExtraMonths });
+    if (res.expectedActiveMonths >= 12) {
+      extraHelpTxt = t('modal.retainHelpFullNext', { extra: res.postSotaExtraMonths });
     } else if (res.postSotaExtraMonths === 0) {
-      extraHelpTxt = t('modal.retainHelpZero', { k: res.sotaCutoff, until: sotaUntilText });
-      if (res.nextGenInTerm && res.nextGenActiveMonths > 0) {
-        extraHelpTxt = extraHelpTxt.replace(/[。.]$/, '') + t('modal.retainHelpNextSuffix', {
-          nextStart: res.nextGenStartMonth,
-          nextRange: nextRangeText,
-          nextM: res.nextGenActiveMonths,
-          total: res.expectedActiveMonths,
-        });
-      }
-    } else {
-      extraHelpTxt = t('modal.retainHelpDyn', {
-        k: res.sotaCutoff,
-        until: sotaUntilText,
-        extra: res.postSotaExtraMonths,
-        total: res.willingEndMonth,
-        totalUntil: willingUntilText,
+      extraHelpTxt = t('modal.retainHelpCycleZero', {
+        total: res.expectedActiveMonths,
+        parts: spanPartsText,
+        gap: res.gapInactiveMonths,
       });
-      if (res.nextGenInTerm && res.nextGenActiveMonths > 0) {
-        extraHelpTxt = extraHelpTxt.replace(/[。.]$/, '') + t('modal.retainHelpNextSuffix', {
-          nextStart: res.nextGenStartMonth,
-          nextRange: nextRangeText,
-          nextM: res.nextGenActiveMonths,
-          total: res.expectedActiveMonths,
-        });
-      }
+    } else {
+      extraHelpTxt = t('modal.retainHelpCycle', {
+        extra: res.postSotaExtraMonths,
+        total: res.expectedActiveMonths,
+        parts: spanPartsText,
+        gap: res.gapInactiveMonths,
+      });
     }
     document.getElementById('help-post-sota-extra').textContent = extraHelpTxt;
 
-    // Single Unified 12-Month Axis:
-    // [0..SOTA] black -> [SOTA..willing] blue -> (gap gray) -> [nextSOTA..12] green (if inside 12-mo term)
-    const nextStartPct = res.nextGenInTerm ? ((res.nextGenStartMonth - 1) / 12) * 100 : 100;
-    const sotaPct = (res.sotaCutoff / 12) * 100;
-    const blackEndPct = res.nextGenInTerm ? Math.min(sotaPct, nextStartPct) : sotaPct;
-    const willingPct = (res.willingEndMonth / 12) * 100;
-    const blueEndPct = res.nextGenInTerm ? Math.min(willingPct, nextStartPct) : willingPct;
+    // Single Unified Timeline Axis:
+    // [0..10%] dashed Nov 2026 (Gemini 4 launch lead-in) + [10..100%] 12 subscription months (Dec 2026..Nov 2027)
+    const PRE_PCT = 10;
+    const subBoundaryPct = (m) => PRE_PCT + (m / 12) * (100 - PRE_PCT);
+    const monthLabelForT = (tOffset) => fmtNodeMonth(formatFutureMonth(2026, 11, tOffset));
 
-    document.getElementById('lc-active-seg').style.width = `${Math.max(0, blackEndPct).toFixed(4)}%`;
-    const extraSegEl = document.getElementById('lc-extra-seg');
-    extraSegEl.style.left = `${blackEndPct.toFixed(4)}%`;
-    extraSegEl.style.width = `${Math.max(0, blueEndPct - blackEndPct).toFixed(4)}%`;
+    // Merge contiguous months with identical (kind, gen) into visual runs
+    const runs = [];
+    (res.monthStates || []).forEach((ms) => {
+      const prev = runs[runs.length - 1];
+      if (prev && prev.kind === ms.kind && prev.gen === ms.gen) {
+        prev.endIdx = ms.idx;
+        prev.endT = ms.t;
+      } else {
+        runs.push({
+          kind: ms.kind,
+          gen: ms.gen,
+          startIdx: ms.idx,
+          endIdx: ms.idx,
+          startT: ms.t,
+          endT: ms.t,
+        });
+      }
+    });
 
-    const nextSegEl = document.getElementById('lc-next-seg');
-    if (res.nextGenInTerm) {
-      nextSegEl.style.left = `${nextStartPct.toFixed(4)}%`;
-      nextSegEl.style.width = `${Math.max(0, 100 - nextStartPct).toFixed(4)}%`;
-    } else {
-      nextSegEl.style.left = '100%';
-      nextSegEl.style.width = '0%';
+    const segsHtml = runs
+      .filter((r) => r.kind !== 'gap')
+      .map((r) => {
+        const leftPct = subBoundaryPct(r.startIdx);
+        const rightPct = subBoundaryPct(r.endIdx + 1);
+        const cls =
+          r.kind === 'sota'
+            ? 'lifecycle-seg-active'
+            : r.kind === 'next_sota'
+              ? 'lifecycle-seg-next'
+              : 'lifecycle-seg-extra';
+        return `<div class="${cls}" style="left:${leftPct.toFixed(4)}%;width:${Math.max(0, rightPct - leftPct).toFixed(4)}%;"></div>`;
+      })
+      .join('');
+    document.getElementById('lc-segments').innerHTML = segsHtml;
+
+    // Build timeline nodes: Nov 2026 launch + Dec 2026 subscription start + cycle transition nodes
+    const rawNodes = [
+      {
+        pct: 0,
+        align: 'start',
+        month: t('modal.axisPreStart'),
+        label: t('modal.nodePreLaunch'),
+        dotCls: 'lc-dot lc-dot-pre',
+        monthCls: 'lc-month lc-month-muted mono',
+        labelCls: 'lc-label lc-label-muted',
+        priority: 3,
+      },
+      {
+        pct: PRE_PCT,
+        align: 'start',
+        month: t('modal.axisStart'),
+        label: t('modal.nodeStart'),
+        dotCls: 'lc-dot',
+        monthCls: 'lc-month mono',
+        labelCls: 'lc-label',
+        priority: 3,
+      },
+    ];
+
+    runs.forEach((r, rIdx) => {
+      const nextRun = runs[rIdx + 1] || null;
+      if (r.kind === 'sota') {
+        // Mark end of Gen 1 SOTA (skip if immediately superseded by Gen 2 SOTA at exact same boundary)
+        if (!nextRun || nextRun.kind !== 'next_sota') {
+          rawNodes.push({
+            pct: subBoundaryPct(r.endIdx + 1),
+            month: monthLabelForT(r.endT),
+            label: t('modal.nodeSotaShort'),
+            dotCls: 'lc-dot lc-dot-hollow',
+            monthCls: 'lc-month mono',
+            labelCls: 'lc-label',
+            priority: 2,
+          });
+        }
+      } else if (r.kind === 'next_sota') {
+        // Start of Next-Gen SOTA
+        rawNodes.push({
+          pct: subBoundaryPct(r.startIdx),
+          month: monthLabelForT(r.startT),
+          label: t('modal.nodeNextShort'),
+          dotCls: 'lc-dot lc-dot-green',
+          monthCls: 'lc-month lc-month-green mono',
+          labelCls: 'lc-label lc-label-green',
+          priority: 3,
+        });
+        // End of Next-Gen SOTA (only when it ends before Month 12 and isn't immediately replaced by another SOTA)
+        if (r.endIdx < 11 && (!nextRun || nextRun.kind !== 'next_sota')) {
+          rawNodes.push({
+            pct: subBoundaryPct(r.endIdx + 1),
+            month: monthLabelForT(r.endT),
+            label: t('modal.nodeSotaShort'),
+            dotCls: 'lc-dot lc-dot-green-hollow',
+            monthCls: 'lc-month lc-month-green mono',
+            labelCls: 'lc-label lc-label-green',
+            priority: 1,
+          });
+        }
+      } else if (r.kind === 'extra') {
+        // End of willing post-SOTA continuation (skip if it directly touches a Next SOTA start node)
+        if (!nextRun || nextRun.kind !== 'next_sota') {
+          rawNodes.push({
+            pct: subBoundaryPct(r.endIdx + 1),
+            month: monthLabelForT(r.endT),
+            label: t('modal.nodeExtraShort'),
+            dotCls: 'lc-dot lc-dot-blue',
+            monthCls: 'lc-month lc-month-blue mono',
+            labelCls: 'lc-label lc-label-blue',
+            priority: 2,
+          });
+        }
+      }
+    });
+
+    if (!res.nextGenInTerm) {
+      rawNodes.push({
+        pct: 100,
+        align: 'end',
+        month: fmtNodeMonth(nextWhenText),
+        label: t('modal.nodeNextOutShort'),
+        dotCls: 'lc-dot lc-dot-green',
+        monthCls: 'lc-month lc-month-green mono',
+        labelCls: 'lc-label lc-label-green',
+        priority: 3,
+      });
     }
 
-    const sotaNodeEl = document.getElementById('lc-sota-node');
-    const extraNodeEl = document.getElementById('lc-extra-node');
-    const nextNodeEl = document.getElementById('lc-next-node');
+    // Deduplicate nodes landing on the exact same coordinate (keep highest priority)
+    const nodes = [];
+    rawNodes
+      .sort((a, b) => a.pct - b.pct || b.priority - a.priority)
+      .forEach((n) => {
+        const last = nodes[nodes.length - 1];
+        if (last && Math.abs(last.pct - n.pct) < 0.5) {
+          if (n.priority > last.priority) nodes[nodes.length - 1] = n;
+        } else {
+          nodes.push(n);
+        }
+      });
 
-    sotaNodeEl.style.left = `${sotaPct.toFixed(4)}%`;
-    sotaNodeEl.classList.toggle('lc-node-end-align', sotaPct >= 95);
-    document.getElementById('lc-sota-month').textContent = fmtNodeMonth(sotaUntilText);
-
-    const showExtraNode = res.postSotaUsedMonths > 0 && (!res.nextGenInTerm || blueEndPct < nextStartPct - 0.01);
-    extraNodeEl.style.display = showExtraNode ? 'flex' : 'none';
-    if (showExtraNode) {
-      const extraDotPct = blueEndPct;
-      const extraDotMonth = formatFutureMonth(2026, 11, res.sotaActiveMonths + res.postSotaUsedMonths);
-      extraNodeEl.style.left = `${extraDotPct.toFixed(4)}%`;
-      extraNodeEl.classList.toggle('lc-node-end-align', extraDotPct >= 95);
-      document.getElementById('lc-extra-month').textContent = fmtNodeMonth(extraDotMonth);
-    }
-
-    nextNodeEl.style.left = `${nextStartPct.toFixed(4)}%`;
-    nextNodeEl.classList.toggle('lc-node-end-align', nextStartPct >= 95);
-    document.getElementById('lc-next-month').textContent = fmtNodeMonth(nextWhenText);
-    document.getElementById('lc-next-label').textContent = res.nextGenInTerm
-      ? t('modal.nodeNextShort')
-      : t('modal.nodeNextOutShort');
-
-    // Anti-collision staggering so month labels above & role labels below never overlap
-    const extraNearSota = showExtraNode && Math.abs(blueEndPct - sotaPct) < 13;
-    extraNodeEl.classList.toggle('is-staggered', extraNearSota);
-    const nextNearSota = Math.abs(nextStartPct - sotaPct) < 13;
-    const nextNearExtra = showExtraNode && Math.abs(nextStartPct - blueEndPct) < 13;
-    nextNodeEl.classList.toggle('is-staggered', (nextNearSota || nextNearExtra) && !(nextNearExtra && extraNearSota));
+    // Anti-collision staggering across all nodes so month & role labels never collide
+    let lastNormalPct = -99;
+    let lastStaggerPct = -99;
+    const nodesHtml = nodes
+      .map((n, i) => {
+        let staggered = false;
+        if (i >= 2) {
+          if (n.pct - lastNormalPct < 13) {
+            staggered = true;
+            lastStaggerPct = n.pct;
+          } else {
+            lastNormalPct = n.pct;
+          }
+        } else {
+          lastNormalPct = n.pct;
+        }
+        const alignCls =
+          n.align === 'start'
+            ? 'lc-node-start'
+            : n.align === 'end' || n.pct >= 95
+              ? 'lc-node-end-align'
+              : '';
+        const staggerCls = staggered ? 'is-staggered' : '';
+        return `
+          <div class="lc-node ${alignCls} ${staggerCls}" style="left:${n.pct.toFixed(4)}%;">
+            <span class="${n.monthCls}">${escapeHtml(n.month)}</span>
+            <span class="${n.dotCls}"></span>
+            <span class="${n.labelCls}">${escapeHtml(n.label)}</span>
+          </div>`;
+      })
+      .join('');
+    document.getElementById('lc-nodes').innerHTML = nodesHtml;
 
     // STEP 5: Institutional Financial Decision Memo (Selected Outlook Only)
     activeScenarioId = null;
@@ -1462,7 +1576,6 @@
     const scenOverlay = res.expectedActiveMonths < 12
       ? buildScenarioViewRows(res.monthlyRows, res.bfCost, res.expectedActiveMask)
       : null;
-    const spanPartsText = formatSpanParts(res, lang);
 
     document.querySelectorAll('[data-disp-cur]').forEach((btn) => {
       btn.classList.toggle('is-active', btn.dataset.dispCur === dispCur);
@@ -2424,7 +2537,9 @@
     document.getElementById('inp-sota-len').addEventListener('input', (e) => {
       recordUndoSnapshot('sota-len');
       state.effectiveSotaMonths = Number(e.target.value);
-      const maxExtra = Math.max(0, 12 - state.effectiveSotaMonths);
+      const launched = state.monthsSinceLaunch != null ? Number(state.monthsSinceLaunch) : DEFAULT_STATE.monthsSinceLaunch;
+      const sotaCutoff = Math.min(12, Math.max(0, state.effectiveSotaMonths - launched));
+      const maxExtra = Math.max(0, 12 - sotaCutoff);
       if ((Number(state.postSotaExtraMonths) || 0) > maxExtra) {
         state.postSotaExtraMonths = maxExtra;
       }

@@ -1448,9 +1448,9 @@
     fxAnnualChangePct: Object.assign({}, DEFAULT_FX_ANNUAL_PCT),
     tryAnnualDepRate: 22,
     googleMidYearHike: false,
-    monthsSinceLaunch: 0,
-    effectiveSotaMonths: 7,
-    nextFlagshipInterval: 10,
+    monthsSinceLaunch: 1,
+    effectiveSotaMonths: 8,
+    nextFlagshipInterval: 11,
     postSotaExtraMonths: 3,
   };
 

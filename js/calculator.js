@@ -120,15 +120,19 @@
   }
 
   /**
-   * Unified SOTA cutoff K (0..12 months from Step 2 start) and next-gen window start.
-   * Ensures model lifecycle phases, downside branch D, scenarios, and EV all share ONE cutoff!
+   * Periodic multi-generation SOTA lifecycle anchored at Gemini 4 launch (Nov 1, 2026 = t = 0).
+   * Subscription covers the 12 months Dec 2026..Nov 2027 (t = launched .. launched + 11, default launched = 1).
+   * Each generation holds SOTA for `sotaLen` months, followed by `postSotaExtraMonths` willing continuation,
+   * repeating every `nextInterval` months.
    */
   function getLifecycleCutoffs(state) {
-    const launched = Math.max(0, Number(state.monthsSinceLaunch) || 0);
-    const sotaLen = Math.max(1, Number(state.effectiveSotaMonths) || 7);
-    const nextInterval = Math.max(2, Number(state.nextFlagshipInterval) || 10);
-    const sotaCutoff = Math.min(12, Math.max(0, Math.round(sotaLen - launched)));
-    const nextGenStartMonth = Math.max(1, Math.round(nextInterval - launched)); // 1-indexed month when next SOTA arrives
+    const launched = state.monthsSinceLaunch != null && Number.isFinite(Number(state.monthsSinceLaunch))
+      ? Math.max(0, Math.round(Number(state.monthsSinceLaunch)))
+      : 1;
+    const sotaLen = Math.min(13, Math.max(1, Math.round(Number(state.effectiveSotaMonths) || 8)));
+    const nextInterval = Math.max(2, Math.round(Number(state.nextFlagshipInterval) || 11));
+    const sotaCutoff = Math.min(12, Math.max(0, sotaLen - launched));
+    const nextGenStartMonth = Math.max(1, nextInterval - launched + 1); // 1-indexed subscription month when Gen 2 launches
     const nextGenInTerm = nextGenStartMonth <= 12;
     const nextGenCutoff = Math.min(12, Math.max(0, nextGenStartMonth - 1));
     const maxPostSotaExtra = Math.max(0, 12 - sotaCutoff);
@@ -143,20 +147,36 @@
     }
     const willingEndMonth = Math.min(12, sotaCutoff + postSotaExtraMonths);
 
-    // 12-month active mask: current SOTA + willing post-SOTA months + next-gen SOTA if inside 12-mo term
-    const expectedActiveMask = Array.from({ length: 12 }, (_, idx) => {
-      const m = idx + 1;
-      if (m <= sotaCutoff) return true;
-      if (m <= willingEndMonth) return true;
-      if (nextGenInTerm && m >= nextGenStartMonth) return true;
-      return false;
+    // Build exact per-month periodic state across the 12 subscription months (t = launched .. launched + 11)
+    const monthStates = Array.from({ length: 12 }, (_, idx) => {
+      const t = launched + idx;
+      const gen = Math.floor(t / nextInterval);
+      const posInCycle = t % nextInterval;
+      let kind;
+      if (posInCycle < sotaLen) {
+        kind = gen === 0 ? 'sota' : 'next_sota';
+      } else if (posInCycle < sotaLen + postSotaExtraMonths) {
+        kind = 'extra';
+      } else {
+        kind = 'gap';
+      }
+      return {
+        idx,
+        subMonth: idx + 1,
+        t,
+        gen,
+        posInCycle,
+        kind,
+      };
     });
 
-    const nextGenActiveMonths = nextGenInTerm ? Math.max(0, 12 - nextGenStartMonth + 1) : 0;
-    const firstWaveCap = nextGenInTerm ? Math.min(willingEndMonth, nextGenStartMonth - 1) : willingEndMonth;
-    const sotaActiveMonths = Math.min(sotaCutoff, firstWaveCap);
-    const postSotaUsedMonths = Math.max(0, firstWaveCap - sotaActiveMonths);
-    const expectedActiveMonths = expectedActiveMask.filter(Boolean).length;
+    const expectedActiveMask = monthStates.map((s) => s.kind !== 'gap');
+    const sotaActiveMonths = monthStates.filter((s) => s.kind === 'sota').length;
+    const nextGenActiveMonths = monthStates.filter((s) => s.kind === 'next_sota').length;
+    const gen1ExtraMonths = monthStates.filter((s) => s.kind === 'extra' && s.gen === 0).length;
+    const nextGenExtraMonths = monthStates.filter((s) => s.kind === 'extra' && s.gen >= 1).length;
+    const postSotaUsedMonths = gen1ExtraMonths + nextGenExtraMonths;
+    const expectedActiveMonths = sotaActiveMonths + postSotaUsedMonths + nextGenActiveMonths;
     const gapInactiveMonths = 12 - expectedActiveMonths;
 
     return {
@@ -171,7 +191,10 @@
       rawPostSotaExtra: postSotaExtraMonths,
       postSotaExtraMonths,
       willingEndMonth,
+      monthStates,
       sotaActiveMonths,
+      gen1ExtraMonths,
+      nextGenExtraMonths,
       postSotaUsedMonths,
       nextGenActiveMonths,
       gapInactiveMonths,
@@ -181,18 +204,21 @@
   }
 
   function getModelPhase(monthIndex, state) {
-    const { launched, sotaCutoff, nextInterval } = getLifecycleCutoffs(state);
-    const elapsed = launched + monthIndex + 1;
-    const monthNum = monthIndex + 1;
+    const { launched, sotaLen, nextInterval } = getLifecycleCutoffs(state);
+    const t = launched + monthIndex;
+    const gen = Math.floor(t / nextInterval);
+    const posInCycle = t % nextInterval;
 
-    if (elapsed >= nextInterval) {
-      return { key: 'next_gen', label: '新旗舰窗口', tone: 'green' };
+    if (gen >= 1) {
+      if (posInCycle < sotaLen) {
+        return { key: 'next_gen', label: '新旗舰窗口', tone: 'green' };
+      }
+      return { key: 'risk', label: '空窗/掉队风险', tone: 'amber' };
     }
-    // Constrain honeymoon strictly within sotaCutoff so setting SOTA=1 never shows Month 2-3 as honeymoon
-    if (monthNum <= Math.min(3, sotaCutoff)) {
+    if (posInCycle < Math.min(3, sotaLen)) {
       return { key: 'honeymoon', label: 'SOTA 领先期', tone: 'dark' };
     }
-    if (monthNum <= sotaCutoff) {
+    if (posInCycle < sotaLen) {
       return { key: 'steady', label: '第一梯队稳态', tone: 'blue' };
     }
     return { key: 'risk', label: '空窗/掉队风险', tone: 'amber' };
@@ -371,12 +397,12 @@
    * Preserves user's post-SOTA extra months and next-gen SOTA return window in every cell!
    */
   function buildSensitivityMatrix(state, activeFxCurrencies) {
-    const baseK = Math.min(12, Math.max(1, Math.round(Number(state.effectiveSotaMonths) || 7)));
+    const baseK = Math.min(13, Math.max(1, Math.round(Number(state.effectiveSotaMonths) || 8)));
     let monthCols;
     if (baseK <= 2) {
       monthCols = [1, 2, 4];
-    } else if (baseK >= 11) {
-      monthCols = [8, 10, 12];
+    } else if (baseK >= 12) {
+      monthCols = [9, 11, 13];
     } else {
       monthCols = [baseK - 2, baseK, baseK + 2];
     }
@@ -599,6 +625,7 @@
       breakEvenMonthNum,
       breakEvenStatus,
       monthMargin,
+      launched: cutoffs.launched,
       sotaCutoff: cutoffs.sotaCutoff,
       nextGenStartMonth: cutoffs.nextGenStartMonth,
       nextGenInTerm: cutoffs.nextGenInTerm,
@@ -606,7 +633,10 @@
       postSotaExtraMonths: cutoffs.postSotaExtraMonths,
       maxPostSotaExtra: cutoffs.maxPostSotaExtra,
       willingEndMonth: cutoffs.willingEndMonth,
+      monthStates: cutoffs.monthStates,
       sotaActiveMonths: cutoffs.sotaActiveMonths,
+      gen1ExtraMonths: cutoffs.gen1ExtraMonths,
+      nextGenExtraMonths: cutoffs.nextGenExtraMonths,
       postSotaUsedMonths: cutoffs.postSotaUsedMonths,
       nextGenActiveMonths: cutoffs.nextGenActiveMonths,
       gapInactiveMonths: cutoffs.gapInactiveMonths,
@@ -657,15 +687,15 @@
     } = core;
 
     const spanPartsZh = [
-      `本次 SOTA ${sotaActiveMonths} 月`,
+      sotaActiveMonths > 0 ? `本次 SOTA ${sotaActiveMonths} 月` : null,
       postSotaUsedMonths > 0 ? `后续多用 ${postSotaUsedMonths} 月` : null,
       nextGenActiveMonths > 0 ? `下代 SOTA ${nextGenActiveMonths} 月` : null,
-    ].filter(Boolean).join(' + ');
+    ].filter(Boolean).join(' + ') || '0 个月';
     const spanPartsEn = [
-      `${sotaActiveMonths}m SOTA`,
+      sotaActiveMonths > 0 ? `${sotaActiveMonths}m SOTA` : null,
       postSotaUsedMonths > 0 ? `${postSotaUsedMonths}m post-SOTA` : null,
       nextGenActiveMonths > 0 ? `${nextGenActiveMonths}m next SOTA` : null,
-    ].filter(Boolean).join(' + ');
+    ].filter(Boolean).join(' + ') || '0m';
 
     let verdict;
     if (breakEvenStatus === 'impossible' && upsideNet < 0 && expectedNetSavings < 0) {

@@ -184,48 +184,61 @@ test('Dual-basket supports multi-seat subscriptions (2x Gemini Pro) and 1 BF sea
   assert.ok(Math.abs(res.monthlyRows[0].monthSavedByBf - oneProCny) < 0.2);
 });
 
-test('Moving effectiveSotaMonths (K), postSotaExtraMonths, and in-term nextFlagshipInterval updates expectedNetSavings and mask accurately', () => {
-  // Next-gen SOTA outside 12-month term (interval = 18): pure K + extra cutoff
-  const sShort = Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 4, postSotaExtraMonths: 2, nextFlagshipInterval: 18 });
-  const sLong = Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 9, postSotaExtraMonths: 2, nextFlagshipInterval: 18 });
+test('Moving effectiveSotaMonths (K), postSotaExtraMonths, and repeating nextFlagshipInterval updates mask and net savings accurately', () => {
+  // Next-gen SOTA outside 12-month term (launched = 1 from Nov 2026, interval = 18): pure (K-1) + extra cutoff
+  const sShort = Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 5, postSotaExtraMonths: 2, nextFlagshipInterval: 18 });
+  const sLong = Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 10, postSotaExtraMonths: 2, nextFlagshipInterval: 18 });
   const rShort = calculateLedger(sShort);
   const rLong = calculateLedger(sLong);
 
   assert.equal(rShort.nextGenInTerm, false);
+  assert.equal(rShort.sotaCutoff, 4);
   assert.equal(rShort.expectedActiveMonths, 6);
+  assert.equal(rLong.sotaCutoff, 9);
   assert.equal(rLong.expectedActiveMonths, 11);
   assert.ok(rLong.downsideNet > rShort.downsideNet, 'Longer SOTA span must improve downsideNet');
   assert.ok(rLong.expectedNetSavings > rShort.expectedNetSavings, 'Longer active span must improve expectedNetSavings');
 
-  const rExtra0 = calculateLedger(Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 7, postSotaExtraMonths: 0, nextFlagshipInterval: 18 }));
-  const rExtraFull = calculateLedger(Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 7, postSotaExtraMonths: 5, nextFlagshipInterval: 18 }));
+  const rExtra0 = calculateLedger(Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 8, postSotaExtraMonths: 0, nextFlagshipInterval: 18 }));
+  const rExtraFull = calculateLedger(Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 8, postSotaExtraMonths: 5, nextFlagshipInterval: 18 }));
   assert.ok(Math.abs(rExtra0.expectedNetSavings - rExtra0.downsideNet) < 0.01);
   assert.ok(Math.abs(rExtraFull.expectedNetSavings - rExtraFull.upsideNet) < 0.01);
   assert.equal(rExtraFull.expectedActiveMonths, 12);
 
-  // Next-gen SOTA inside 12-month term (K=6, extra=1 -> Mo 1..7 active; Mo 8..9 gap; Mo 10..12 Next SOTA active -> 10 mo total)
-  const rWithReturn = calculateLedger(Object.assign(clone(DEFAULT_STATE), {
-    effectiveSotaMonths: 6,
-    postSotaExtraMonths: 1,
-    nextFlagshipInterval: 10,
+  // Repeating multi-cycle case anchored at Nov 1, 2026 (launched = 1):
+  // sotaLen = 2, nextInterval = 8, extra = 2:
+  //   Gen 1: Nov (pre-sub) + Dec SOTA, Jan-Feb extra, Mar-Jun gap
+  //   Gen 2: Jul-Aug SOTA (2m), Sep-Oct extra (2m), Nov gap (1m)
+  const rCycle = calculateLedger(Object.assign(clone(DEFAULT_STATE), {
+    monthsSinceLaunch: 1,
+    effectiveSotaMonths: 2,
+    postSotaExtraMonths: 2,
+    nextFlagshipInterval: 8,
   }));
-  assert.equal(rWithReturn.nextGenInTerm, true);
-  assert.equal(rWithReturn.sotaActiveMonths, 6);
-  assert.equal(rWithReturn.postSotaUsedMonths, 1);
-  assert.equal(rWithReturn.nextGenActiveMonths, 3);
-  assert.equal(rWithReturn.gapInactiveMonths, 2);
-  assert.equal(rWithReturn.expectedActiveMonths, 10);
-  assert.deepEqual(rWithReturn.expectedActiveMask, [true, true, true, true, true, true, true, false, false, true, true, true]);
-  assert.ok(rWithReturn.expectedNetSavings > calculateLedger(Object.assign(clone(DEFAULT_STATE), {
-    effectiveSotaMonths: 6,
-    postSotaExtraMonths: 1,
+  assert.equal(rCycle.nextGenInTerm, true);
+  assert.equal(rCycle.nextGenStartMonth, 8); // Jul 2027 (Sub Mo 8)
+  assert.equal(rCycle.sotaActiveMonths, 1);  // Dec 2026
+  assert.equal(rCycle.gen1ExtraMonths, 2);   // Jan-Feb 2027
+  assert.equal(rCycle.nextGenActiveMonths, 2); // Jul-Aug 2027
+  assert.equal(rCycle.nextGenExtraMonths, 2);  // Sep-Oct 2027
+  assert.equal(rCycle.postSotaUsedMonths, 4);
+  assert.equal(rCycle.gapInactiveMonths, 5); // Mar-Jun + Nov 2027
+  assert.equal(rCycle.expectedActiveMonths, 7);
+  assert.deepEqual(
+    rCycle.expectedActiveMask,
+    [true, true, true, false, false, false, false, true, true, true, true, false]
+  );
+  assert.ok(rCycle.expectedNetSavings > calculateLedger(Object.assign(clone(DEFAULT_STATE), {
+    monthsSinceLaunch: 1,
+    effectiveSotaMonths: 2,
+    postSotaExtraMonths: 2,
     nextFlagshipInterval: 18,
-  })).expectedNetSavings, 'In-term Next SOTA return must improve expectedNetSavings');
+  })).expectedNetSavings, 'In-term Next SOTA repeating cycle must improve expectedNetSavings');
 
   // 3x3 sensitivity center cell must exactly equal expectedNetSavings
-  const centerCell = rWithReturn.sensitivity.rows[1].cells[1];
+  const centerCell = rCycle.sensitivity.rows[1].cells[1];
   assert.equal(centerCell.isCenter, true);
-  assert.ok(Math.abs(centerCell.ev - rWithReturn.expectedNetSavings) < 0.01);
+  assert.ok(Math.abs(centerCell.ev - rCycle.expectedNetSavings) < 0.01);
 });
 
 test('Break-even month classifies already_even, impossible, and threshold cleanly', () => {
@@ -237,12 +250,12 @@ test('Break-even month classifies already_even, impossible, and threshold cleanl
 
   // Already even inside SOTA span: 12 months US Pro ($19.99) vs ¥477 BF
   const allUs = buildPlanPair('all_pro', 'gemini_pro_us');
-  const rAlready = calculateLedger(Object.assign(clone(DEFAULT_STATE), allUs, { effectiveSotaMonths: 7, postSotaExtraMonths: 2 }));
+  const rAlready = calculateLedger(Object.assign(clone(DEFAULT_STATE), allUs, { effectiveSotaMonths: 8, postSotaExtraMonths: 2 }));
   assert.equal(rAlready.breakEvenStatus, 'already_even');
   assert.ok(rAlready.breakEvenMonthNum >= 1 && rAlready.breakEvenMonthNum <= 7);
 
-  // Threshold: default TR baseline breaks even around Mo 9 (> SOTA 7)
-  const rDefault = calculateLedger(Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 7, postSotaExtraMonths: 3 }));
+  // Threshold: default TR baseline breaks even around Mo 9 (> in-term SOTA 7)
+  const rDefault = calculateLedger(Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 8, postSotaExtraMonths: 3, nextFlagshipInterval: 18 }));
   assert.equal(rDefault.breakEvenStatus, 'threshold');
   assert.ok(rDefault.breakEvenMonthNum > 7 && rDefault.breakEvenMonthNum <= 12);
   assert.equal(rDefault.monthMargin, rDefault.expectedActiveMonths - rDefault.breakEvenMonthNum);
