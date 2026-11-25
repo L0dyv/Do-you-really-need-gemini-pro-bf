@@ -1,5 +1,7 @@
 # Do You Really Need Gemini Pro Black Friday?
 
+**Live Demo / 在线体验**：<https://l0dyv.github.io/Do-you-really-need-gemini-pro-bf/>
+
 ![Black Friday Decision Memo](./assets/preview-en.png)
 
 ## 简介
