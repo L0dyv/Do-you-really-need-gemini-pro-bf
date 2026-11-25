@@ -31,6 +31,25 @@
   --tag-purple-bg: #e8deee;
   --tag-purple-fg: #412454;
 
+  /* Authentic Brand-Matched Soft Notion Tag Tints */
+  --tag-gemini-bg: #d3e5ef;
+  --tag-gemini-fg: #183347;
+
+  --tag-claude-bg: #fadec9;
+  --tag-claude-fg: #49290e;
+
+  --tag-openai-bg: #dbeddb;
+  --tag-openai-fg: #1c3829;
+
+  --tag-kimi-bg: #dfe4fb;
+  --tag-kimi-fg: #232d63;
+
+  --tag-glm-bg: #e8deee;
+  --tag-glm-fg: #412454;
+
+  --tag-devin-bg: #d4f0ee;
+  --tag-devin-fg: #133f40;
+
   --tag-dark-bg: #37352f;
   --tag-dark-fg: #ffffff;
 
@@ -490,6 +509,12 @@ select {
 .tag-green { background: var(--tag-green-bg); color: var(--tag-green-fg); }
 .tag-red { background: var(--tag-red-bg); color: var(--tag-red-fg); }
 .tag-purple { background: var(--tag-purple-bg); color: var(--tag-purple-fg); }
+.tag-gemini { background: var(--tag-gemini-bg); color: var(--tag-gemini-fg); }
+.tag-claude { background: var(--tag-claude-bg); color: var(--tag-claude-fg); }
+.tag-openai { background: var(--tag-openai-bg); color: var(--tag-openai-fg); }
+.tag-kimi { background: var(--tag-kimi-bg); color: var(--tag-kimi-fg); }
+.tag-glm { background: var(--tag-glm-bg); color: var(--tag-glm-fg); }
+.tag-devin { background: var(--tag-devin-bg); color: var(--tag-devin-fg); }
 .tag-dark { background: var(--tag-dark-bg); color: var(--tag-dark-fg); }
 
 /* Text Buttons */
@@ -1197,6 +1222,25 @@ body.is-marquee-dragging {
 .cell-pill-btn.tone-purple { background: var(--tag-purple-bg); color: var(--tag-purple-fg); }
 .cell-pill-btn.tone-green { background: var(--tag-green-bg); color: var(--tag-green-fg); }
 .cell-pill-btn.tone-gray { background: var(--tag-gray-bg); color: var(--tag-gray-fg); }
+.cell-pill-btn.tone-gemini { background: var(--tag-gemini-bg); color: var(--tag-gemini-fg); }
+.cell-pill-btn.tone-claude { background: var(--tag-claude-bg); color: var(--tag-claude-fg); }
+.cell-pill-btn.tone-openai { background: var(--tag-openai-bg); color: var(--tag-openai-fg); }
+.cell-pill-btn.tone-kimi { background: var(--tag-kimi-bg); color: var(--tag-kimi-fg); }
+.cell-pill-btn.tone-glm { background: var(--tag-glm-bg); color: var(--tag-glm-fg); }
+.cell-pill-btn.tone-devin { background: var(--tag-devin-bg); color: var(--tag-devin-fg); }
+
+/* When Compare Mode is ON and BF Pro replaces this baseline sub, cross it out gently in-place */
+.cell-pill-btn.is-replaced-by-bf {
+  opacity: 0.56;
+}
+
+.cell-pill-btn.is-replaced-by-bf .cell-pill-text {
+  text-decoration: line-through;
+}
+
+.cell-pill-btn.is-replaced-by-bf:hover {
+  opacity: 0.88;
+}
 
 .cell-pill-btn.tone-empty {
   background: transparent;

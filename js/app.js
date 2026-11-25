@@ -261,12 +261,13 @@
         </div>`;
     }
 
-    // Inline quick price / June-hike tweak for active replaceable subscription
+    // Inline custom price editor for EVERY paid subscription/plan (both replaceable & idle plans!)
     let priceInlineHtml = '';
-    if (currentItem && currentItem.replaceableByBf && !currentItem.isIdlePlan && !currentItem.dynamicPrice) {
-      const curCode = currentItem.currency || 'CNY';
-      const amtVal = currentItem.amount != null ? currentItem.amount : 0;
-      const isTry = curCode === 'TRY';
+    if (currentItem && currentItem.id !== 'none_idle' && currentItem.id !== 'idle_org_seat') {
+      const isLegacyUltra = currentItem.dynamicPrice === 'gemini_ultra_5x';
+      const curCode = isLegacyUltra ? 'CNY' : (currentItem.currency || 'CNY');
+      const amtVal = isLegacyUltra ? state.currentUltraCny : (currentItem.amount != null ? currentItem.amount : 0);
+      const isTry = curCode === 'TRY' && Boolean(currentItem.replaceableByBf);
       priceInlineHtml = `
         <div class="np-price-inline">
           <select class="flat-select" data-np-cur="1" style="width:94px;">${currencyOptionsHtml(curCode)}</select>
@@ -660,12 +661,9 @@
           pickerState && pickerState.targetIndices.includes(row.index)
         );
 
-        const pillTone = idleItem
-          ? 'tone-yellow'
-          : replaceableItem
-            ? `tone-${replaceableItem.tone || 'blue'}`
-            : 'tone-empty';
+        const pillTone = primaryItem ? `tone-${primaryItem.tone || 'gray'}` : 'tone-empty';
         const pillText = primaryItem ? localizeItemShort(primaryItem.short) : t('step2.pickPlaceholder');
+        const isReplacedStrike = showBfCompare && isBfActive && Boolean(replaceableItem);
         const hikeBadge = replaceableItem && replaceableItem.midYearHike
           ? `<span class="cell-hike-dot">${escapeHtml(t('step2.hikeTag'))}</span>`
           : '';
@@ -673,31 +671,24 @@
         const skipCellHtml = `
           <div class="cell-skip-inner">
             <input type="checkbox" class="cell-chk" data-chk-month="${row.index}" ${isSel ? 'checked' : ''} aria-label="${escapeHtml(getMonthLabel(row.index))}" />
-            <button type="button" class="cell-pill-btn ${pillTone} ${isPickerOpen ? 'is-open' : ''}" data-open-picker="${row.index}">
-              <span>${escapeHtml(pillText)}</span>
+            <button type="button" class="cell-pill-btn ${pillTone} ${isPickerOpen ? 'is-open' : ''} ${isReplacedStrike ? 'is-replaced-by-bf' : ''}" data-open-picker="${row.index}">
+              <span class="cell-pill-text">${escapeHtml(pillText)}</span>
               <span class="cell-pill-caret" aria-hidden="true">▾</span>
             </button>
             ${hikeBadge}
           </div>`;
 
+        // Right Column: Pure Black Friday Pro status only (no redundant duplication of left-column plans)
         let buyCellHtml;
         if (idleItem && row.ultraFallbackToPro) {
           buyCellHtml = `
             <div class="bf-compare-cell">
               <span class="bf-pill is-active">${escapeHtml(t('step2.bfFallback'))}</span>
-              <span class="bf-replaced-strike">${escapeHtml(t('step2.bfFallbackOld'))}</span>
-            </div>`;
-        } else if (idleItem) {
-          buyCellHtml = `
-            <div class="bf-compare-cell">
-              <span class="bf-keep-plan">${escapeHtml(localizeItemShort(idleItem.short))}</span>
-              <span class="bf-pill is-idle">${escapeHtml(t('step2.bfIdle'))}</span>
             </div>`;
         } else if (replaceableItem) {
           buyCellHtml = `
             <div class="bf-compare-cell">
               <span class="bf-pill is-active">${escapeHtml(t('step2.bfReplace'))}</span>
-              <span class="bf-replaced-strike">${escapeHtml(localizeItemShort(replaceableItem.short))}</span>
             </div>`;
         } else {
           buyCellHtml = `
@@ -1222,7 +1213,7 @@
         const variant = pickDefaultVariantForFamily(family);
         const indices = pickerState.targetIndices.slice();
         markMonthsEdited(indices);
-        const shouldClose = family.variants.length === 1 && family.kind === 'idle';
+        const shouldClose = family.id === 'fam_none' || family.id === 'fam_org';
         if (shouldClose) pickerState = null;
         mutateMonths(indices, (arr) => {
           arr.length = 0;
@@ -1259,11 +1250,19 @@
         pickerState = null;
         mutateMonths(indices, (arr) => {
           if (!arr[0]) return;
-          arr[0].currency = currency;
-          arr[0].amount = amount;
-          arr[0].midYearHike = midYearHike;
+          if (arr[0].dynamicPrice === 'gemini_ultra_5x' && currency === 'CNY') {
+            state.currentUltraCny = amount;
+            document.getElementById('inp-ultra-cny').value = amount;
+          } else {
+            if (arr[0].dynamicPrice === 'gemini_ultra_5x') {
+              arr[0].dynamicPrice = null;
+            }
+            arr[0].currency = currency;
+            arr[0].amount = amount;
+            arr[0].midYearHike = midYearHike;
+          }
         });
-        showToast('已更新该方案价格');
+        showToast(t('toast.priceUpdated'));
         return;
       }
 
