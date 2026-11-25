@@ -803,17 +803,8 @@
     });
   }
 
-  function renderPresetOptions() {
-    const isEn = getLang() === 'en-US';
-    const presetPicker = document.getElementById('inp-preset-picker');
-    presetPicker.innerHTML =
-      `<option value="">${escapeHtml(t('nav.presets'))}</option>` +
-      SCENARIO_PRESETS.map((p) => `<option value="${p.id}">${escapeHtml(isEn && p.nameEn ? p.nameEn : p.name)}</option>`).join('');
-  }
-
   function renderStaticTables() {
     const isEn = getLang() === 'en-US';
-    renderPresetOptions();
 
     const notesEl = document.getElementById('notes-list');
     if (notesEl) {
@@ -1193,7 +1184,7 @@
       nextGenMarkerSvg = `
         <line x1="${nx.toFixed(1)}" y1="${padT}" x2="${nx.toFixed(1)}" y2="${padT + plotH}" stroke="#9b9a97" stroke-dasharray="2 3" stroke-width="1"/>
         <circle cx="${nx.toFixed(1)}" cy="${(padT + plotH).toFixed(1)}" r="3.5" fill="#1c3829" stroke="#ffffff" stroke-width="1.2"/>
-        <text x="${Math.min(width - 130, Math.max(padL + 6, nx - 38)).toFixed(1)}" y="${(padT + 12).toFixed(1)}" fill="#1c3829" font-size="11" font-weight="600">${escapeHtml(t('step4.chartNextGen', { m: getMonthShort(nextGenIdx) }))}</text>
+        <text x="${Math.min(width - 175, Math.max(padL + 6, nx - 62)).toFixed(1)}" y="${(padT + 12).toFixed(1)}" fill="#1c3829" font-size="11" font-weight="600">${escapeHtml(t('step4.chartNextGen', { m: getMonthShort(nextGenIdx) }))}</text>
       `;
     }
 
@@ -1544,20 +1535,6 @@
 
     document.getElementById('btn-undo').addEventListener('click', performUndo);
     document.getElementById('btn-redo').addEventListener('click', performRedo);
-
-    document.getElementById('inp-preset-picker').addEventListener('change', (e) => {
-      const id = e.target.value;
-      if (!id) return;
-      const found = SCENARIO_PRESETS.find((p) => p.id === id);
-      if (!found) return;
-      recordUndoSnapshot();
-      state = cloneState(found.patch);
-      pickerState = null;
-      syncInputsFromState();
-      e.target.value = '';
-      goToStep(4);
-      showToast(t('toast.presetLoaded', { name: getLang() === 'en-US' && found.nameEn ? found.nameEn : found.name }));
-    });
 
     document.getElementById('btn-lang-toggle').addEventListener('click', () => {
       const next = getLang() === 'zh-CN' ? 'en-US' : 'zh-CN';

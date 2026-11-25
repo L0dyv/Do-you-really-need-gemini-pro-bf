@@ -181,11 +181,6 @@ select {
   outline: none;
 }
 
-#inp-preset-picker {
-  max-width: 112px;
-  text-overflow: ellipsis;
-}
-
 .ghost-btn:hover,
 .ghost-select:hover {
   background: var(--hover);

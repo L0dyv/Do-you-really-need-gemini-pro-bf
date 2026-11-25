@@ -216,7 +216,7 @@
       ? `
         <line x1="${xAt(nextGenIdx + 1).toFixed(1)}" y1="${chartTop}" x2="${xAt(nextGenIdx + 1).toFixed(1)}" y2="${chartTop + chartH}" stroke="#9b9a97" stroke-dasharray="2 3" stroke-width="1"/>
         <circle cx="${xAt(nextGenIdx + 1).toFixed(1)}" cy="${chartTop + chartH}" r="3.2" fill="#1c3829"/>
-        <text x="${Math.min(chartRight - 130, Math.max(chartLeft + 4, xAt(nextGenIdx + 1) - 42)).toFixed(1)}" y="${chartTop + 11}" fill="#1c3829" font-size="10.5" font-weight="600" font-family="${fontSans}">${isEn ? `Next-Gen SOTA (${esc(EN_MONTHS_SHORT[nextGenIdx])})` : `下代 SOTA (${esc(rows[nextGenIdx].month.short)})`}</text>
+        <text x="${Math.min(chartRight - 165, Math.max(chartLeft + 4, xAt(nextGenIdx + 1) - 65)).toFixed(1)}" y="${chartTop + 11}" fill="#1c3829" font-size="10.5" font-weight="600" font-family="${fontSans}">${isEn ? `Est. Next Gemini SOTA (${esc(EN_MONTHS_SHORT[nextGenIdx])})` : `预期下代 Gemini SOTA (${esc(rows[nextGenIdx].month.short)})`}</text>
       `
       : '';
 
