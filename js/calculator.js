@@ -17,6 +17,25 @@
     return FX_RATES.TRY_PER_CNY * Math.pow(monthlyFactor, offsetMonths);
   }
 
+  /**
+   * Convert any currency amount (TRY / JPY / USD / CNY) to CNY at a given month offset.
+   * TRY automatically uses the depreciated monthly TRY rate!
+   */
+  function convertToCny(amount, currency, offsetMonths, tryAnnualDepRate) {
+    const val = Math.max(0, Number(amount) || 0);
+    if (currency === 'TRY') {
+      const rate = getTryRateAtOffset(offsetMonths || 0, tryAnnualDepRate || 0);
+      return val / rate;
+    }
+    if (currency === 'JPY') {
+      return val / FX_RATES.JPY_PER_CNY;
+    }
+    if (currency === 'USD') {
+      return val * FX_RATES.CNY_PER_USD;
+    }
+    return val;
+  }
+
   function getMonthlyProCny(monthIndex, state) {
     const offset = MONTHS[monthIndex].offsetFromNow;
     if (state.monthlyProRegion === 'jp') {
@@ -72,37 +91,33 @@
     return { key: 'risk', label: '空窗/掉队风险', tone: 'amber' };
   }
 
-  /**
-   * Resolve unit price for a subscription item in a given month.
-   */
   function getItemUnitPrice(item, monthIndex, state) {
+    const offset = MONTHS[monthIndex].offsetFromNow;
     if (item.dynamicPrice === 'gemini_pro') {
       return getMonthlyProCny(monthIndex, state);
     }
     if (item.dynamicPrice === 'gemini_ultra_5x') {
       const price = getUltraCostForMonth(monthIndex, state);
       if (price != null) return price;
-      // If fallback strategy is double_pro, Ultra 5x turns into 2x Pro
       return getMonthlyProCny(monthIndex, state) * 2;
     }
-    return Math.max(0, Number(item.priceCny) || 0);
+    // Multi-currency conversion (supports legacy priceCny fallback)
+    const currency = item.currency || 'CNY';
+    const rawAmount = item.amount != null ? item.amount : item.priceCny;
+    return convertToCny(rawAmount, currency, offset, state.tryAnnualDepRate);
   }
 
-  /**
-   * Normalize legacy `state.months` or modern `state.monthPlans` into 12 arrays of items.
-   */
   function resolveMonthPlans(state) {
     if (Array.isArray(state.monthPlans) && state.monthPlans.length === 12) {
       return state.monthPlans;
     }
-    // Backwards compatibility if a caller passes legacy `months`
     const legacy = Array.isArray(state.months) ? state.months : [];
     const { makeSubItem } = data;
     return MONTHS.map((_, i) => {
       const m = legacy[i] || 'none';
       if (m === 'ultra') return [makeSubItem('gemini_ultra_5x', 1)];
-      if (m === 'pro1') return [makeSubItem('gemini_pro', 1)];
-      if (m === 'pro2') return [makeSubItem('gemini_pro', 2)];
+      if (m === 'pro1') return [makeSubItem('gemini_pro_tr', 1)];
+      if (m === 'pro2') return [makeSubItem('gemini_pro_tr', 2)];
       return [];
     });
   }
@@ -112,16 +127,13 @@
     const m0to3Skip = baseRows.slice(0, 4).reduce((s, r) => s + r.skipMonthFlow, 0);
     const m4to11Other = baseRows.slice(4).reduce((s, r) => s + r.otherSubsCost, 0);
 
-    // Scenario 1: Worst case — after April (months 4..11), user drops Gemini completely (keeps non-Gemini subs + music)
     const s1Buy = bfCost + m0to3Buy + m4to11Other + musicFee * 8;
     const s1Skip = m0to3Skip + m4to11Other + musicFee * 8;
 
-    // Scenario 2: Off-season only — Apr-Aug (5 months) 1x Pro, Sep-Nov no Gemini
     const aprAugPro = baseRows.slice(4, 9).reduce((s, r) => s + r.proUnit, 0);
     const s2Buy = bfCost + m0to3Buy + m4to11Other + musicFee * 8;
     const s2Skip = m0to3Skip + aprAugPro + m4to11Other + musicFee * 8;
 
-    // Scenario 3: Turkey fails in Jan (months 1..3 use 2x Pro + other subs), Apr-Aug 1x Pro
     const janMarPro = baseRows.slice(1, 4).reduce((s, r) => s + r.proUnit, 0);
     const janMarOther = baseRows.slice(1, 4).reduce((s, r) => s + r.otherSubsCost, 0);
     const decBuy = baseRows[0].buyMonthFlow;
@@ -129,7 +141,6 @@
     const s3Buy = bfCost + decBuy + janMarPro + janMarOther + musicFee * 3 + m4to11Other + musicFee * 8;
     const s3Skip = decSkip + janMarPro * 2 + janMarOther + musicFee * 3 + aprAugPro + m4to11Other + musicFee * 8;
 
-    // Scenario 4: Full 12-month configured plan
     const s4Buy = baseRows[11].cumBuy;
     const s4Skip = baseRows[11].cumSkip;
 
@@ -197,24 +208,53 @@
       const trAvailable = isTurkeyUltraAvailable(i, state);
 
       let geminiProSlots = 0;
+      let replaceableSlots = 0;
+      let bestReplaceableCny = 0;
+      let bestReplaceableName = '';
+      let geminiProReplaceableCny = 0;
       let hasUltraActive = false;
       let ultraFallbackToPro = false;
       let geminiUltraCost = 0;
+      let geminiProTotalCost = 0;
       let otherSubsCost = 0;
       let hasMusicIncluded = false;
 
       const resolvedItems = items.map((item) => {
         const qty = Math.max(1, Number(item.qty) || 1);
-        if (item.dynamicPrice === 'gemini_pro') {
+        const isPro = Boolean(item.isGeminiPro || item.dynamicPrice === 'gemini_pro');
+        const isUltra5xDyn = item.dynamicPrice === 'gemini_ultra_5x';
+        const isUltra = Boolean(item.isGeminiUltra || isUltra5xDyn);
+        const canReplace = item.replaceableByBf != null ? Boolean(item.replaceableByBf) : isPro;
+
+        if (isPro) {
+          const unit = getItemUnitPrice(item, i, state);
           geminiProSlots += qty;
-          return Object.assign({}, item, { qty, unitCny: proUnit, subtotalCny: proUnit * qty });
+          geminiProTotalCost += unit * qty;
+          if (canReplace) {
+            replaceableSlots += qty;
+            if (geminiProReplaceableCny === 0) geminiProReplaceableCny = unit;
+            if (unit > bestReplaceableCny) {
+              bestReplaceableCny = unit;
+              bestReplaceableName = item.short || item.name;
+            }
+          }
+          return Object.assign({}, item, { qty, replaceableByBf: canReplace, unitCny: unit, subtotalCny: unit * qty });
         }
-        if (item.dynamicPrice === 'gemini_ultra_5x') {
+
+        if (isUltra5xDyn) {
           if (!trAvailable && state.fallbackUltraStrategy === 'double_pro') {
             geminiProSlots += 2 * qty;
+            replaceableSlots += 2 * qty;
+            geminiProTotalCost += proUnit * 2 * qty;
+            if (geminiProReplaceableCny === 0) geminiProReplaceableCny = proUnit;
+            if (proUnit > bestReplaceableCny) {
+              bestReplaceableCny = proUnit;
+              bestReplaceableName = '双Pro兜底';
+            }
             ultraFallbackToPro = true;
             return Object.assign({}, item, {
               qty,
+              replaceableByBf: true,
               unitCny: proUnit * 2,
               subtotalCny: proUnit * 2 * qty,
               fallbackNote: '断续切双Pro',
@@ -224,30 +264,45 @@
           geminiUltraCost += uPrice * qty;
           hasUltraActive = true;
           hasMusicIncluded = true;
-          return Object.assign({}, item, { qty, unitCny: uPrice, subtotalCny: uPrice * qty });
+          return Object.assign({}, item, { qty, replaceableByBf: false, unitCny: uPrice, subtotalCny: uPrice * qty });
         }
-        const unit = Math.max(0, Number(item.priceCny) || 0);
+
+        const unit = getItemUnitPrice(item, i, state);
         if (item.includesMusic) hasMusicIncluded = true;
-        if (item.id === 'gemini_ultra_20x') {
+        if (isUltra) {
           geminiUltraCost += unit * qty;
           hasUltraActive = true;
         } else {
           otherSubsCost += unit * qty;
+          if (canReplace) {
+            replaceableSlots += qty;
+            if (unit > bestReplaceableCny) {
+              bestReplaceableCny = unit;
+              bestReplaceableName = item.short || item.name;
+            }
+          }
         }
-        return Object.assign({}, item, { qty, unitCny: unit, subtotalCny: unit * qty });
+        return Object.assign({}, item, { qty, replaceableByBf: canReplace, unitCny: unit, subtotalCny: unit * qty });
       });
 
       const monthMusic = hasMusicIncluded ? 0 : musicFee;
-      const bfSlotOffset = geminiProSlots >= 1 ? 1 : 0;
+      // Black Friday Pro replaces at most 1 replaceable unit per month (preferring Gemini Pro, else highest replaceable item)
+      const bfSavedThisMonth =
+        replaceableSlots >= 1
+          ? (geminiProReplaceableCny > 0 ? geminiProReplaceableCny : bestReplaceableCny)
+          : 0;
+      const bfReplacedTarget =
+        replaceableSlots >= 1
+          ? (geminiProReplaceableCny > 0 ? 'Gemini Pro' : bestReplaceableName)
+          : '';
 
       const skipMonthFlow =
-        geminiUltraCost + geminiProSlots * proUnit + otherSubsCost + monthMusic;
-      const buyMonthFlow =
-        geminiUltraCost + Math.max(0, geminiProSlots - bfSlotOffset) * proUnit + otherSubsCost + monthMusic;
+        geminiUltraCost + geminiProTotalCost + otherSubsCost + monthMusic;
+      const buyMonthFlow = Math.max(0, skipMonthFlow - bfSavedThisMonth);
 
-      if (bfSlotOffset > 0) {
+      if (bfSavedThisMonth > 0) {
         proCoveredMonths += 1;
-        totalProValueSaved += proUnit;
+        totalProValueSaved += bfSavedThisMonth;
       } else if (hasUltraActive) {
         ultraOverlapMonths += 1;
       } else {
@@ -267,12 +322,14 @@
         month: MONTHS[i],
         items: resolvedItems,
         geminiProSlots,
+        replaceableSlots,
+        bfReplacedTarget,
         hasUltraActive,
         ultraFallbackToPro,
         otherSubsCost,
         monthMusic,
         tryRate,
-        proUnit,
+        proUnit: bfSavedThisMonth > 0 ? bfSavedThisMonth : proUnit,
         phase,
         trAvailable,
         buyMonthFlow,
@@ -378,6 +435,7 @@
 
   return {
     getTryRateAtOffset,
+    convertToCny,
     getMonthlyProCny,
     isTurkeyUltraAvailable,
     getUltraCostForMonth,
