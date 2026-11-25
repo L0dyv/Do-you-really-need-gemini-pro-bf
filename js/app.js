@@ -882,17 +882,36 @@
       }
     });
 
-    // Prevent trailing click from accidentally triggering a row button after a marquee drag
+    // Prevent trailing click after marquee drag, and click blank space to clear row selection
     document.addEventListener(
       'click',
       (e) => {
-        if (!suppressNextClick) return;
-        suppressNextClick = false;
-        e.stopPropagation();
-        e.preventDefault();
+        if (suppressNextClick) {
+          suppressNextClick = false;
+          e.stopPropagation();
+          e.preventDefault();
+          return;
+        }
+        if (currentStep !== 1 || selectedMonths.size === 0) return;
+        // Keep selection when clicking inside table, selection bar, custom footer bar, or topbar controls
+        if (e.target.closest('.notion-db, .db-selection-bar, .db-bottom-custom, .topbar, .side-nav-zone, .mobile-step-nav')) return;
+        selectedMonths = new Set();
+        render();
       },
       true
     );
+
+    // Press Esc to quickly clear row selection or close inline editor
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || currentStep !== 1) return;
+      if (inlineEditor) {
+        inlineEditor = null;
+        render();
+      } else if (selectedMonths.size > 0) {
+        selectedMonths = new Set();
+        render();
+      }
+    });
 
     dbTbody.addEventListener('click', (e) => {
       const chk = e.target.closest('[data-chk-month]');

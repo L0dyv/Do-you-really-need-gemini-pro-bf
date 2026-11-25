@@ -432,13 +432,22 @@ select {
   color: var(--ink-3);
 }
 
-/* Step 2: Unified Notion Database Header, Contextual Selection Bar & Bottom Input */
+/* Step 2: Fixed-Height Toolbar Slot + Zero-Shift Floating Selection Bar */
+.db-toolbar-slot {
+  position: relative;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
 .db-header-line {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 6px 2px 10px;
+  padding: 4px 2px;
   flex-wrap: wrap;
 }
 
@@ -461,15 +470,19 @@ select {
 }
 
 .db-selection-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 12;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 14px;
-  margin-bottom: 12px;
+  gap: 8px;
+  padding: 7px 12px;
   border-radius: 6px;
   background: var(--bg);
   border: 1px solid var(--border);
-  box-shadow: 0 2px 8px rgba(15, 15, 15, 0.05);
+  box-shadow: 0 3px 12px rgba(15, 15, 15, 0.07);
   flex-wrap: wrap;
 }
 
@@ -481,11 +494,18 @@ select {
 }
 
 .db-catalog-select {
-  min-width: 260px;
-  max-width: 360px;
-  height: 34px;
+  min-width: 210px;
+  max-width: 290px;
+  height: 32px;
+  font-size: 13px;
   background: var(--bg);
   border: 1px solid var(--border-2);
+}
+
+.btn-xs {
+  height: 32px;
+  padding: 0 11px;
+  font-size: 13px;
 }
 
 .db-bottom-custom {
