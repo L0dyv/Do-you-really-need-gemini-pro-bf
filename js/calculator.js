@@ -196,7 +196,7 @@
     if (hasExplicitB) {
       const plansB = MONTHS.map((_, i) =>
         state.buyMonthSynced[i]
-          ? (Array.isArray(plansA[i]) ? plansA[i] : [])
+          ? data.deriveSyncedBuyBasket(plansA[i])
           : (Array.isArray(state.buyMonthPlans[i]) ? state.buyMonthPlans[i] : [])
       );
       return {
@@ -553,15 +553,25 @@
     };
   }
 
-  function calculateLedger(state, lang) {
+  function calculateLedger(state, lang, displayCurrency) {
     const isEn = lang === 'en-US';
+    const cur = displayCurrency || (isEn ? 'USD' : 'CNY');
+    const div = cur === 'USD' ? FX_RATES.CNY_PER_USD : 1;
+    const sym = cur === 'USD' ? '$' : '¥';
+    const fmtM = (cnyVal) => `${sym}${Math.abs(Math.round(cnyVal / div)).toLocaleString('en-US')}`;
+    const fmtSignedM = (cnyVal) => {
+      const v = Math.round(cnyVal / div);
+      if (v === 0) return `${sym}0`;
+      return `${v > 0 ? '+' : '-'}${sym}${Math.abs(v).toLocaleString('en-US')}`;
+    };
+
     const core = computeCoreLedger(state);
     const cutoffs = getLifecycleCutoffs(state);
     const scenarios = buildComparisonScenarios(core.monthlyRows, core.bfCost, cutoffs, lang);
     const sensitivity = buildSensitivityMatrix(state, core.activeFxCurrencies);
 
     const pPct = Number(state.retainProbPct) || 0;
-    const { upsideNet, downsideNet, expectedNetSavings, breakEvenProbPct, breakEvenProbStatus, proCoveredMonths, totalProValueSaved, bfCost, equivalentUsageMonths } = core;
+    const { upsideNet, downsideNet, expectedNetSavings, breakEvenProbPct, proCoveredMonths, totalProValueSaved, bfCost } = core;
 
     let verdict;
     if (upsideNet < 0 && downsideNet < 0) {
@@ -571,14 +581,14 @@
             badge: 'Skip Deal',
             tone: 'red',
             headline: 'Total spend is lower without Black Friday across all paths',
-            detail: `Plan B reduces monthly bills by ¥${Math.round(totalProValueSaved)} across ${proCoveredMonths} months, below the ¥${Math.round(bfCost)} upfront annual fee.`,
+            detail: `Plan B reduces monthly bills by ${fmtM(totalProValueSaved)} across ${proCoveredMonths} months, below the ${fmtM(bfCost)} upfront annual fee.`,
           }
         : {
             level: 'skip',
             badge: '建议跳过',
             tone: 'red',
             headline: '按当前双方案排布，不买黑五总花费更低',
-            detail: `方案 B 全年共减少月付支出 ¥${Math.round(totalProValueSaved)}（涉及 ${proCoveredMonths} 个月），低于今日黑五预付 ¥${Math.round(bfCost)}。`,
+            detail: `方案 B 全年共减少月付支出 ${fmtM(totalProValueSaved)}（涉及 ${proCoveredMonths} 个月），低于今日黑五预付 ${fmtM(bfCost)}。`,
           };
     } else if (downsideNet >= 0 && upsideNet >= 0 && expectedNetSavings >= 40) {
       verdict = isEn
@@ -586,15 +596,15 @@
             level: 'buy',
             badge: 'Worth Buying',
             tone: 'green',
-            headline: `Already breaks even within SOTA span (+¥${Math.round(downsideNet)} downside floor)`,
-            detail: `Even if you revert to Plan A after Month ${core.sotaCutoff}, you stay net positive; full Plan B saves ¥${Math.round(upsideNet)} with EV +¥${Math.round(expectedNetSavings)}.`,
+            headline: `Already breaks even within SOTA span (${fmtSignedM(downsideNet)} downside floor)`,
+            detail: `Even if you revert to Plan A after Month ${core.sotaCutoff}, you stay net positive; full Plan B saves ${fmtM(upsideNet)} with EV ${fmtSignedM(expectedNetSavings)}.`,
           }
         : {
             level: 'buy',
             badge: '值得入手',
             tone: 'green',
-            headline: `主力期内即可锁定回本（下行底线已达 +¥${Math.round(downsideNet)}）`,
-            detail: `即便第 ${core.sotaCutoff} 个月后回退回方案 A 依然不亏；全年执行方案 B 净省 ¥${Math.round(upsideNet)}，期望净节省 +¥${Math.round(expectedNetSavings)}。`,
+            headline: `主力期内即可锁定回本（下行底线已达 ${fmtSignedM(downsideNet)}）`,
+            detail: `即便第 ${core.sotaCutoff} 个月后回退回方案 A 依然不亏；全年执行方案 B 净省 ${fmtM(upsideNet)}，期望净节省 ${fmtSignedM(expectedNetSavings)}。`,
           };
     } else if (expectedNetSavings >= 40) {
       const lineStr = breakEvenProbPct != null ? `${breakEvenProbPct.toFixed(1)}%` : '0%';
@@ -606,14 +616,14 @@
             badge: 'Worth Buying',
             tone: 'green',
             headline: `Positive EV: Confidence (${pPct}%) ${cmpEn} break-even (${lineStr})`,
-            detail: `Plan A totals ¥${Math.round(core.totalSkipCost)} vs Plan B ¥${Math.round(core.totalBuyCost)} (incl. upfront); EV is +¥${Math.round(expectedNetSavings)}.`,
+            detail: `Plan A totals ${fmtM(core.totalSkipCost)} vs Plan B ${fmtM(core.totalBuyCost)} (incl. upfront); EV is ${fmtSignedM(expectedNetSavings)}.`,
           }
         : {
             level: 'buy',
             badge: '值得入手',
             tone: 'green',
             headline: `正期望交易：留存把握（${pPct}%）${cmpZh}（${lineStr}）`,
-            detail: `方案 A 全年总计 ¥${Math.round(core.totalSkipCost)}，方案 B 含预付总计 ¥${Math.round(core.totalBuyCost)}；计入留存权重后期望净节省 +¥${Math.round(expectedNetSavings)}。`,
+            detail: `方案 A 全年总计 ${fmtM(core.totalSkipCost)}，方案 B 含预付总计 ${fmtM(core.totalBuyCost)}；计入留存权重后期望净节省 ${fmtSignedM(expectedNetSavings)}。`,
           };
     } else if (expectedNetSavings >= -40) {
       const lineStr = breakEvenProbPct != null ? `${breakEvenProbPct.toFixed(1)}%` : '—';
@@ -622,15 +632,15 @@
             level: 'neutral',
             badge: 'Borderline · Wait',
             tone: 'amber',
-            headline: `Near break-even: Expected net value is ${expectedNetSavings >= 0 ? '+' : '-'}¥${Math.abs(Math.round(expectedNetSavings))}`,
-            detail: `Break-even sits at ${lineStr} retention confidence. Staying on Plan A avoids locking ¥${Math.round(bfCost)} upfront.`,
+            headline: `Near break-even: Expected net value is ${fmtSignedM(expectedNetSavings)}`,
+            detail: `Break-even sits at ${lineStr} retention confidence. Staying on Plan A avoids locking ${fmtM(bfCost)} upfront.`,
           }
         : {
             level: 'neutral',
             badge: '接近打平 · 谨慎观望',
             tone: 'amber',
-            headline: `赔率接近五五开：期望净节省 ${expectedNetSavings >= 0 ? '+' : '-'}¥${Math.abs(Math.round(expectedNetSavings))}`,
-            detail: `盈亏平衡线为 ${lineStr}；不想提前锁定 ¥${Math.round(bfCost)} 预付成本的话，保留方案 A 按月随用随买更灵活。`,
+            headline: `赔率接近五五开：期望净节省 ${fmtSignedM(expectedNetSavings)}`,
+            detail: `盈亏平衡线为 ${lineStr}；不想提前锁定 ${fmtM(bfCost)} 预付成本的话，保留方案 A 按月随用随买更灵活。`,
           };
     } else {
       const lineStr = breakEvenProbPct != null ? `${breakEvenProbPct.toFixed(1)}%` : '100%';
@@ -639,19 +649,20 @@
             level: 'skip',
             badge: 'Negative EV · Skip',
             tone: 'red',
-            headline: `Downside outweighs upside: EV is -¥${Math.abs(Math.round(expectedNetSavings))}`,
-            detail: `Break-even sits at ${lineStr} vs your ${pPct}%. Full Plan B yields ${upsideNet >= 0 ? '+' : '-'}¥${Math.abs(Math.round(upsideNet))}, while stopping after Month ${core.sotaCutoff} yields ${downsideNet >= 0 ? '+' : '-'}¥${Math.abs(Math.round(downsideNet))}.`,
+            headline: `Downside outweighs upside: EV is ${fmtSignedM(expectedNetSavings)}`,
+            detail: `Break-even sits at ${lineStr} vs your ${pPct}%. Full Plan B yields ${fmtSignedM(upsideNet)}, while stopping after Month ${core.sotaCutoff} yields ${fmtSignedM(downsideNet)}.`,
           }
         : {
             level: 'skip',
             badge: '赔率倒挂 · 建议跳过',
             tone: 'red',
-            headline: `风险大于收益：期望净节省 -¥${Math.abs(Math.round(expectedNetSavings))}`,
-            detail: `盈亏线为 ${lineStr}（当前把握 ${pPct}%）；全年执行方案 B 为 ${upsideNet >= 0 ? '+' : '-'}¥${Math.abs(Math.round(upsideNet))}，第 ${core.sotaCutoff} 月后回退为 ${downsideNet >= 0 ? '+' : '-'}¥${Math.abs(Math.round(downsideNet))}。`,
+            headline: `风险大于收益：期望净节省 ${fmtSignedM(expectedNetSavings)}`,
+            detail: `盈亏线为 ${lineStr}（当前把握 ${pPct}%）；全年执行方案 B 为 ${fmtSignedM(upsideNet)}，第 ${core.sotaCutoff} 月后回退为 ${fmtSignedM(downsideNet)}。`,
           };
     }
 
     return Object.assign(core, {
+      displayCurrency: cur,
       scenarios,
       sensitivity,
       verdict,

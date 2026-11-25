@@ -9,6 +9,7 @@
   const GITHUB_REPO = 'do-you-really-need-gemini-pro-bf';
   const GITHUB_USER_URL = `https://github.com/${GITHUB_USER}`;
   const GITHUB_REPO_URL = `https://github.com/${GITHUB_USER}/${GITHUB_REPO}`;
+  const CNY_PER_USD = 6.67;
 
   const EN_MONTHS_SHORT = ['Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
   const EN_MONTHS_LONG = [
@@ -24,22 +25,29 @@
       .replace(/"/g, '&quot;');
   }
 
-  function fmtYen(n, withSign) {
-    const rounded = Math.round(n);
-    if (withSign) {
-      if (rounded === 0) return '¥0';
-      return `${rounded > 0 ? '+' : '-'}¥${Math.abs(rounded).toLocaleString('zh-CN')}`;
-    }
-    return `¥${rounded.toLocaleString('zh-CN')}`;
-  }
-
-  function fmtNum(n, withSign) {
-    const rounded = Math.round(n);
-    if (withSign) {
-      if (rounded === 0) return '0';
-      return `${rounded > 0 ? '+' : '-'}${Math.abs(rounded).toLocaleString('zh-CN')}`;
-    }
-    return rounded.toLocaleString('zh-CN');
+  function makeMoneyHelpers(cur) {
+    const isUsd = cur === 'USD';
+    const div = isUsd ? CNY_PER_USD : 1;
+    const sym = isUsd ? '$' : '¥';
+    const conv = (cnyVal) => cnyVal / div;
+    const fmtMoney = (cnyVal, withSign) => {
+      const rounded = Math.round(conv(cnyVal));
+      if (withSign) {
+        if (rounded === 0) return `${sym}0`;
+        return `${rounded > 0 ? '+' : '-'}${sym}${Math.abs(rounded).toLocaleString('en-US')}`;
+      }
+      return `${sym}${rounded.toLocaleString('en-US')}`;
+    };
+    const fmtMoneyDec = (cnyVal, dec) => `${sym}${conv(cnyVal).toFixed(dec != null ? dec : 1)}`;
+    const fmtNum = (cnyVal, withSign) => {
+      const rounded = Math.round(conv(cnyVal));
+      if (withSign) {
+        if (rounded === 0) return '0';
+        return `${rounded > 0 ? '+' : '-'}${Math.abs(rounded).toLocaleString('en-US')}`;
+      }
+      return rounded.toLocaleString('en-US');
+    };
+    return { cur, sym, isUsd, conv, fmtMoney, fmtMoneyDec, fmtNum };
   }
 
   function wrapLines(text, maxChars) {
@@ -67,11 +75,14 @@
 
   /**
    * Build a crisp Institutional Financial Decision Memo SVG (960 x 960)
-   * matching Step 5's exact typography, 2:1 Hero EV block, Bidirectional Payoff Bar,
-   * Day-0 Cumulative Chart, and Financial-Statement Scenario Table.
+   * matching Step 5's exact typography, settlement currency (CNY / USD),
+   * 2:1 Hero EV block, Bidirectional Payoff Bar, Day-0 Cumulative Chart,
+   * Financial-Statement Scenario Table, and quiet bottom-right attribution.
    */
-  function buildSummarySvg(state, res, lang) {
+  function buildSummarySvg(state, res, lang, displayCurrency) {
     const isEn = lang === 'en-US';
+    const cur = displayCurrency || res.displayCurrency || (isEn ? 'USD' : 'CNY');
+    const M = makeMoneyHelpers(cur);
     const W = 960;
     const H = 960;
     const padX = 56;
@@ -82,16 +93,16 @@
     const vCol = badgeColors(res.verdict.tone);
     const detailLines = wrapLines(res.verdict.detail, isEn ? 92 : 56).slice(0, 2);
 
-    // 1. Hero EV + 2 Decision Conditions (2:1 Block, y = 166..292)
+    // 1. Hero EV + 2 Decision Conditions (2:1 Block, y = 172..294)
     const heroTop = 172;
     const heroBot = 294;
-    const evRounded = Math.round(res.expectedNetSavings);
+    const evRounded = Math.round(M.conv(res.expectedNetSavings));
     const evSign = evRounded > 0 ? '+' : evRounded < 0 ? '-' : '';
     const evSignColor = evRounded > 0 ? '#1c3829' : evRounded < 0 ? '#5d1715' : '#37352f';
-    const evDigits = `¥${Math.abs(evRounded).toLocaleString('zh-CN')}`;
+    const evDigits = `${M.sym}${Math.abs(evRounded).toLocaleString('en-US')}`;
     const rateStr = `${res.evReturnPct >= 0 ? '+' : ''}${res.evReturnPct.toFixed(1)}%`;
     const evRateLine = res.bfCost > 0
-      ? (isEn ? `Expected Net Savings Rate ${rateStr} (on ${fmtYen(res.bfCost)} upfront)` : `期望净节省率 ${rateStr}（相对今日预付 ${fmtYen(res.bfCost)}）`)
+      ? (isEn ? `Expected Net Savings Rate ${rateStr} (on ${M.fmtMoney(res.bfCost)} upfront)` : `期望净节省率 ${rateStr}（相对今日预付 ${M.fmtMoney(res.bfCost)}）`)
       : '';
 
     const pPct = Math.round(Number(state.retainProbPct) || 0);
@@ -117,22 +128,22 @@
       ? (isEn ? EN_MONTHS_LONG[res.crossoverMonthIndex] : res.monthlyRows[res.crossoverMonthIndex].month.label)
       : (isEn ? 'Not within 12 mo' : '12 个月内未回本');
     const crossSub = Number.isFinite(res.equivalentUsageMonths) && res.proCoveredMonths > 0
-      ? (isEn ? `Equiv. ${res.equivalentUsageMonths.toFixed(1)} mo · avg ¥${Math.round(res.avgProPrice)}/mo` : `折合用量 ${res.equivalentUsageMonths.toFixed(1)} 个月 · 月均省 ¥${Math.round(res.avgProPrice)}`)
+      ? (isEn ? `Equiv. ${res.equivalentUsageMonths.toFixed(1)} mo · avg ${M.fmtMoney(res.avgProPrice)}/mo` : `折合用量 ${res.equivalentUsageMonths.toFixed(1)} 个月 · 月均省 ${M.fmtMoney(res.avgProPrice)}`)
       : (isEn ? 'No monthly savings configured' : '当前未配置月度省钱差额');
 
     const condX = padX + 544;
 
-    // Hairline Upfront & Idle Strip (y = 294..332)
+    // Hairline Upfront & Idle Strip
     const fxSummary = (res.activeFxCurrencies || []).length > 0
       ? res.activeFxCurrencies
           .map((c) => `${c.currency} ${c.annualPct > 0 ? '+' : ''}${Math.round(c.annualPct)}%`)
           .join(' / ')
       : (isEn ? 'CNY only' : '无外币月付');
     const stripText = isEn
-      ? `Upfront ${fmtYen(res.bfCost)}  ·  Avg ¥${res.bfMonthlyAvg.toFixed(1)}/mo  ·  Plan A ${fmtYen(res.totalSkipCost)} vs Plan B ${fmtYen(res.totalBuyCost)}  ·  FX: ${fxSummary}`
-      : `今日预付 ${fmtYen(res.bfCost)}  ·  年费月均 ¥${res.bfMonthlyAvg.toFixed(1)}/月  ·  不买 ${fmtYen(res.totalSkipCost)} vs 买黑五 ${fmtYen(res.totalBuyCost)}  ·  汇率：${fxSummary}`;
+      ? `Upfront ${M.fmtMoney(res.bfCost)}  ·  Avg ${M.fmtMoneyDec(res.bfMonthlyAvg, 1)}/mo  ·  Plan A ${M.fmtMoney(res.totalSkipCost)} vs Plan B ${M.fmtMoney(res.totalBuyCost)}  ·  FX: ${fxSummary}`
+      : `今日预付 ${M.fmtMoney(res.bfCost)}  ·  年费月均 ${M.fmtMoneyDec(res.bfMonthlyAvg, 1)}/月  ·  不买 ${M.fmtMoney(res.totalSkipCost)} vs 买黑五 ${M.fmtMoney(res.totalBuyCost)}  ·  汇率：${fxSummary}`;
 
-    // 2. Bidirectional Payoff Bar (y = 358..452)
+    // 2. Bidirectional Payoff Bar (y = 368..452)
     const payTop = 368;
     const D = res.downsideNet;
     const U = res.upsideNet;
@@ -167,16 +178,24 @@
     const lblD = isEn ? `Drop after Mo ${res.sotaCutoff} (D)` : `第 ${res.sotaCutoff} 月止回退 (D)`;
     const lblU = isEn ? 'Full-Year Plan B (U)' : '全年执行方案 B (U)';
 
-    // 3. Cumulative Chart with Day 0 ("今日" / "Now") (y = 486..654)
+    // 3. Cumulative Chart with Day 0 ("今日" / "Now")
     const chartTop = 510;
     const chartH = 124;
     const chartLeft = padX + 54;
     const chartRight = W - padX - 10;
     const chartW = chartRight - chartLeft;
     const rows = res.monthlyRows;
-    const maxY = Math.ceil(Math.max(600, res.bfCost, ...rows.map((r) => Math.max(r.cumBuy, r.cumSkip))) / 500) * 500;
+    const stepUnit = M.isUsd ? 100 : 500;
+    const maxYDisp = Math.ceil(
+      Math.max(
+        M.isUsd ? 100 : 600,
+        M.conv(res.bfCost),
+        ...rows.map((r) => Math.max(M.conv(r.cumBuy), M.conv(r.cumSkip)))
+      ) / stepUnit
+    ) * stepUnit;
     const xAt = (i) => chartLeft + (i / rows.length) * chartW;
-    const yAt = (val) => chartTop + chartH - (val / maxY) * chartH;
+    const yAtDisp = (dispVal) => chartTop + chartH - (dispVal / maxYDisp) * chartH;
+    const yAt = (cnyVal) => yAtDisp(M.conv(cnyVal));
 
     const buyPts = [
       `${xAt(0).toFixed(1)},${yAt(res.bfCost).toFixed(1)}`,
@@ -189,11 +208,11 @@
 
     const chartGrid = [0, 0.5, 1]
       .map((ratio) => {
-        const val = maxY * ratio;
-        const y = yAt(val).toFixed(1);
+        const val = maxYDisp * ratio;
+        const y = yAtDisp(val).toFixed(1);
         return `
           <line x1="${chartLeft}" y1="${y}" x2="${chartRight}" y2="${y}" stroke="#e9e9e7" stroke-width="1"/>
-          <text x="${chartLeft - 8}" y="${Number(y) + 4}" text-anchor="end" fill="#9b9a97" font-size="10.5" font-family="${fontMono}">¥${Math.round(val)}</text>
+          <text x="${chartLeft - 8}" y="${Number(y) + 4}" text-anchor="end" fill="#9b9a97" font-size="10.5" font-family="${fontMono}">${M.sym}${Math.round(val)}</text>
         `;
       })
       .join('');
@@ -216,7 +235,7 @@
       ? `
         <line x1="${xAt(nextGenIdx + 1).toFixed(1)}" y1="${chartTop}" x2="${xAt(nextGenIdx + 1).toFixed(1)}" y2="${chartTop + chartH}" stroke="#9b9a97" stroke-dasharray="2 3" stroke-width="1"/>
         <circle cx="${xAt(nextGenIdx + 1).toFixed(1)}" cy="${chartTop + chartH}" r="3.2" fill="#1c3829"/>
-        <text x="${Math.min(chartRight - 165, Math.max(chartLeft + 4, xAt(nextGenIdx + 1) - 65)).toFixed(1)}" y="${chartTop + 11}" fill="#1c3829" font-size="10.5" font-weight="600" font-family="${fontSans}">${isEn ? `Est. Next Gemini SOTA (${esc(EN_MONTHS_SHORT[nextGenIdx])})` : `预期下代 Gemini SOTA (${esc(rows[nextGenIdx].month.short)})`}</text>
+        <text x="${Math.min(chartRight - 220, Math.max(chartLeft + 4, xAt(nextGenIdx + 1) - 68)).toFixed(1)}" y="${chartTop + 11}" fill="#1c3829" font-size="10.5" font-weight="600" font-family="${fontSans}">${isEn ? `Est. Next Gemini SOTA (${esc(EN_MONTHS_SHORT[nextGenIdx])})` : `预期下代 Gemini SOTA (${esc(rows[nextGenIdx].month.short)})`}</text>
       `
       : '';
 
@@ -229,13 +248,13 @@
     const buyEndY = yAt(lastRow.cumBuy) <= yAt(lastRow.cumSkip) ? yAt(lastRow.cumBuy) - 8 : yAt(lastRow.cumBuy) + 15;
     const skipEndY = yAt(lastRow.cumBuy) <= yAt(lastRow.cumSkip) ? yAt(lastRow.cumSkip) + 15 : yAt(lastRow.cumSkip) - 8;
 
-    // 4. Financial-Statement Scenario Table (y = 698..892)
+    // 4. Financial-Statement Scenario Table
     const tblHeadY = 712;
     const tblRowH = 42;
     const scenRows = res.scenarios
       .map((sc, i) => {
         const y = tblHeadY + 12 + i * tblRowH;
-        const rounded = Math.round(sc.diff);
+        const rounded = Math.round(M.conv(sc.diff));
         const pillBg = rounded > 0 ? '#dbeddb' : rounded < 0 ? '#ffe2dd' : '#e3e2e0';
         const pillFg = rounded > 0 ? '#1c3829' : rounded < 0 ? '#5d1715' : '#32302c';
         const rowBg = sc.isBaseline ? `<rect x="${padX}" y="${y}" width="${contentW}" height="${tblRowH}" fill="#f7f6f3"/>` : '';
@@ -246,10 +265,10 @@
           <line x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}" stroke="${topStroke}" stroke-width="${topWidth}"/>
           <text x="${padX + 6}" y="${y + 18}" fill="#37352f" font-size="12.5" font-weight="500" font-family="${fontSans}">${esc(sc.title)}</text>
           <text x="${padX + 6}" y="${y + 34}" fill="#9b9a97" font-size="10.5" font-family="${fontSans}">${esc(sc.periodNote || '')}</text>
-          <text x="${W - padX - 216}" y="${y + 25}" text-anchor="end" fill="#37352f" font-size="12.5" font-family="${fontMono}">${esc(fmtNum(sc.buyTotal))}</text>
-          <text x="${W - padX - 112}" y="${y + 25}" text-anchor="end" fill="#37352f" font-size="12.5" font-family="${fontMono}">${esc(fmtNum(sc.skipTotal))}</text>
+          <text x="${W - padX - 216}" y="${y + 25}" text-anchor="end" fill="#37352f" font-size="12.5" font-family="${fontMono}">${esc(M.fmtNum(sc.buyTotal))}</text>
+          <text x="${W - padX - 112}" y="${y + 25}" text-anchor="end" fill="#37352f" font-size="12.5" font-family="${fontMono}">${esc(M.fmtNum(sc.skipTotal))}</text>
           <rect x="${W - padX - 84}" y="${y + 10}" width="80" height="22" rx="3" fill="${pillBg}"/>
-          <text x="${W - padX - 10}" y="${y + 25}" text-anchor="end" fill="${pillFg}" font-size="12.5" font-weight="600" font-family="${fontMono}">${esc(fmtNum(sc.diff, true))}</text>
+          <text x="${W - padX - 10}" y="${y + 25}" text-anchor="end" fill="${pillFg}" font-size="12.5" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(sc.diff, true))}</text>
         `;
       })
       .join('');
@@ -276,7 +295,7 @@
 
   <!-- Institutional 2:1 Hero Financial Block -->
   <line x1="${padX}" y1="${heroTop}" x2="${W - padX}" y2="${heroTop}" stroke="#37352f" stroke-width="1.5"/>
-  <text x="${padX}" y="${heroTop + 26}" fill="#787774" font-size="12" font-weight="500" font-family="${fontSans}">${isEn ? '12-Month Expected Net Savings (EV) · CNY' : '12 个月期望净节省 (EV) · CNY'}</text>
+  <text x="${padX}" y="${heroTop + 26}" fill="#787774" font-size="12" font-weight="500" font-family="${fontSans}">${isEn ? `12-Month Expected Net Savings (EV) · ${cur}` : `12 个月期望净节省 (EV) · ${cur}`}</text>
   <text x="${padX}" y="${heroTop + 82}" fill="#37352f" font-size="50" font-weight="600" font-family="${fontMono}"><tspan fill="${evSignColor}">${evSign}</tspan>${esc(evDigits)}</text>
   <text x="${padX}" y="${heroTop + 106}" fill="#787774" font-size="12" font-family="${fontMono}">${esc(evRateLine)}</text>
 
@@ -297,17 +316,17 @@
   <text x="${padX}" y="${payTop - 10}" fill="#37352f" font-size="13.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Payoff Endpoints &amp; Retention Weights' : '两端结果与留存权重'}</text>
   <text x="${W - padX}" y="${payTop - 10}" text-anchor="end" fill="#787774" font-size="12" font-family="${fontMono}">${esc(ratioText)}</text>
   <line x1="${payZero.toFixed(1)}" y1="${payTop + 4}" x2="${payZero.toFixed(1)}" y2="${payTop + 80}" stroke="#d3d1cb" stroke-width="1.2"/>
-  <text x="${payZero.toFixed(1)}" y="${payTop + 92}" text-anchor="middle" fill="#9b9a97" font-size="10" font-family="${fontMono}">¥0</text>
+  <text x="${payZero.toFixed(1)}" y="${payTop + 92}" text-anchor="middle" fill="#9b9a97" font-size="10" font-family="${fontMono}">${M.sym}0</text>
 
   <text x="${padX}" y="${payTop + 22}" fill="#37352f" font-size="12" font-weight="500" font-family="${fontSans}">${esc(lblD)}</text>
   <text x="${padX}" y="${payTop + 36}" fill="#9b9a97" font-size="10.5" font-family="${fontMono}">${isEn ? `Weight ${wD}%` : `权重 ${wD}%`}</text>
   <rect x="${gD.x.toFixed(1)}" y="${payTop + 11}" width="${gD.w.toFixed(1)}" height="18" rx="2.5" fill="${gD.fill}" stroke="${gD.stroke}" stroke-opacity="0.28" stroke-width="1"/>
-  <text x="${W - padX}" y="${payTop + 25}" text-anchor="end" fill="${gD.fg}" font-size="13" font-weight="600" font-family="${fontMono}">${esc(fmtYen(D, true))}</text>
+  <text x="${W - padX}" y="${payTop + 25}" text-anchor="end" fill="${gD.fg}" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtMoney(D, true))}</text>
 
   <text x="${padX}" y="${payTop + 58}" fill="#37352f" font-size="12" font-weight="500" font-family="${fontSans}">${esc(lblU)}</text>
   <text x="${padX}" y="${payTop + 72}" fill="#9b9a97" font-size="10.5" font-family="${fontMono}">${isEn ? `Weight ${wU}%` : `权重 ${wU}%`}</text>
   <rect x="${gU.x.toFixed(1)}" y="${payTop + 47}" width="${gU.w.toFixed(1)}" height="18" rx="2.5" fill="${gU.fill}" stroke="${gU.stroke}" stroke-opacity="0.28" stroke-width="1"/>
-  <text x="${W - padX}" y="${payTop + 61}" text-anchor="end" fill="${gU.fg}" font-size="13" font-weight="600" font-family="${fontMono}">${esc(fmtYen(U, true))}</text>
+  <text x="${W - padX}" y="${payTop + 61}" text-anchor="end" fill="${gU.fg}" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtMoney(U, true))}</text>
 
   <!-- Cumulative Chart -->
   <text x="${padX}" y="${chartTop - 16}" fill="#37352f" font-size="13.5" font-weight="600" font-family="${fontSans}">${isEn ? '12-Month Cumulative Marginal Spend' : '12 个月累积边际支出对比'}</text>
@@ -320,36 +339,33 @@
   <circle cx="${xAt(0).toFixed(1)}" cy="${yAt(0).toFixed(1)}" r="3.2" fill="#9b9a97"/>
   ${crossoverSvg}
   ${chartXLabels}
-  <text x="${(xAt(rows.length) - 6).toFixed(1)}" y="${buyEndY.toFixed(1)}" text-anchor="end" fill="#37352f" font-size="11.5" font-weight="600" font-family="${fontMono}">${esc(isEn ? `Buy:${fmtYen(lastRow.cumBuy)}` : `买:${fmtYen(lastRow.cumBuy)}`)}</text>
-  <text x="${(xAt(rows.length) - 6).toFixed(1)}" y="${skipEndY.toFixed(1)}" text-anchor="end" fill="#787774" font-size="11.5" font-family="${fontMono}">${esc(isEn ? `No BF:${fmtYen(lastRow.cumSkip)}` : `不买:${fmtYen(lastRow.cumSkip)}`)}</text>
+  <text x="${(xAt(rows.length) - 6).toFixed(1)}" y="${buyEndY.toFixed(1)}" text-anchor="end" fill="#37352f" font-size="11.5" font-weight="600" font-family="${fontMono}">${esc(isEn ? `Buy:${M.fmtMoney(lastRow.cumBuy)}` : `买:${M.fmtMoney(lastRow.cumBuy)}`)}</text>
+  <text x="${(xAt(rows.length) - 6).toFixed(1)}" y="${skipEndY.toFixed(1)}" text-anchor="end" fill="#787774" font-size="11.5" font-family="${fontMono}">${esc(isEn ? `No BF:${M.fmtMoney(lastRow.cumSkip)}` : `不买:${M.fmtMoney(lastRow.cumSkip)}`)}</text>
 
   <!-- Financial Statement Scenario Table -->
   <text x="${padX}" y="${tblHeadY - 14}" fill="#37352f" font-size="13.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Four-Scenario Comparison' : '四种情景对照'}</text>
-  <text x="${W - padX}" y="${tblHeadY - 14}" text-anchor="end" fill="#9b9a97" font-size="11" font-family="${fontMono}">${isEn ? 'Unit: CNY · Buy includes upfront' : '单位：CNY · 买入支出含今日预付'}</text>
+  <text x="${W - padX}" y="${tblHeadY - 14}" text-anchor="end" fill="#9b9a97" font-size="11" font-family="${fontMono}">${isEn ? `Unit: ${cur} · Buy includes upfront` : `单位：${cur} · 买入支出含今日预付`}</text>
   <text x="${padX + 6}" y="${tblHeadY + 4}" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Scenario' : '情景'}</text>
-  <text x="${W - padX - 216}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Buy (CNY)' : '买入支出'}</text>
-  <text x="${W - padX - 112}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? 'No BF (CNY)' : '月付支出'}</text>
+  <text x="${W - padX - 216}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? `Buy (${cur})` : `买入支出 (${cur})`}</text>
+  <text x="${W - padX - 112}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? `No BF (${cur})` : `月付支出 (${cur})`}</text>
   <text x="${W - padX - 6}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Net Saved' : '净节省'}</text>
   ${scenRows}
   <line x1="${padX}" y1="${tblBottomY}" x2="${W - padX}" y2="${tblBottomY}" stroke="#e9e9e7" stroke-width="1"/>
-  <text x="${padX}" y="${tblBottomY + 18}" fill="#9b9a97" font-size="10.5" font-family="${fontSans}">${isEn ? 'Net Saved = Without BF − Buy BF (nominal CNY outflows; Buy includes today upfront payment).' : '净节省 = 月付支出 − 买入支出。金额为各行所示期间的名义人民币支出，买入支出含今日预付。'}</text>
+  <text x="${padX}" y="${tblBottomY + 18}" fill="#9b9a97" font-size="10.5" font-family="${fontSans}">${isEn ? `Net Saved = Without BF − Buy BF (${cur}, spot 1 USD ≈ 6.67 CNY; Buy includes upfront).` : `净节省 = 月付支出 − 买入支出。按当前结算币种（${cur}，基准 1 USD ≈ 6.67 CNY）折算，买入支出含今日预付。`}</text>
 
-  <!-- Footer Attribution -->
-  <g transform="translate(${padX}, ${H - 24})">
-    <svg width="14" height="14" viewBox="0 0 16 16" y="-11" fill="#787774">
-      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-    </svg>
-    <text x="20" y="0" fill="#787774" font-size="12" font-family="${fontSans}">Made by ${GITHUB_USER} · github.com/${GITHUB_USER}/${GITHUB_REPO}</text>
-  </g>
+  <!-- Quiet Bottom-Right Attribution -->
+  <text x="${W - padX}" y="${H - 22}" text-anchor="end" fill="#b5b4b0" font-size="10.5" font-family="${fontSans}">Made by ${GITHUB_USER} · github.com/${GITHUB_USER}/${GITHUB_REPO}</text>
 </svg>`;
   }
 
   /**
    * Build a self-contained single-file HTML report matching the Financial Decision Memo & Dual-Basket table.
    */
-  function buildStandaloneHtml(state, res, lang) {
+  function buildStandaloneHtml(state, res, lang, displayCurrency) {
     const isEn = lang === 'en-US';
-    const svg = buildSummarySvg(state, res, lang);
+    const cur = displayCurrency || res.displayCurrency || (isEn ? 'USD' : 'CNY');
+    const M = makeMoneyHelpers(cur);
+    const svg = buildSummarySvg(state, res, lang, cur);
     const i18nMod =
       typeof module !== 'undefined' && module.exports
         ? require('./i18n.js')
@@ -370,7 +386,7 @@
           ? `${bfTag} + ${r.buyItems.map(fmtShortQty).join(' + ')}`
           : bfTag;
         const diffCls = r.monthSavedByBf > 0.5 ? 'pos' : r.monthSavedByBf < -0.5 ? 'neg' : '';
-        return `<tr><td>${esc(mLabel)}</td><td>${planA}</td><td>${planB}</td><td class="num ${diffCls}">${fmtYen(r.monthSavedByBf, true)}</td><td class="num">${fmtYen(r.cumBuy)}</td><td class="num">${fmtYen(r.cumSkip)}</td></tr>`;
+        return `<tr><td>${esc(mLabel)}</td><td>${planA}</td><td>${planB}</td><td class="num ${diffCls}">${M.fmtMoney(r.monthSavedByBf, true)}</td><td class="num">${M.fmtMoney(r.cumBuy)}</td><td class="num">${M.fmtMoney(r.cumSkip)}</td></tr>`;
       })
       .join('');
 
@@ -393,15 +409,15 @@
     .num { text-align: right; font-family: "JetBrains Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
     .pos { color: #1c3829; font-weight: 600; }
     .neg { color: #5d1715; font-weight: 600; }
-    footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid #e9e9e7; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: #787774; }
-    footer a { color: #37352f; text-decoration: none; border-bottom: 1px solid #e9e9e7; }
-    footer a:hover { border-bottom-color: #37352f; }
+    footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid #e9e9e7; display: flex; align-items: center; justify-content: flex-end; gap: 5px; font-size: 11px; color: #b5b4b0; }
+    footer a { color: #a8a7a3; text-decoration: none; border-bottom: 1px solid transparent; }
+    footer a:hover { color: #787774; border-bottom-color: #d3d1cb; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="svg-card">${svg}</div>
-    <h2>${isEn ? '12-Month Dual-Plan Breakdown' : '12 个月双方案逐月明细'}</h2>
+    <h2>${isEn ? `12-Month Dual-Plan Breakdown (${cur})` : `12 个月双方案逐月明细（${cur}）`}</h2>
     <table>
       <thead>
         <tr>
@@ -416,7 +432,7 @@
       <tbody>${monthRowsHtml}</tbody>
     </table>
     <footer>
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       <span>Made by <a href="${GITHUB_USER_URL}" target="_blank" rel="noopener noreferrer">${GITHUB_USER}</a> · <a href="${GITHUB_REPO_URL}" target="_blank" rel="noopener noreferrer">${GITHUB_USER}/${GITHUB_REPO}</a></span>
     </footer>
   </div>

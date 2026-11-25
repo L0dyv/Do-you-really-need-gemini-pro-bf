@@ -1342,24 +1342,53 @@
     return plans;
   }
 
+  /**
+   * When Plan B (With BF) is synced from Plan A, 1 seat of monthly Gemini Pro
+   * is automatically offset by the locked Black Friday Gemini Pro seat.
+   * Extra seats (e.g. 2x Gemini Pro -> 1x extra) and non-Pro subs remain intact.
+   */
+  function deriveSyncedBuyBasket(itemsA) {
+    const src = Array.isArray(itemsA) ? itemsA : [];
+    let offsetApplied = false;
+    const out = [];
+    for (let i = 0; i < src.length; i++) {
+      const it = src[i];
+      if (!it) continue;
+      if (!offsetApplied && (it.isGeminiPro || it.dynamicPrice === 'gemini_pro') && it.replaceableByBf !== false) {
+        offsetApplied = true;
+        const qty = Math.max(1, Number(it.qty) || 1);
+        if (qty > 1) {
+          out.push(Object.assign({}, it, { qty: qty - 1 }));
+        }
+      } else {
+        out.push(Object.assign({}, it));
+      }
+    }
+    return out;
+  }
+
   function deriveDefaultBuyPlans(monthPlans) {
     const buyMonthPlans = [];
     const buyMonthSynced = [];
     for (let i = 0; i < 12; i++) {
       const items = Array.isArray(monthPlans && monthPlans[i]) ? monthPlans[i] : [];
-      let dropIdx = items.findIndex((it) => it && (it.isGeminiPro || it.dynamicPrice === 'gemini_pro') && it.replaceableByBf !== false);
-      if (dropIdx === -1) {
-        let bestAmt = -1;
-        items.forEach((it, idx) => {
-          if (it && it.replaceableByBf) {
-            const val = Number(it.amount) || 0;
-            if (val > bestAmt) {
-              bestAmt = val;
-              dropIdx = idx;
-            }
-          }
-        });
+      const hasPro = items.some((it) => it && (it.isGeminiPro || it.dynamicPrice === 'gemini_pro') && it.replaceableByBf !== false);
+      if (hasPro) {
+        buyMonthPlans.push(deriveSyncedBuyBasket(items));
+        buyMonthSynced.push(true);
+        continue;
       }
+      let dropIdx = -1;
+      let bestAmt = -1;
+      items.forEach((it, idx) => {
+        if (it && it.replaceableByBf) {
+          const val = Number(it.amount) || 0;
+          if (val > bestAmt) {
+            bestAmt = val;
+            dropIdx = idx;
+          }
+        }
+      });
       if (dropIdx >= 0) {
         const nextB = [];
         items.forEach((it, idx) => {
@@ -1589,6 +1618,7 @@
     TRY_FX_HISTORY,
     makeSubItem,
     buildMonthPlan,
+    deriveSyncedBuyBasket,
     deriveDefaultBuyPlans,
     buildPlanPair,
   };

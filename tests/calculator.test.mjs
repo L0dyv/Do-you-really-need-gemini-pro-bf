@@ -10,6 +10,7 @@ const {
   DEFAULT_STATE,
   buildMonthPlan,
   buildPlanPair,
+  deriveSyncedBuyBasket,
   makeSubItem,
 } = require('../js/data.js');
 const {
@@ -118,6 +119,51 @@ test('Dual-basket supports multi-subscription stacking (GPT Pro + Devin) and tie
   assert.equal(res.crossoverMonthIndex, 0);
 });
 
+test('Synced Plan B automatically offsets exactly 1 seat of monthly Gemini Pro while keeping other subs intact', () => {
+  const s = Object.assign(clone(DEFAULT_STATE), buildPlanPair('empty'), {
+    fxAnnualChangePct: { TRY: 0, JPY: 0, HKD: 0, TWD: 0, USD: 0 },
+  });
+  // All months remain synced (buyMonthSynced === true)
+  s.monthPlans[0] = [makeSubItem('gemini_pro_us', 1)];
+  s.monthPlans[1] = [makeSubItem('gemini_pro_us', 2)];
+  s.monthPlans[2] = [makeSubItem('gemini_pro_us', 1), makeSubItem('devin_pro_us', 1)];
+  s.monthPlans[3] = [makeSubItem('idle_ultra_us', 1)];
+
+  assert.deepEqual(deriveSyncedBuyBasket(s.monthPlans[0]), []);
+  assert.equal(deriveSyncedBuyBasket(s.monthPlans[1])[0].qty, 1);
+  assert.deepEqual(deriveSyncedBuyBasket(s.monthPlans[2]).map((x) => x.id), ['devin_pro_us']);
+  assert.deepEqual(deriveSyncedBuyBasket(s.monthPlans[3]).map((x) => x.id), ['idle_ultra_us']);
+
+  const res = calculateLedger(s);
+  const oneProCny = 19.99 * 6.67;
+  assert.equal(res.monthlyRows[0].buyItems.length, 0);
+  assert.ok(Math.abs(res.monthlyRows[0].monthSavedByBf - oneProCny) < 0.2);
+  assert.equal(res.monthlyRows[1].buyItems.length, 1);
+  assert.equal(res.monthlyRows[1].buyItems[0].qty, 1);
+  assert.ok(Math.abs(res.monthlyRows[1].monthSavedByBf - oneProCny) < 0.2);
+  assert.deepEqual(res.monthlyRows[2].buyItems.map((x) => x.id), ['devin_pro_us']);
+  assert.ok(Math.abs(res.monthlyRows[2].monthSavedByBf - oneProCny) < 0.2);
+  assert.equal(res.monthlyRows[3].monthSavedByBf, 0);
+});
+
+test('Settlement currency defaults to USD in en-US and CNY in zh-CN, and propagates into exports', () => {
+  const s = clone(DEFAULT_STATE);
+  const resZh = calculateLedger(s, 'zh-CN');
+  const resEn = calculateLedger(s, 'en-US');
+  const resZhUsd = calculateLedger(s, 'zh-CN', 'USD');
+
+  assert.equal(resZh.displayCurrency, 'CNY');
+  assert.equal(resEn.displayCurrency, 'USD');
+  assert.equal(resZhUsd.displayCurrency, 'USD');
+  assert.ok(resEn.verdict.detail.includes('$') && !resEn.verdict.detail.includes('¥'));
+  assert.ok(resZhUsd.verdict.detail.includes('$'));
+
+  const svgEn = buildSummarySvg(s, resEn, 'en-US', 'USD');
+  const htmlEn = buildStandaloneHtml(s, resEn, 'en-US', 'USD');
+  assert.ok(svgEn.includes('· USD') && svgEn.includes('$0'));
+  assert.ok(htmlEn.includes('· USD') && htmlEn.includes('Buy (USD)'));
+});
+
 test('Dual-basket supports multi-seat subscriptions (2x Gemini Pro) and 1 BF seat offsets only 1 seat', () => {
   const s = Object.assign(clone(DEFAULT_STATE), buildPlanPair('empty'), {
     fxAnnualChangePct: { TRY: 0, JPY: 0, HKD: 0, TWD: 0, USD: 0 },
@@ -199,6 +245,8 @@ test('All static DOM IDs referenced in app.js exist in index.html and contain ze
     .filter((id) => !id.startsWith(dynamicPrefix));
   const missing = ids.filter((id) => !html.includes(`id="${id}"`));
   assert.deepEqual(missing, []);
+  assert.equal(html.includes('id="inp-plan-template"'), false, 'Step 2 template dropdown must remain removed');
+  assert.equal(html.includes('id="btn-auto-drop-pro"'), false, 'Step 3 duplicate drop-pro button must remain removed');
 
   const emojiRe = /\p{Extended_Pictographic}/u;
   assert.equal(emojiRe.test(html), false, 'index.html should not contain emojis');
