@@ -13,6 +13,7 @@
   } = window.SubLedgerData;
 
   const { calculateLedger, convertToCny, getTryRateAtOffset } = window.SubLedgerCalc;
+  const { buildSummarySvg, buildStandaloneHtml, svgToHighResPngBlob } = window.SubLedgerExporter;
 
   const STORAGE_KEY = 'ai_sub_ledger_state_v8';
 
@@ -427,7 +428,7 @@
 
     document.getElementById('btn-prev').style.visibility = currentStep === 0 ? 'hidden' : 'visible';
     document.getElementById('btn-next').textContent = STEPS[currentStep].nextLabel;
-    document.getElementById('btn-copy-summary').style.display = currentStep === 4 ? 'inline-flex' : 'none';
+    document.getElementById('export-group').style.display = currentStep === 4 ? 'flex' : 'none';
 
     // STEP 1
     document.querySelectorAll('[data-bf-choice]').forEach((row) => {
@@ -966,7 +967,60 @@
       render();
     });
 
-    // Copy summary
+    function triggerDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // Export: Copy 3x Ultra-HD PNG directly to clipboard (with automatic download fallback)
+    document.getElementById('btn-copy-hd-img').addEventListener('click', async () => {
+      const res = calculateLedger(state);
+      const svg = buildSummarySvg(state, res);
+      try {
+        const pngBlob = await svgToHighResPngBlob(svg, 3);
+        if (navigator.clipboard && typeof window.ClipboardItem !== 'undefined') {
+          await navigator.clipboard.write([new window.ClipboardItem({ 'image/png': pngBlob })]);
+          showToast('已复制 3x 超清图片到剪贴板，可直接粘贴');
+        } else {
+          triggerDownload(pngBlob, 'ai-sub-ledger-summary-3x.png');
+          showToast('当前环境不支持剪贴板写图，已自动下载 3x 超清 PNG');
+        }
+      } catch {
+        try {
+          const pngBlob = await svgToHighResPngBlob(svg, 3);
+          triggerDownload(pngBlob, 'ai-sub-ledger-summary-3x.png');
+          showToast('已下载 3x 超清 PNG 图片');
+        } catch {
+          showToast('图片生成失败，请改用导出 SVG');
+        }
+      }
+    });
+
+    // Export: Crisp Vector SVG
+    document.getElementById('btn-export-svg').addEventListener('click', () => {
+      const res = calculateLedger(state);
+      const svg = buildSummarySvg(state, res);
+      const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+      triggerDownload(blob, 'ai-sub-ledger-summary.svg');
+      showToast('已导出矢量 SVG 图片');
+    });
+
+    // Export: Standalone Offline HTML Report
+    document.getElementById('btn-export-html').addEventListener('click', () => {
+      const res = calculateLedger(state);
+      const html = buildStandaloneHtml(state, res);
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      triggerDownload(blob, 'ai-sub-ledger-report.html');
+      showToast('已导出独立 HTML 报告网页');
+    });
+
+    // Copy text summary
     document.getElementById('btn-copy-summary').addEventListener('click', async () => {
       const res = calculateLedger(state);
       const lines = [

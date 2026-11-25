@@ -12,6 +12,10 @@ const {
   getMonthlyProCny,
   getTryRateAtOffset,
 } = require('../js/calculator.js');
+const {
+  buildSummarySvg,
+  buildStandaloneHtml,
+} = require('../js/exporter.js');
 
 function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
@@ -102,4 +106,19 @@ test('All static DOM IDs referenced in app.js exist in index.html and contain ze
   assert.equal(emojiRe.test(html), false, 'index.html should not contain emojis');
   assert.equal(emojiRe.test(app), false, 'app.js should not contain emojis');
   assert.equal(emojiRe.test(data), false, 'data.js should not contain emojis');
+});
+
+test('Exporter generates valid vector SVG and standalone HTML with L0dyv attribution and zero emojis', () => {
+  const s = clone(DEFAULT_STATE);
+  const res = calculateLedger(s);
+  const svg = buildSummarySvg(s, res);
+  const html = buildStandaloneHtml(s, res);
+
+  assert.ok(svg.startsWith('<?xml') && svg.includes('<svg') && svg.includes('</svg>'));
+  assert.ok(svg.includes('L0dyv') && svg.includes('L0dyv/ai-sub-ledger'));
+  assert.ok(html.startsWith('<!DOCTYPE html>') && html.includes('github.com/L0dyv/ai-sub-ledger'));
+
+  const emojiRe = /\p{Extended_Pictographic}/u;
+  assert.equal(emojiRe.test(svg), false, 'exported SVG should not contain emojis');
+  assert.equal(emojiRe.test(html), false, 'exported HTML should not contain emojis');
 });
