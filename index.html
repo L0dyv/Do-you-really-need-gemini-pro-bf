@@ -101,43 +101,41 @@
       </div>
     </section>
 
-    <!-- STEP 2: Authentic Notion Database Table -->
+    <!-- STEP 2: Authentic Notion Database Table (Unified Single-Status Column) -->
     <section class="step" data-step="1" id="step-1">
       <div class="step-kicker mono">STEP 02 / 05</div>
-      <h1 class="page-title">如果不买黑五，这 12 个月原本会买什么订阅？</h1>
-      <p class="page-lead">把<strong>「致黑五空闲的 Plan」</strong>（如 Ultra、Claude Max、学校/公司账号等）与<strong>「不买黑五时的平替订阅」</strong>分列填写；无论买不买黑五都会固定保留的无关订阅不用填。</p>
+      <h1 class="page-title">排布这 12 个月里，黑五 Pro 的使用状态</h1>
+      <p class="page-lead">每个月只有两种情况：<strong>「黑五空闲」</strong>（本月用 Ultra / Claude Max / 团队账号或停用，省 ¥0）或<strong>「黑五取代某订阅」</strong>（替代原本要月付的订阅，省下该月费）；无论买不买黑五都会保留的无关订阅不用填。</p>
 
       <!-- Fixed-height Toolbar Slot (Zero Layout Shift when Selection Bar appears) -->
       <div class="db-toolbar-slot">
         <div class="db-header-line" id="db-header-line">
           <div class="db-header-left">
-            <span class="db-view-title">12 个月边际方案</span>
+            <span class="db-view-title">12 个月状态表</span>
             <span class="db-view-hint">鼠标拖动框选行、Shift+点击或勾选左侧复选框均可批量修改；点空白处或按 Esc 取消勾选</span>
           </div>
           <select class="ghost-select" id="inp-plan-template" aria-label="整年模板">
             <option value="">整年模板...</option>
-            <option value="default">12-3月 Ultra 空闲 / 4-11月平替土区 Pro</option>
-            <option value="offseason_only">1-3月 Ultra 空闲 / 4-8月 Pro / 9-11月停用</option>
-            <option value="all_pro">全年 12 个月平替土区 Pro</option>
-            <option value="replace_gpt">12-3月 Ultra 空闲 / 4-11月平替 ChatGPT Plus</option>
-            <option value="empty">清空全年</option>
+            <option value="default">12-3月 Ultra 空闲 / 4-11月取代土区 Pro</option>
+            <option value="offseason_only">1-3月 Ultra 空闲 / 4-8月取代 Pro / 9-11月停用</option>
+            <option value="all_pro">全年 12 个月取代土区 Pro</option>
+            <option value="replace_gpt">12-3月 Ultra 空闲 / 4-11月取代 ChatGPT Plus</option>
+            <option value="empty">清空全年（全部停用）</option>
           </select>
         </div>
 
         <!-- Contextual Notion Selection Bar (Overlays header in-place, zero table jump) -->
         <div class="db-selection-bar" id="db-selection-bar" style="display:none;">
           <span class="db-count-badge mono" id="editor-selected-title">已选 0 个月</span>
-          <select class="flat-select" id="inp-batch-idle" style="height:32px;max-width:190px;font-size:13px;" aria-label="选择致空闲 Plan"></select>
-          <button type="button" class="subtle-btn btn-xs" id="btn-batch-ultra">设为致空闲</button>
           <span class="toolbar-divider" aria-hidden="true"></span>
-          <select class="flat-select db-catalog-select" id="inp-add-catalog" aria-label="批量设为平替订阅"></select>
-          <button type="button" class="primary-btn btn-xs" id="btn-replace-catalog">设为平替</button>
-          <button type="button" class="text-btn text-btn-muted" id="btn-clear-selected-months">清空</button>
+          <select class="flat-select db-catalog-select" id="inp-batch-status" aria-label="批量设置本月状态"></select>
+          <button type="button" class="primary-btn btn-xs" id="btn-apply-batch">批量应用</button>
+          <button type="button" class="text-btn text-btn-muted" id="btn-clear-selected-months">设为停用</button>
           <button type="button" class="text-btn text-btn-muted" id="btn-unselect-all" style="margin-left:auto;" title="取消勾选 (Esc)">×</button>
         </div>
       </div>
 
-      <!-- Authentic Notion Database Table (Separate Idle-Plan Column vs Replaceable-Plan Column) -->
+      <!-- Authentic Notion Database Table (Clean 4-Column Single-Select Model) -->
       <div class="notion-db-wrap">
         <table class="notion-db">
           <thead>
@@ -148,14 +146,11 @@
               <th class="col-month">
                 <span class="th-inner"><span class="th-icon">Aa</span>月份</span>
               </th>
-              <th class="col-ultra">
-                <span class="th-inner"><span class="th-icon">◉</span>致黑五空闲的 Plan</span>
-              </th>
-              <th class="col-plan">
-                <span class="th-inner"><span class="th-icon">◉</span>不买黑五时的平替订阅</span>
+              <th class="col-status">
+                <span class="th-inner"><span class="th-icon">◉</span>本月状态（黑五空闲 / 取代某订阅）</span>
               </th>
               <th class="col-save num">
-                <span class="th-inner th-right"><span class="th-icon">#</span>参考月费</span>
+                <span class="th-inner th-right"><span class="th-icon">#</span>本月抵扣</span>
               </th>
             </tr>
           </thead>
@@ -166,8 +161,8 @@
 
       <!-- Bottom Inline Custom Input Bar -->
       <div class="db-bottom-custom">
-        <select class="flat-select" id="inp-custom-kind" style="width:142px;">
-          <option value="replace">自定义平替订阅</option>
+        <select class="flat-select" id="inp-custom-kind" style="width:154px;">
+          <option value="replace">自定义被取代订阅</option>
           <option value="idle">自定义致空闲 Plan</option>
         </select>
         <input class="flat-input" id="inp-custom-name" type="text" placeholder="输入名称（先勾选上方月份）" style="flex:1;min-width:160px;" />

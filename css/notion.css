@@ -494,8 +494,8 @@ select {
 }
 
 .db-catalog-select {
-  min-width: 210px;
-  max-width: 290px;
+  min-width: 260px;
+  max-width: 340px;
   height: 32px;
   font-size: 13px;
   background: var(--bg);
@@ -640,7 +640,7 @@ body.is-marquee-dragging {
 }
 
 .notion-db .col-month {
-  width: 175px;
+  width: 205px;
   white-space: nowrap;
 }
 
@@ -662,31 +662,13 @@ body.is-marquee-dragging {
   margin: 0 2px;
 }
 
-.notion-db .col-ultra {
-  width: 205px;
-  white-space: nowrap;
+.notion-db .col-status {
+  min-width: 300px;
 }
 
-.ultra-toggle-btn {
-  border: none;
-  background: transparent;
-  padding: 3px 9px;
-  border-radius: 3px;
-  font-size: 13px;
-  cursor: pointer;
-  color: var(--ink-3);
-  transition: background-color 0.12s ease, color 0.12s ease;
-}
-
-.ultra-toggle-btn:hover {
-  background: var(--active);
-  color: var(--ink);
-}
-
-.ultra-toggle-btn.is-on {
-  background: var(--tag-yellow-bg);
-  color: var(--tag-yellow-fg);
-  font-weight: 500;
+.status-tag-prefix {
+  opacity: 0.72;
+  font-weight: 400;
 }
 
 .plan-muted {
@@ -695,8 +677,17 @@ body.is-marquee-dragging {
 }
 
 .notion-db .col-save {
-  width: 136px;
+  width: 150px;
   white-space: nowrap;
+}
+
+.save-val-active {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.save-val-idle {
+  color: var(--ink-3);
 }
 
 .notion-db .num {
