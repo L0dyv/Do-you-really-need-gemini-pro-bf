@@ -99,34 +99,56 @@
           </div>
         </div>
       </div>
+
+      <div class="step1-next-wrap" id="step1-next-wrap">
+        <span class="step1-hint" id="step1-hint">请选择上方一个方案以继续测算</span>
+        <button type="button" class="primary-btn step1-next-btn" id="btn-step1-next" style="display:none;">下一步：排布 12 个月方案 →</button>
+      </div>
     </section>
 
     <!-- STEP 2: Authentic Notion Database Table (Side-by-Side Skip vs Buy Comparison) -->
     <section class="step" data-step="1" id="step-1">
       <div class="step-kicker mono">STEP 02 / 05</div>
-      <h1 class="page-title">不买黑五 vs 买黑五：12 个月逐月对照</h1>
-      <p class="page-lead">在左侧填好<strong>「不买黑五时的原方案」</strong>（如某月用 Ultra/团队账号、某月按月买 Pro、或停用），右侧会自动对照展示<strong>「买黑五之后」</strong>每个月黑五 Pro 是生效取代还是空闲。</p>
+      <h1 class="page-title">不买黑五 vs 买黑五：12 个月对照</h1>
+
+      <!-- Prominent Mode Switch + Phase Settings Trigger (Self-Explanatory, Zero Wall of Text) -->
+      <div class="step2-hero-bar">
+        <div class="compare-segmented" id="bf-compare-segment" role="group" aria-label="视图对照模式">
+          <button type="button" class="compare-seg-btn" id="btn-mode-skip" data-compare-mode="off">仅看原方案（不买黑五）</button>
+          <button type="button" class="compare-seg-btn is-active" id="btn-mode-buy" data-compare-mode="on">
+            <span class="compare-dot" aria-hidden="true"></span>
+            <span>对比：买黑五 Pro</span>
+          </button>
+        </div>
+
+        <div class="step2-hero-actions">
+          <button type="button" class="phase-settings-btn" id="btn-phase-settings" title="调整模型领先期与下代旗舰时间，表格中的阶段色标会实时变化">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+              <path d="M2 4h12M2 8h12M2 12h12"/>
+              <circle cx="5.5" cy="4" r="1.5" fill="#ffffff"/>
+              <circle cx="10.5" cy="8" r="1.5" fill="#ffffff"/>
+              <circle cx="7" cy="12" r="1.5" fill="#ffffff"/>
+            </svg>
+            <span>模型周期设置</span>
+            <span class="phase-settings-meta mono" id="lbl-phase-settings-meta">SOTA 7月 / 下代 10月</span>
+          </button>
+
+          <select class="ghost-select" id="inp-plan-template" aria-label="整年模板">
+            <option value="">整年模板...</option>
+            <option value="default">12-3月 Ultra 空闲 / 4-11月取代土区 Pro</option>
+            <option value="offseason_only">1-3月 Ultra 空闲 / 4-8月取代 Pro / 9-11月停用</option>
+            <option value="all_pro">全年 12 个月取代土区 Pro</option>
+            <option value="replace_gpt">12-3月 Ultra 空闲 / 4-11月取代 ChatGPT Plus</option>
+            <option value="empty">清空全年（全部停用）</option>
+          </select>
+        </div>
+      </div>
 
       <!-- Fixed-height Toolbar Slot (Zero Layout Shift when Selection Bar appears) -->
       <div class="db-toolbar-slot">
         <div class="db-header-line" id="db-header-line">
           <div class="db-header-left">
-            <span class="db-view-title">12 个月对照表</span>
-            <span class="db-view-hint">拖选行或勾选左侧可批量修改；点空白处或按 Esc 取消勾选</span>
-          </div>
-          <div class="db-header-right">
-            <button type="button" class="compare-toggle-btn is-on" id="btn-toggle-bf-compare" aria-pressed="true" title="切换展开或收起「买黑五」对比列">
-              <span class="compare-dot" aria-hidden="true"></span>
-              <span>对比：买黑五 Pro</span>
-            </button>
-            <select class="ghost-select" id="inp-plan-template" aria-label="整年模板">
-              <option value="">整年模板...</option>
-              <option value="default">12-3月 Ultra 空闲 / 4-11月取代土区 Pro</option>
-              <option value="offseason_only">1-3月 Ultra 空闲 / 4-8月取代 Pro / 9-11月停用</option>
-              <option value="all_pro">全年 12 个月取代土区 Pro</option>
-              <option value="replace_gpt">12-3月 Ultra 空闲 / 4-11月取代 ChatGPT Plus</option>
-              <option value="empty">清空全年（全部停用）</option>
-            </select>
+            <span class="db-view-hint">直接点击原方案标签切换；拖选行或勾选左侧复选框可批量修改；点击阶段色标可调模型周期</span>
           </div>
         </div>
 
@@ -150,10 +172,10 @@
                 <input type="checkbox" id="chk-select-all" aria-label="全选或取消全选月份" />
               </th>
               <th class="col-month">
-                <span class="th-inner"><span class="th-icon">Aa</span>月份</span>
+                <span class="th-inner"><span class="th-icon">Aa</span>月份与模型阶段</span>
               </th>
               <th class="col-skip">
-                <span class="th-inner"><span class="th-icon">◉</span>不买黑五（原方案 · 可点击修改）</span>
+                <span class="th-inner"><span class="th-icon">◉</span>不买黑五（原方案 · 直接切换）</span>
               </th>
               <th class="col-buy" id="th-bf-compare">
                 <span class="th-inner"><span class="th-icon">◉</span>买黑五后（全年含黑五 Pro）</span>

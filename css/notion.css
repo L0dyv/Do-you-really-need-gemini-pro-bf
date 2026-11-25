@@ -181,7 +181,7 @@ select {
   width: 74px;
   border: none;
   background: transparent;
-  color: rgba(55, 53, 47, 0.22);
+  color: rgba(55, 53, 47, 0.34);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -189,7 +189,7 @@ select {
   gap: 6px;
   cursor: pointer;
   z-index: 15;
-  transition: background-color 0.16s ease, color 0.16s ease;
+  transition: background-color 0.18s ease, color 0.18s ease, opacity 0.18s ease;
 }
 
 .side-nav-prev {
@@ -201,8 +201,32 @@ select {
 }
 
 .side-nav-zone:hover {
-  background: rgba(55, 53, 47, 0.045);
-  color: rgba(55, 53, 47, 0.82);
+  background: rgba(55, 53, 47, 0.05);
+  color: rgba(55, 53, 47, 0.88);
+}
+
+/* Explicit reveal on Step 1 once the user picks a plan */
+.side-nav-zone.is-emphasized {
+  background: rgba(55, 53, 47, 0.04);
+  color: var(--ink);
+  animation: sideNavReveal 0.28s ease-out;
+}
+
+.side-nav-zone.is-emphasized .side-nav-tip {
+  opacity: 1;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+@keyframes sideNavReveal {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .side-nav-zone svg {
@@ -376,6 +400,25 @@ select {
   color: var(--ink-2);
 }
 
+.step1-next-wrap {
+  margin-top: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+}
+
+.step1-hint {
+  font-size: 13.5px;
+  color: var(--ink-3);
+}
+
+.step1-next-btn {
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.18s ease;
+}
+
 /* Authentic Notion Quote Block (Pure white canvas + 3px ink vertical bar, zero gray slab) */
 .callout {
   background: transparent;
@@ -440,68 +483,50 @@ select {
   color: var(--ink-3);
 }
 
-/* Step 2: Fixed-Height Toolbar Slot + Zero-Shift Floating Selection Bar */
-.db-toolbar-slot {
-  position: relative;
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.db-header-line {
-  width: 100%;
+/* Step 2 Hero Bar: Prominent Compare Switch + Phase Settings Trigger */
+.step2-hero-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 4px 2px;
+  gap: 14px;
+  margin: 14px 0 12px;
   flex-wrap: wrap;
 }
 
-.db-header-left {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.db-header-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.compare-toggle-btn {
+.compare-segmented {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 30px;
-  padding: 0 11px;
-  border-radius: 4px;
-  border: 1px solid var(--border-2);
-  background: var(--bg);
-  color: var(--ink-2);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+  padding: 4px;
+  border-radius: 7px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  gap: 4px;
 }
 
-.compare-toggle-btn:hover {
-  background: var(--hover);
+.compare-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.compare-seg-btn:hover {
   color: var(--ink);
 }
 
-.compare-toggle-btn.is-on {
+.compare-seg-btn.is-active {
   background: var(--ink);
-  border-color: var(--ink);
   color: #ffffff;
-}
-
-.compare-toggle-btn.is-on:hover {
-  background: #23221e;
+  box-shadow: 0 1px 3px rgba(15, 15, 15, 0.14);
 }
 
 .compare-dot {
@@ -512,8 +537,131 @@ select {
   transition: background-color 0.14s ease;
 }
 
-.compare-toggle-btn.is-on .compare-dot {
+.compare-seg-btn.is-active .compare-dot {
   background: #86efac;
+}
+
+.step2-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.phase-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 5px;
+  border: 1px solid var(--border-2);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.phase-settings-btn:hover,
+.phase-settings-btn.is-open {
+  background: var(--surface);
+  border-color: var(--ink);
+}
+
+.phase-settings-meta {
+  font-size: 12px;
+  color: var(--ink-2);
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
+}
+
+/* Floating Model Phase Settings Popover */
+.phase-popover {
+  position: fixed;
+  z-index: 65;
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  padding: 16px 18px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 30px rgba(15, 15, 15, 0.14);
+}
+
+.phase-popover.is-open {
+  display: flex;
+}
+
+.phase-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.phase-pop-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.phase-pop-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.phase-pop-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.phase-pop-label strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.phase-pop-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* Step 2: Fixed-Height Toolbar Slot + Zero-Shift Floating Selection Bar */
+.db-toolbar-slot {
+  position: relative;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.db-header-line {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px;
+  flex-wrap: wrap;
+}
+
+.db-header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .db-view-title {
@@ -698,7 +846,7 @@ body.is-marquee-dragging {
 }
 
 .notion-db .col-month {
-  width: 188px;
+  width: 218px;
   white-space: nowrap;
 }
 
@@ -708,9 +856,44 @@ body.is-marquee-dragging {
   margin-right: 8px;
 }
 
-.db-month-phase {
-  font-size: 12px;
-  color: var(--ink-3);
+/* Color-Coded Clickable Model Phase Badges */
+.phase-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.55;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter 0.12s ease, border-color 0.12s ease;
+}
+
+.phase-pill:hover {
+  filter: brightness(0.95);
+  border-color: rgba(55, 53, 47, 0.24);
+}
+
+.phase-pill.phase-honeymoon {
+  background: var(--tag-purple-bg);
+  color: var(--tag-purple-fg);
+}
+
+.phase-pill.phase-steady {
+  background: var(--tag-blue-bg);
+  color: var(--tag-blue-fg);
+}
+
+.phase-pill.phase-risk {
+  background: var(--tag-red-bg);
+  color: var(--tag-red-fg);
+}
+
+.phase-pill.phase-next_gen {
+  background: var(--tag-green-bg);
+  color: var(--tag-green-fg);
 }
 
 .toolbar-divider {
@@ -833,90 +1016,128 @@ body.is-marquee-dragging {
   background: var(--bg);
 }
 
-/* Interactive Notion Select Tags Inside Database Cells */
-.row-tokens {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.sub-token {
+/* In-Place Notion Select Pill Inside Database Cells (Zero-Jump Direct Editing) */
+.cell-select-wrap {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 9px;
+  max-width: 100%;
+}
+
+.cell-select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 28px;
+  max-width: 235px;
+  padding: 0 24px 0 9px;
+  border: 1px solid transparent;
   border-radius: 3px;
-  font-size: 13.5px;
-  line-height: 1.45;
-  background: var(--tag-gray-bg);
-  color: var(--tag-gray-fg);
-}
-
-.sub-token.tone-blue { background: var(--tag-blue-bg); color: var(--tag-blue-fg); }
-.sub-token.tone-yellow { background: var(--tag-yellow-bg); color: var(--tag-yellow-fg); }
-.sub-token.tone-purple { background: var(--tag-purple-bg); color: var(--tag-purple-fg); }
-.sub-token.tone-green { background: var(--tag-green-bg); color: var(--tag-green-fg); }
-.sub-token.tone-dark { background: var(--tag-dark-bg); color: var(--tag-dark-fg); }
-
-.tok-main-btn {
-  border: none;
-  background: transparent;
-  color: inherit;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 500;
-  padding: 0;
+  line-height: 26px;
   cursor: pointer;
+  outline: none;
+  text-overflow: ellipsis;
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 10px 10px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' fill='none' stroke='%2337352f' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  transition: filter 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
 }
 
-.tok-del-btn {
+.cell-select:hover {
+  filter: brightness(0.96);
+}
+
+.cell-select:focus {
+  border-color: var(--ink);
+}
+
+.cell-select.tone-yellow { background-color: var(--tag-yellow-bg); color: var(--tag-yellow-fg); }
+.cell-select.tone-blue { background-color: var(--tag-blue-bg); color: var(--tag-blue-fg); }
+.cell-select.tone-purple { background-color: var(--tag-purple-bg); color: var(--tag-purple-fg); }
+.cell-select.tone-green { background-color: var(--tag-green-bg); color: var(--tag-green-fg); }
+.cell-select.tone-gray { background-color: var(--tag-gray-bg); color: var(--tag-gray-fg); }
+
+.cell-select.tone-empty {
+  background-color: transparent;
+  color: var(--ink-3);
+  font-weight: 400;
+  border-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' fill='none' stroke='%239b9a97' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.cell-select.tone-empty:hover {
+  background-color: var(--active);
+  color: var(--ink-2);
+  filter: none;
+}
+
+/* Keep native dropdown menu crisp white on Windows/Chromium */
+.cell-select option,
+.cell-select optgroup {
+  background-color: #ffffff;
+  color: var(--ink);
+  font-weight: 400;
+}
+
+.cell-select optgroup {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.cell-tweak-btn {
   border: none;
   background: transparent;
-  color: inherit;
-  opacity: 0.55;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--ink-3);
   cursor: pointer;
-  padding: 0 2px;
-  font-size: 14px;
-  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease;
 }
 
-.tok-del-btn:hover {
+.notion-db tbody tr.db-row:hover .cell-tweak-btn,
+.cell-tweak-btn.is-active,
+.cell-tweak-btn:focus {
   opacity: 1;
 }
 
-.row-add-btn {
-  border: none;
-  background: transparent;
-  color: var(--ink-3);
-  cursor: pointer;
-  font-size: 13px;
-  padding: 3px 8px;
-  border-radius: 3px;
-}
-
-.row-add-btn:hover {
+.cell-tweak-btn:hover {
   background: var(--active);
   color: var(--ink);
 }
 
-.db-inline-add-row td {
-  background: var(--surface);
-  padding: 12px 16px;
+.cell-tweak-btn.is-active {
+  background: var(--tag-gray-bg);
+  color: var(--ink);
 }
 
-.inline-add-bar {
-  display: flex;
+/* Floating Zero-Shift Price Tweak Popover */
+.price-popover {
+  position: fixed;
+  z-index: 60;
+  display: none;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(15, 15, 15, 0.12);
 }
 
-.inline-add-bar .flat-select,
-.inline-add-bar .flat-input {
-  background: var(--bg);
-  border: 1px solid var(--border-2);
-  height: 34px;
-  font-size: 13.5px;
+.price-popover.is-open {
+  display: flex;
+}
+
+.price-popover .flat-select,
+.price-popover .flat-input {
+  height: 32px;
+  font-size: 13px;
 }
 
 /* Notion Page Properties (Steps 3, 4, 5) */

@@ -16,7 +16,7 @@
   const { calculateLedger, convertToCny, getTryRateAtOffset } = window.SubLedgerCalc;
   const { buildSummarySvg, buildStandaloneHtml, svgToHighResPngBlob } = window.SubLedgerExporter;
 
-  const STORAGE_KEY = 'ai_sub_ledger_state_v8';
+  const STORAGE_KEY = 'ai_sub_ledger_state_v9';
 
   const STEPS = [
     { idx: 0, label: '1. 方案', nextLabel: '下一步：排布 12 个月原方案 →' },
@@ -35,8 +35,99 @@
   let maxVisitedStep = 0;
   let selectedMonths = new Set();
   let lastCheckedIdx = null;
-  let inlineEditor = null; // { monthIdx, itemId? }
+  let pricePopoverState = null; // { monthIdx, itemId, rect }
+  let phasePopoverRect = null; // DOMRect when open, null when closed
   let showBfCompare = true; // Side-by-side "买黑五后" comparison column toggle
+
+  const pricePopoverEl = document.createElement('div');
+  pricePopoverEl.className = 'price-popover';
+  document.body.appendChild(pricePopoverEl);
+
+  const phasePopoverEl = document.createElement('div');
+  phasePopoverEl.className = 'phase-popover';
+  document.body.appendChild(phasePopoverEl);
+
+  function positionFloatingBox(boxEl, anchorRect, fallbackW) {
+    const w = boxEl.offsetWidth || fallbackW || 340;
+    const h = boxEl.offsetHeight || 160;
+    let left = anchorRect.left;
+    if (left + w > window.innerWidth - 16) left = Math.max(12, window.innerWidth - w - 16);
+    let top = anchorRect.bottom + 6;
+    if (top + h > window.innerHeight - 16) top = Math.max(60, anchorRect.top - h - 6);
+    boxEl.style.left = `${Math.round(left)}px`;
+    boxEl.style.top = `${Math.round(top)}px`;
+  }
+
+  function renderPricePopover() {
+    if (!pricePopoverState || currentStep !== 1) {
+      pricePopoverEl.classList.remove('is-open');
+      return;
+    }
+    const { monthIdx, itemId, rect } = pricePopoverState;
+    const arr = state.monthPlans[monthIdx] || [];
+    const target = arr.find((it) => it.id === itemId);
+    if (!target || target.isIdlePlan || target.dynamicPrice) {
+      pricePopoverState = null;
+      pricePopoverEl.classList.remove('is-open');
+      return;
+    }
+    const curCode = target.currency || 'CNY';
+    const amtVal = target.amount != null ? target.amount : 0;
+    const isTry = curCode === 'TRY';
+
+    pricePopoverEl.innerHTML = `
+      <span class="unit">${MONTHS[monthIdx].short} · ${escapeHtml(target.short)}</span>
+      <select class="flat-select" data-pop-currency="1" style="width:98px;">${currencyOptionsHtml(curCode)}</select>
+      <input class="flat-input mono" data-pop-amount="1" type="number" min="0" max="500000" step="any" value="${amtVal}" style="width:92px;" />
+      <label class="check-inline" data-pop-hike-wrap="1" style="display:${isTry ? 'inline-flex' : 'none'};white-space:nowrap;">
+        <input type="checkbox" data-pop-hike="1" ${target.midYearHike ? 'checked' : ''} />
+        <span>6月调价追汇率</span>
+      </label>
+      <button type="button" class="primary-btn btn-xs" data-pop-save="1">应用</button>
+      <button type="button" class="text-btn text-btn-muted" data-pop-close="1" style="padding:2px 6px;">×</button>
+    `;
+    pricePopoverEl.classList.add('is-open');
+    positionFloatingBox(pricePopoverEl, rect, 440);
+  }
+
+  function renderPhasePopover() {
+    const btn = document.getElementById('btn-phase-settings');
+    if (btn) btn.classList.toggle('is-open', Boolean(phasePopoverRect && currentStep === 1));
+    if (!phasePopoverRect || currentStep !== 1) {
+      phasePopoverEl.classList.remove('is-open');
+      return;
+    }
+    const sotaUntilText = formatFutureMonth(2026, 11, state.effectiveSotaMonths);
+    const nextWhenText = formatFutureMonth(2026, 11, state.nextFlagshipInterval);
+    phasePopoverEl.innerHTML = `
+      <div class="phase-pop-head">
+        <span class="phase-pop-title">调整模型生命周期阶段</span>
+        <button type="button" class="text-btn text-btn-muted" data-phase-close="1" style="padding:2px 6px;">完成</button>
+      </div>
+      <div class="phase-pop-row">
+        <div class="phase-pop-label">
+          <span>维持 SOTA / 可当主力时长</span>
+          <strong class="mono">${state.effectiveSotaMonths} 个月（至 ${sotaUntilText.slice(2)}）</strong>
+        </div>
+        <input type="range" data-phase-sota="1" min="1" max="12" step="0.5" value="${state.effectiveSotaMonths}" />
+      </div>
+      <div class="phase-pop-row">
+        <div class="phase-pop-label">
+          <span>下代成为 SOTA 的模型间隔</span>
+          <strong class="mono">${state.nextFlagshipInterval} 个月（${nextWhenText.slice(2)}）</strong>
+        </div>
+        <input type="range" data-phase-next="1" min="2" max="15" step="1" value="${state.nextFlagshipInterval}" />
+      </div>
+      <div class="phase-pop-legend">
+        <span class="phase-pill phase-honeymoon" style="cursor:default;">蜜月领先期 (1-3月)</span>
+        <span class="phase-pill phase-steady" style="cursor:default;">第一梯队稳态</span>
+        <span class="phase-pill phase-risk" style="cursor:default;">空窗/掉队风险</span>
+        <span class="phase-pill phase-next_gen" style="cursor:default;">新旗舰窗口</span>
+      </div>
+    `;
+    phasePopoverEl.classList.add('is-open');
+    positionFloatingBox(phasePopoverEl, phasePopoverRect, 360);
+  }
 
   function loadState() {
     try {
@@ -123,17 +214,23 @@
   function unifiedStatusOptionsHtml(selectedId, customItem) {
     let customGroup = '';
     if (customItem && customItem.isCustom) {
-      const prefix = customItem.isIdlePlan ? '黑五空闲' : '黑五取代';
-      customGroup = `<optgroup label="当前自定义项"><option value="${escapeHtml(customItem.id)}" selected>${prefix} · ${escapeHtml(customItem.name)}</option></optgroup>`;
+      const hint = customItem.isIdlePlan ? '用不上黑五' : '买黑五可省掉';
+      customGroup = `<optgroup label="当前自定义方案（${hint}）"><option value="${escapeHtml(customItem.id)}" selected>${escapeHtml(customItem.name)}</option></optgroup>`;
     }
 
     const idleOpts = [
+      `<option value="none_idle"${selectedId === 'none_idle' ? ' selected' : ''}>本月不买（无订阅需求）</option>`,
       ...IDLE_PLAN_CATALOG.map((c) => {
         const sel = c.id === selectedId ? ' selected' : '';
-        return `<option value="${c.id}"${sel}>空闲 · ${escapeHtml(c.name)}</option>`;
+        return `<option value="${c.id}"${sel}>${escapeHtml(c.name)}</option>`;
       }),
-      `<option value="none_idle"${selectedId === 'none_idle' ? ' selected' : ''}>停用 · 本月无订阅需求（黑五空闲）</option>`,
     ].join('');
+
+    const groupTitles = {
+      '黑五可平替 · Google Gemini': '本来按月买 Gemini Pro（买黑五可直接省掉）',
+      '黑五可平替 · OpenAI ChatGPT': '本来按月买 ChatGPT Plus（买黑五可平替省掉）',
+      '黑五可平替 · Anthropic Claude': '本来按月买 Claude Pro（买黑五可平替省掉）',
+    };
 
     const replaceableItems = SUB_CATALOG.filter((c) => c.replaceableByBf);
     const groups = [];
@@ -143,20 +240,20 @@
 
     const replaceGroups = groups
       .map((g) => {
-        const cleanGroup = g.replace(/^黑五可平替\s*·\s*/, '二、黑五取代 · ') + '（省下月费）';
+        const label = groupTitles[g] || g;
         const opts = replaceableItems
           .filter((c) => c.group === g)
           .map((c) => {
             const sel = c.id === selectedId ? ' selected' : '';
-            const priceLabel = c.amount > 0 ? ` · ${fmtNativeAmount(c.amount, c.currency)}` : '';
-            return `<option value="${c.id}"${sel}>取代 · ${escapeHtml(c.name)}${priceLabel}</option>`;
+            const priceLabel = c.amount > 0 ? `（${fmtNativeAmount(c.amount, c.currency)}/月）` : '';
+            return `<option value="${c.id}"${sel}>${escapeHtml(c.short)}${priceLabel}</option>`;
           })
           .join('');
-        return `<optgroup label="${escapeHtml(cleanGroup)}">${opts}</optgroup>`;
+        return `<optgroup label="${escapeHtml(label)}">${opts}</optgroup>`;
       })
       .join('');
 
-    return `${customGroup}<optgroup label="一、黑五空闲（本月省 ¥0）">${idleOpts}</optgroup>${replaceGroups}`;
+    return `${customGroup}<optgroup label="本来就用不上黑五（用高阶/免费方案，或本月不买）">${idleOpts}</optgroup>${replaceGroups}`;
   }
 
   function currencyOptionsHtml(selectedCode) {
@@ -229,12 +326,15 @@
     chkAll.indeterminate = indices.length > 0 && indices.length < 12;
 
     const tableEl = document.getElementById('db-months-table');
-    const toggleBtn = document.getElementById('btn-toggle-bf-compare');
+    const skipBtn = document.getElementById('btn-mode-skip');
+    const buyBtn = document.getElementById('btn-mode-buy');
     const saveThLabel = document.getElementById('th-save-label');
     tableEl.classList.toggle('is-compare-hidden', !showBfCompare);
-    toggleBtn.classList.toggle('is-on', showBfCompare);
-    toggleBtn.setAttribute('aria-pressed', showBfCompare ? 'true' : 'false');
+    skipBtn.classList.toggle('is-active', !showBfCompare);
+    buyBtn.classList.toggle('is-active', showBfCompare);
     saveThLabel.textContent = showBfCompare ? '本月差额' : '原方案月费';
+    document.getElementById('lbl-phase-settings-meta').textContent =
+      `SOTA ${state.effectiveSotaMonths}月 / 下代 ${state.nextFlagshipInterval}月`;
 
     const tbody = document.getElementById('db-months-tbody');
     tbody.innerHTML = res.monthlyRows
@@ -244,35 +344,27 @@
         const replaceableItem = row.items.find((it) => it.replaceableByBf && !it.isIdlePlan && !it.isGeminiUltra);
         const primaryItem = idleItem || replaceableItem || null;
         const isBfActive = row.monthSavedByBf > 0;
-        const isEditingRow = inlineEditor && inlineEditor.monthIdx === row.index;
 
-        // Left Column: "不买黑五（原方案）"
-        let skipCellHtml;
-        if (idleItem) {
-          const fallbackNote = row.ultraFallbackToPro ? ' (断续)' : '';
-          skipCellHtml = `
-            <div class="row-tokens">
-              <span class="sub-token tone-yellow" style="${isEditingRow ? 'outline:1.5px solid #37352f;' : ''}">
-                <button type="button" class="tok-main-btn" data-open-status="${row.index}" data-item-id="${escapeHtml(idleItem.id)}" title="点击切换本月原方案">${escapeHtml(idleItem.short)}${fallbackNote} ▾</button>
-                <button type="button" class="tok-del-btn" data-row-del="${row.index}" data-item-id="${escapeHtml(idleItem.id)}" title="改为停用">×</button>
-              </span>
-            </div>`;
-        } else if (replaceableItem) {
-          const toneCls = `tone-${replaceableItem.tone || 'blue'}`;
-          const hikeBadge = replaceableItem.midYearHike ? ' · 6月调价' : '';
-          skipCellHtml = `
-            <div class="row-tokens">
-              <span class="sub-token ${toneCls}" style="${isEditingRow ? 'outline:1.5px solid #37352f;' : ''}">
-                <button type="button" class="tok-main-btn" data-open-status="${row.index}" data-item-id="${escapeHtml(replaceableItem.id)}" title="点击切换方案、币种、月费或 6 月调价">${escapeHtml(replaceableItem.short)}${hikeBadge} ▾</button>
-                <button type="button" class="tok-del-btn" data-row-del="${row.index}" data-item-id="${escapeHtml(replaceableItem.id)}" title="改为停用">×</button>
-              </span>
-            </div>`;
-        } else {
-          skipCellHtml = `
-            <div class="row-tokens">
-              <button type="button" class="row-add-btn" data-open-status="${row.index}" style="${isEditingRow ? 'background:var(--active);color:var(--ink);' : ''}">本月停用 · 点击选择 ▾</button>
-            </div>`;
-        }
+        // Left Column: In-place Notion Select Pill ("不买黑五 · 原方案") — zero-jump direct dropdown
+        const selectedId = primaryItem ? primaryItem.id : 'none_idle';
+        const pillTone = idleItem
+          ? 'tone-yellow'
+          : replaceableItem
+            ? `tone-${replaceableItem.tone || 'blue'}`
+            : 'tone-empty';
+        const showTweak = Boolean(replaceableItem && !replaceableItem.dynamicPrice);
+        const tweakLabel = replaceableItem && replaceableItem.midYearHike ? '6月调价 · 改价' : '改价';
+        const tweakActive = Boolean(
+          (replaceableItem && replaceableItem.midYearHike) ||
+          (pricePopoverState && pricePopoverState.monthIdx === row.index)
+        );
+        const skipCellHtml = `
+          <div class="cell-select-wrap">
+            <select class="cell-select ${pillTone}" data-row-select="${row.index}" aria-label="${row.month.label}原方案">
+              ${unifiedStatusOptionsHtml(selectedId, primaryItem)}
+            </select>
+            ${showTweak ? `<button type="button" class="cell-tweak-btn ${tweakActive ? 'is-active' : ''}" data-open-tweak="${row.index}" data-item-id="${escapeHtml(replaceableItem.id)}" title="调整币种、金额或 6 月调价">${tweakLabel}</button>` : ''}
+          </div>`;
 
         // Right Column: "买黑五后（全年自带黑五 Pro）"
         let buyCellHtml;
@@ -317,52 +409,24 @@
               : '<span class="mono save-val-idle">¥0</span>';
         }
 
-        const mainRow = `
+        return `
           <tr class="db-row ${isSel ? 'is-selected' : ''}" data-row-idx="${row.index}">
             <td class="col-check">
               <input type="checkbox" data-chk-month="${row.index}" ${isSel ? 'checked' : ''} aria-label="勾选${row.month.label}" />
             </td>
             <td class="col-month">
               <span class="db-month-main">${row.month.label}</span>
-              <span class="db-month-phase">${row.phase.label}</span>
+              <button type="button" class="phase-pill phase-${row.phase.key}" data-open-phase-pop="1" title="点击调整模型生命周期阶段">${row.phase.label}</button>
             </td>
             <td class="col-skip">${skipCellHtml}</td>
             <td class="col-buy">${buyCellHtml}</td>
             <td class="col-save num mono">${saveText}</td>
           </tr>`;
-
-        if (!isEditingRow) return mainRow;
-
-        const target = primaryItem;
-        const selectedId = target ? target.id : 'none_idle';
-        const showPriceFields = Boolean(target && target.replaceableByBf && !target.isIdlePlan && !target.dynamicPrice);
-        const curCode = (target && target.currency) || 'TRY';
-        const amtVal = target && target.amount != null ? target.amount : 870;
-        const isTry = showPriceFields && curCode === 'TRY';
-
-        const editorRow = `
-          <tr class="db-inline-add-row">
-            <td colspan="${showBfCompare ? 5 : 4}">
-              <div class="inline-add-bar">
-                <span class="unit">${row.month.short}原方案：</span>
-                <select class="flat-select" id="inline-status-select" style="min-width:265px;">${unifiedStatusOptionsHtml(selectedId, target)}</select>
-                <span id="inline-price-group" style="display:${showPriceFields ? 'inline-flex' : 'none'};align-items:center;gap:8px;flex-wrap:wrap;">
-                  <select class="flat-select" id="inline-edit-currency" style="width:100px;">${currencyOptionsHtml(curCode)}</select>
-                  <input class="flat-input mono" id="inline-edit-amount" type="number" min="0" max="500000" step="any" value="${amtVal}" style="width:94px;" />
-                  <label class="check-inline" id="inline-edit-hike-wrap" style="display:${isTry ? 'inline-flex' : 'none'};white-space:nowrap;">
-                    <input type="checkbox" id="inline-edit-hike" ${target && target.midYearHike ? 'checked' : ''} />
-                    <span>6月调价追汇率</span>
-                  </label>
-                </span>
-                <button type="button" class="primary-btn btn-sm" data-save-status="${row.index}" data-old-id="${escapeHtml(selectedId)}">应用</button>
-                <button type="button" class="text-btn text-btn-muted" data-close-inline-add="1">关闭</button>
-              </div>
-            </td>
-          </tr>`;
-
-        return mainRow + editorRow;
       })
       .join('');
+
+    renderPricePopover();
+    renderPhasePopover();
 
     document.getElementById('db-months-tfoot').innerHTML = `
       <tr>
@@ -471,23 +535,36 @@
     const nextBtn = document.getElementById('btn-next');
     const mobPrev = document.getElementById('btn-mobile-prev');
     const mobNext = document.getElementById('btn-mobile-next');
+    const isStep1Picked = Boolean(state.bfPicked);
+    const hideNext = currentStep === STEPS.length - 1 || (currentStep === 0 && !isStep1Picked);
     prevBtn.classList.toggle('is-hidden', currentStep === 0);
-    nextBtn.classList.toggle('is-hidden', currentStep === STEPS.length - 1);
+    nextBtn.classList.toggle('is-hidden', hideNext);
+    nextBtn.classList.toggle('is-emphasized', currentStep === 0 && isStep1Picked);
     document.getElementById('side-next-tip').textContent = currentStep === 3 ? '查看结论' : '下一步';
     mobPrev.style.visibility = currentStep === 0 ? 'hidden' : 'visible';
-    mobNext.style.visibility = currentStep === STEPS.length - 1 ? 'hidden' : 'visible';
+    mobNext.style.visibility = hideNext ? 'hidden' : 'visible';
     document.getElementById('export-group').style.display = currentStep === 4 ? 'flex' : 'none';
 
     // STEP 1
     document.querySelectorAll('[data-bf-choice]').forEach((row) => {
-      row.classList.toggle('is-selected', row.dataset.bfChoice === state.bfPreset);
+      row.classList.toggle('is-selected', isStep1Picked && row.dataset.bfChoice === state.bfPreset);
     });
-    document.getElementById('panel-bf-custom').style.display = state.bfPreset === 'custom' ? 'block' : 'none';
+    document.getElementById('panel-bf-custom').style.display =
+      isStep1Picked && state.bfPreset === 'custom' ? 'block' : 'none';
     document.getElementById('lbl-bf-converted').textContent = `≈ ${fmtYen(state.bfCostCny)} / 年`;
     document.getElementById('lbl-custom-preview').textContent =
-      state.bfPreset === 'custom'
+      isStep1Picked && state.bfPreset === 'custom'
         ? `${fmtNativeAmount(state.bfRawAmount, state.bfCurrency)} ≈ ${fmtYen(state.bfCostCny)}`
         : '自定义币种与金额';
+    const step1Hint = document.getElementById('step1-hint');
+    const step1NextBtn = document.getElementById('btn-step1-next');
+    if (isStep1Picked) {
+      step1Hint.textContent = '也可随时点击屏幕左右边缘的 < / > 翻页';
+      step1NextBtn.style.display = 'inline-flex';
+    } else {
+      step1Hint.textContent = '请先选择上方一个方案，选定后将显示下一步按钮';
+      step1NextBtn.style.display = 'none';
+    }
 
     // STEP 2
     renderDatabaseTable(res);
@@ -612,6 +689,7 @@
   function updateCustomBfCost() {
     const cur = document.getElementById('inp-bf-currency').value;
     const raw = Math.max(0, Number(document.getElementById('inp-bf-raw').value) || 0);
+    state.bfPicked = true;
     state.bfPreset = 'custom';
     state.bfCurrency = cur;
     state.bfRawAmount = raw;
@@ -632,7 +710,8 @@
       const found = SCENARIO_PRESETS.find((p) => p.id === id);
       if (!found) return;
       state = cloneState(found.patch);
-      inlineEditor = null;
+      pricePopoverState = null;
+      phasePopoverRect = null;
       syncInputsFromState();
       e.target.value = '';
       goToStep(4);
@@ -642,7 +721,8 @@
     document.getElementById('btn-reset').addEventListener('click', () => {
       state = cloneState(DEFAULT_STATE);
       selectedMonths = new Set();
-      inlineEditor = null;
+      pricePopoverState = null;
+      phasePopoverRect = null;
       syncInputsFromState();
       goToStep(0);
       showToast('已重置默认参数');
@@ -669,6 +749,7 @@
       const row = e.target.closest('[data-bf-choice]');
       if (!row) return;
       const choice = row.dataset.bfChoice;
+      state.bfPicked = true;
       state.bfPreset = choice;
       if (choice !== 'custom' && BF_DEAL_PRESETS[choice]) {
         const p = BF_DEAL_PRESETS[choice];
@@ -681,13 +762,82 @@
       render();
     });
 
+    document.getElementById('btn-step1-next').addEventListener('click', () => {
+      goToStep(1);
+    });
+
     document.getElementById('inp-bf-currency').addEventListener('change', updateCustomBfCost);
     document.getElementById('inp-bf-raw').addEventListener('input', updateCustomBfCost);
 
-    // Step 2: Table Selection & Contextual Batch Actions
-    document.getElementById('btn-toggle-bf-compare').addEventListener('click', () => {
-      showBfCompare = !showBfCompare;
+    // Step 2: Prominent Mode Switch, Phase Settings Popover & Contextual Batch Actions
+    document.getElementById('bf-compare-segment').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-compare-mode]');
+      if (!btn) return;
+      showBfCompare = btn.dataset.compareMode === 'on';
       render();
+    });
+
+    document.getElementById('btn-phase-settings').addEventListener('click', (e) => {
+      e.stopPropagation();
+      pricePopoverState = null;
+      if (phasePopoverRect) {
+        phasePopoverRect = null;
+      } else {
+        phasePopoverRect = e.currentTarget.getBoundingClientRect();
+      }
+      renderPhasePopover();
+      renderPricePopover();
+    });
+
+    phasePopoverEl.addEventListener('input', (e) => {
+      if (e.target.matches('[data-phase-sota]')) {
+        state.effectiveSotaMonths = Number(e.target.value);
+        document.getElementById('inp-sota-len').value = state.effectiveSotaMonths;
+        render();
+      } else if (e.target.matches('[data-phase-next]')) {
+        state.nextFlagshipInterval = Number(e.target.value);
+        document.getElementById('inp-next-interval').value = state.nextFlagshipInterval;
+        render();
+      }
+    });
+
+    phasePopoverEl.addEventListener('click', (e) => {
+      if (e.target.closest('[data-phase-close]')) {
+        phasePopoverRect = null;
+        renderPhasePopover();
+      }
+    });
+
+    pricePopoverEl.addEventListener('change', (e) => {
+      if (e.target.matches('[data-pop-currency]')) {
+        const hikeWrap = pricePopoverEl.querySelector('[data-pop-hike-wrap]');
+        if (hikeWrap) hikeWrap.style.display = e.target.value === 'TRY' ? 'inline-flex' : 'none';
+      }
+    });
+
+    pricePopoverEl.addEventListener('click', (e) => {
+      if (e.target.closest('[data-pop-close]')) {
+        pricePopoverState = null;
+        renderPricePopover();
+        return;
+      }
+      if (e.target.closest('[data-pop-save]') && pricePopoverState) {
+        const { monthIdx, itemId } = pricePopoverState;
+        const curEl = pricePopoverEl.querySelector('[data-pop-currency]');
+        const amtEl = pricePopoverEl.querySelector('[data-pop-amount]');
+        const hikeEl = pricePopoverEl.querySelector('[data-pop-hike]');
+        const currency = curEl ? curEl.value : 'CNY';
+        const amount = Math.max(0, Number(amtEl && amtEl.value) || 0);
+        const midYearHike = currency === 'TRY' && Boolean(hikeEl && hikeEl.checked);
+        pricePopoverState = null;
+        mutateMonths([monthIdx], (arr) => {
+          const it = arr.find((x) => x.id === itemId);
+          if (!it) return;
+          it.currency = currency;
+          it.amount = amount;
+          it.midYearHike = midYearHike;
+        });
+      }
     });
 
     document.getElementById('btn-unselect-all').addEventListener('click', () => {
@@ -706,7 +856,7 @@
       const key = e.target.value;
       if (!key) return;
       state.monthPlans = buildMonthPlan(key);
-      inlineEditor = null;
+      pricePopoverState = null;
       e.target.value = '';
       render();
       showToast('已套用整年模板');
@@ -720,7 +870,7 @@
         return;
       }
       const statusId = document.getElementById('inp-batch-status').value;
-      inlineEditor = null;
+      pricePopoverState = null;
       mutateMonths(indices, (arr) => {
         arr.length = 0;
         if (statusId && statusId !== 'none_idle') {
@@ -728,8 +878,8 @@
         }
       });
       const label = statusId === 'none_idle'
-        ? '本月停用（黑五空闲）'
-        : (SUB_CATALOG.find((c) => c.id === statusId)?.short || '该状态');
+        ? '本月不买（黑五空闲）'
+        : (SUB_CATALOG.find((c) => c.id === statusId)?.short || '该方案');
       showToast(`已将 ${indices.length} 个月设为：${label}`);
     });
 
@@ -739,11 +889,11 @@
         showToast('请先勾选要修改的月份');
         return;
       }
-      inlineEditor = null;
+      pricePopoverState = null;
       mutateMonths(indices, (arr) => {
         arr.length = 0;
       });
-      showToast(`已将 ${indices.length} 个月设为停用（黑五空闲）`);
+      showToast(`已将 ${indices.length} 个月设为本月不买`);
     });
 
     function syncCustomKindFields() {
@@ -800,10 +950,10 @@
     // blank page margins left/right of the table or directly on table rows (just like Notion!)
     document.addEventListener('mousedown', (e) => {
       if (currentStep !== 1 || e.button !== 0) return;
-      // Never hijack typing/selecting inside text/number inputs, dropdowns, links, or side nav zones
-      if (e.target.closest('input[type="text"], input[type="number"], textarea, select, option, a, .topbar, .side-nav-zone, .mobile-step-nav')) return;
-      // Ignore if clicking inside an open inline row editor bar
-      if (e.target.closest('.db-inline-add-row, .db-bottom-custom, .db-selection-bar')) return;
+      // Never hijack typing/selecting inside text/number inputs, dropdowns, links, popovers, or nav zones
+      if (e.target.closest('input[type="text"], input[type="number"], input[type="range"], textarea, select, option, a, button, .topbar, .side-nav-zone, .mobile-step-nav, .price-popover, .phase-popover, .step2-hero-bar')) return;
+      // Ignore if clicking inside bottom custom bar or selection bar
+      if (e.target.closest('.db-bottom-custom, .db-selection-bar')) return;
       // Must be within Step 2 area or its horizontal margins (below topbar, above footer)
       const stepRect = step1El.getBoundingClientRect();
       if (e.clientY < stepRect.top || e.clientY > stepRect.bottom + 40) return;
@@ -899,21 +1049,33 @@
           e.preventDefault();
           return;
         }
-        if (currentStep !== 1 || selectedMonths.size === 0) return;
-        // Keep selection when clicking inside table, selection bar, custom footer bar, or topbar controls
-        if (e.target.closest('.notion-db, .db-selection-bar, .db-bottom-custom, .topbar, .side-nav-zone, .mobile-step-nav')) return;
+        if (currentStep !== 1) return;
+        // Close floating popovers when clicking outside them
+        if (pricePopoverState && !e.target.closest('.price-popover, [data-open-tweak]')) {
+          pricePopoverState = null;
+          renderPricePopover();
+        }
+        if (phasePopoverRect && !e.target.closest('.phase-popover, #btn-phase-settings, [data-open-phase-pop]')) {
+          phasePopoverRect = null;
+          renderPhasePopover();
+        }
+        if (selectedMonths.size === 0) return;
+        // Keep selection when clicking inside table, selection bar, custom footer bar, popovers, or nav controls
+        if (e.target.closest('.notion-db, .db-selection-bar, .db-bottom-custom, .topbar, .side-nav-zone, .mobile-step-nav, .price-popover, .phase-popover, .step2-hero-bar')) return;
         selectedMonths = new Set();
         render();
       },
       true
     );
 
-    // Press Esc to quickly clear row selection or close inline editor
+    // Press Esc to close floating popovers or clear row selection
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape' || currentStep !== 1) return;
-      if (inlineEditor) {
-        inlineEditor = null;
-        render();
+      if (pricePopoverState || phasePopoverRect) {
+        pricePopoverState = null;
+        phasePopoverRect = null;
+        renderPricePopover();
+        renderPhasePopover();
       } else if (selectedMonths.size > 0) {
         selectedMonths = new Set();
         render();
@@ -922,134 +1084,69 @@
 
     dbTbody.addEventListener('click', (e) => {
       const chk = e.target.closest('[data-chk-month]');
-      if (!chk) return;
-      const idx = Number(chk.dataset.chkMonth);
-      if (e.shiftKey && lastCheckedIdx !== null) {
-        const start = Math.min(lastCheckedIdx, idx);
-        const end = Math.max(lastCheckedIdx, idx);
-        for (let i = start; i <= end; i++) {
-          if (chk.checked) selectedMonths.add(i);
-          else selectedMonths.delete(i);
+      if (chk) {
+        const idx = Number(chk.dataset.chkMonth);
+        if (e.shiftKey && lastCheckedIdx !== null) {
+          const start = Math.min(lastCheckedIdx, idx);
+          const end = Math.max(lastCheckedIdx, idx);
+          for (let i = start; i <= end; i++) {
+            if (chk.checked) selectedMonths.add(i);
+            else selectedMonths.delete(i);
+          }
+        } else {
+          if (chk.checked) selectedMonths.add(idx);
+          else selectedMonths.delete(idx);
         }
-      } else {
-        if (chk.checked) selectedMonths.add(idx);
-        else selectedMonths.delete(idx);
+        lastCheckedIdx = idx;
+        render();
+        return;
       }
-      lastCheckedIdx = idx;
-      render();
+
+      // Click any colored model phase pill to open the floating phase settings popover
+      const phaseBtn = e.target.closest('[data-open-phase-pop]');
+      if (phaseBtn) {
+        e.stopPropagation();
+        pricePopoverState = null;
+        phasePopoverRect = phaseBtn.getBoundingClientRect();
+        renderPhasePopover();
+        renderPricePopover();
+        return;
+      }
+
+      // Click subtle "改价" trigger to open floating zero-shift price popover
+      const tweakBtn = e.target.closest('[data-open-tweak]');
+      if (tweakBtn) {
+        e.stopPropagation();
+        const mIdx = Number(tweakBtn.dataset.openTweak);
+        const itemId = tweakBtn.dataset.itemId;
+        phasePopoverRect = null;
+        if (pricePopoverState && pricePopoverState.monthIdx === mIdx && pricePopoverState.itemId === itemId) {
+          pricePopoverState = null;
+        } else {
+          pricePopoverState = { monthIdx: mIdx, itemId, rect: tweakBtn.getBoundingClientRect() };
+        }
+        renderPhasePopover();
+        renderPricePopover();
+      }
     });
 
+    // Direct In-Place Select Change (Instant update, zero jumping rows)
     dbTbody.addEventListener('change', (e) => {
-      if (e.target.closest('[data-chk-month]')) return;
-
-      if (e.target.id === 'inline-status-select') {
-        const val = e.target.value;
-        const found = SUB_CATALOG.find((c) => c.id === val);
-        const priceGroup = document.getElementById('inline-price-group');
-        const curEl = document.getElementById('inline-edit-currency');
-        const amtEl = document.getElementById('inline-edit-amount');
-        const hikeWrap = document.getElementById('inline-edit-hike-wrap');
-
-        if (found) {
-          const isReplaceable = Boolean(found.replaceableByBf && !found.isIdlePlan && !found.dynamicPrice);
-          if (priceGroup) priceGroup.style.display = isReplaceable ? 'inline-flex' : 'none';
-          if (isReplaceable) {
-            if (curEl) curEl.value = found.currency;
-            if (amtEl) amtEl.value = found.amount;
-            if (hikeWrap) hikeWrap.style.display = found.currency === 'TRY' ? 'inline-flex' : 'none';
-          }
-        } else {
-          // Existing custom item selected
-          const mIdx = inlineEditor ? inlineEditor.monthIdx : -1;
-          const customIt = mIdx >= 0 ? (state.monthPlans[mIdx] || []).find((it) => it.id === val) : null;
-          const isReplaceable = Boolean(customIt && customIt.replaceableByBf && !customIt.isIdlePlan);
-          if (priceGroup) priceGroup.style.display = isReplaceable ? 'inline-flex' : 'none';
-          if (isReplaceable && customIt) {
-            if (curEl) curEl.value = customIt.currency || 'CNY';
-            if (amtEl) amtEl.value = customIt.amount != null ? customIt.amount : 0;
-            if (hikeWrap) hikeWrap.style.display = (customIt.currency || 'CNY') === 'TRY' ? 'inline-flex' : 'none';
-          }
-        }
-      }
-
-      if (e.target.id === 'inline-edit-currency') {
-        const hikeWrap = document.getElementById('inline-edit-hike-wrap');
-        if (hikeWrap) hikeWrap.style.display = e.target.value === 'TRY' ? 'inline-flex' : 'none';
-      }
-    });
-
-    dbTbody.addEventListener('click', (e) => {
-      // Open unified single-status editor for any row
-      const openStatusBtn = e.target.closest('[data-open-status]');
-      if (openStatusBtn) {
-        const mIdx = Number(openStatusBtn.dataset.openStatus);
-        const itemId = openStatusBtn.dataset.itemId || null;
-        if (inlineEditor && inlineEditor.monthIdx === mIdx) {
-          inlineEditor = null;
-        } else {
-          inlineEditor = { monthIdx: mIdx, itemId };
-        }
-        render();
-        return;
-      }
-
-      // Remove current status tag (revert row to unused / idle)
-      const delBtn = e.target.closest('[data-row-del]');
-      if (delBtn) {
-        const mIdx = Number(delBtn.dataset.rowDel);
-        if (inlineEditor && inlineEditor.monthIdx === mIdx) {
-          inlineEditor = null;
-        }
-        mutateMonths([mIdx], (arr) => {
+      const rowSel = e.target.closest('[data-row-select]');
+      if (!rowSel) return;
+      const mIdx = Number(rowSel.dataset.rowSelect);
+      const newId = rowSel.value;
+      pricePopoverState = null;
+      mutateMonths([mIdx], (arr) => {
+        if (newId === 'none_idle') {
           arr.length = 0;
-        });
-        return;
-      }
-
-      // Save unified row status
-      const saveStatusBtn = e.target.closest('[data-save-status]');
-      if (saveStatusBtn) {
-        const mIdx = Number(saveStatusBtn.dataset.saveStatus);
-        const oldId = saveStatusBtn.dataset.oldId;
-        const selEl = document.getElementById('inline-status-select');
-        const curEl = document.getElementById('inline-edit-currency');
-        const amtEl = document.getElementById('inline-edit-amount');
-        const hikeEl = document.getElementById('inline-edit-hike');
-        const newId = selEl ? selEl.value : oldId;
-        const currency = curEl ? curEl.value : 'CNY';
-        const amount = Math.max(0, Number(amtEl && amtEl.value) || 0);
-        const midYearHike = currency === 'TRY' && Boolean(hikeEl && hikeEl.checked);
-
-        inlineEditor = null;
-        mutateMonths([mIdx], (arr) => {
-          const existing = arr.find((it) => it.id === oldId);
-          if (newId === 'none_idle') {
-            arr.length = 0;
-            return;
-          }
-          if (existing && existing.isCustom && newId === oldId) {
-            if (existing.replaceableByBf && !existing.isIdlePlan) {
-              existing.currency = currency;
-              existing.amount = amount;
-              existing.midYearHike = midYearHike;
-            }
-            return;
-          }
-          const found = SUB_CATALOG.find((c) => c.id === newId);
-          arr.length = 0;
-          if (found && found.replaceableByBf && !found.isIdlePlan) {
-            arr.push(makeSubItem(newId, 1, { currency, amount, midYearHike }));
-          } else {
-            arr.push(makeSubItem(newId, 1));
-          }
-        });
-        return;
-      }
-
-      if (e.target.closest('[data-close-inline-add]')) {
-        inlineEditor = null;
-        render();
-      }
+          return;
+        }
+        const existing = arr.find((it) => it.id === newId);
+        if (existing) return;
+        arr.length = 0;
+        arr.push(makeSubItem(newId, 1));
+      });
     });
 
     // Step 3

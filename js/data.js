@@ -88,7 +88,7 @@
     {
       id: 'idle_claude_max',
       group: '致黑五空闲的 Plan',
-      name: 'Claude Max（主力占用）',
+      name: 'Claude Max',
       short: 'Claude Max',
       tone: 'yellow',
       currency: 'USD',
@@ -103,7 +103,7 @@
     {
       id: 'idle_gpt_pro',
       group: '致黑五空闲的 Plan',
-      name: 'ChatGPT Pro（主力占用）',
+      name: 'ChatGPT Pro',
       short: 'ChatGPT Pro',
       tone: 'yellow',
       currency: 'USD',
@@ -393,6 +393,7 @@
 
   const DEFAULT_STATE = {
     monthPlans: buildMonthPlan('default'),
+    bfPicked: false,
     bfPreset: 'tr_ios',
     bfCurrency: 'TRY',
     bfRawAmount: 3600,
@@ -420,6 +421,7 @@
       name: '土区黑五 3,600 TRY（基准）',
       desc: '12-3月 Ultra 空闲，4-11月平替土区 Pro',
       patch: Object.assign({}, DEFAULT_STATE, {
+        bfPicked: true,
         monthPlans: buildMonthPlan('default'),
       }),
     },
@@ -428,6 +430,7 @@
       name: '日区黑五 14,500 JPY（对照）',
       desc: '同样排布，对比日区 608 元黑五',
       patch: Object.assign({}, DEFAULT_STATE, {
+        bfPicked: true,
         monthPlans: buildMonthPlan('default'),
         bfPreset: 'jp_web',
         bfCurrency: 'JPY',
@@ -440,6 +443,7 @@
       name: '全年 12 个月平替月付 Pro',
       desc: '无 Ultra 空闲月，全年使用黑五 Pro',
       patch: Object.assign({}, DEFAULT_STATE, {
+        bfPicked: true,
         monthPlans: buildMonthPlan('all_pro'),
       }),
     },
@@ -448,6 +452,7 @@
       name: '仅用淡季 5 个月（保守视角）',
       desc: '1-3月 Ultra 空闲，4-8月 Pro，留存把握 45%',
       patch: Object.assign({}, DEFAULT_STATE, {
+        bfPicked: true,
         monthPlans: buildMonthPlan('offseason_only'),
         retainProbPct: 45,
       }),
