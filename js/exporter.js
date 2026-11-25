@@ -74,7 +74,7 @@
         const isUltra = row.hasUltraActive && !isActive;
         const fill = isActive ? '#d3e5ef' : isUltra ? '#fdecc8' : '#f1f1ef';
         const fg = isActive ? '#183347' : isUltra ? '#402c1b' : '#787774';
-        const tagText = isActive ? `+¥${Math.round(row.monthSavedByBf)}` : isUltra ? 'Ultra空闲' : '停用';
+        const tagText = isActive ? `+¥${Math.round(row.monthSavedByBf)}` : isUltra ? '致空闲' : '停用';
         return `
           <rect x="${(x + 2).toFixed(1)}" y="${stripY}" width="${(cellW - 4).toFixed(1)}" height="46" rx="3" fill="${fill}"/>
           <text x="${(x + cellW / 2).toFixed(1)}" y="${stripY + 18}" text-anchor="middle" fill="${fg}" font-size="11.5" font-weight="600" font-family="${fontSans}">${esc(row.month.short)}</text>
@@ -87,7 +87,7 @@
     const propY = 314;
     const idleText =
       res.totalIdleMonths > 0
-        ? `${res.totalIdleMonths} 个月（Ultra 重叠 ${res.ultraOverlapMonths} 月 · 摊销约 ${fmtYen(res.totalIdleCostCny)}）`
+        ? `${res.totalIdleMonths} 个月（致空闲 Plan ${res.ultraOverlapMonths} 月 · 摊销约 ${fmtYen(res.totalIdleCostCny)}）`
         : '0 个月（全年生效）';
     const props = [
       ['黑五包年成本', `${fmtYen(res.bfCost)} / 年（折合 ¥${res.bfMonthlyAvg.toFixed(1)}/月）`],
@@ -183,7 +183,7 @@
     .join('')}
 
   <!-- 12-Month Strip -->
-  <text x="${padX}" y="224" fill="#787774" font-size="12" font-weight="600" font-family="${fontSans}">12 个月边际排布（蓝：平替生效 · 黄：Ultra 空闲 · 灰：停用）</text>
+  <text x="${padX}" y="224" fill="#787774" font-size="12" font-weight="600" font-family="${fontSans}">12 个月边际排布（蓝：平替生效 · 黄：致空闲 Plan · 灰：停用）</text>
   ${stripCells}
 
   <!-- Properties -->
@@ -223,7 +223,7 @@
         const status = r.monthSavedByBf > 0
           ? `平替生效 (+${fmtYen(r.monthSavedByBf)})`
           : r.hasUltraActive
-            ? 'Ultra（黑五空闲）'
+            ? '致空闲 Plan'
             : '停用';
         const plan = r.items.length
           ? r.items.map((it) => `${esc(it.short)}`).join(' / ')

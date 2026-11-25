@@ -4,6 +4,7 @@
     CURRENCIES,
     DEFAULT_STATE,
     HISTORICAL_TIMELINE,
+    IDLE_PLAN_CATALOG,
     MONTHS,
     SCENARIO_PRESETS,
     SUB_CATALOG,
@@ -33,7 +34,8 @@
   let currentStep = 0;
   let maxVisitedStep = 0;
   let selectedMonths = new Set();
-  let inlineEditor = null; // { monthIdx, mode: 'add' | 'edit', itemId? }
+  let lastCheckedIdx = null;
+  let inlineEditor = null; // { monthIdx, mode: 'add' | 'edit' | 'add_idle' | 'edit_idle', itemId? }
 
   function loadState() {
     try {
@@ -146,12 +148,21 @@
     }).join('');
   }
 
+  function idleOptionsHtml(selectedId) {
+    return IDLE_PLAN_CATALOG.map((c) => {
+      const sel = c.id === selectedId ? ' selected' : '';
+      const priceLabel = c.amount > 0 ? ` · ${fmtNativeAmount(c.amount, c.currency)}` : ' · ¥0';
+      return `<option value="${c.id}"${sel}>${c.name}${priceLabel}</option>`;
+    }).join('');
+  }
+
   function renderStaticTables() {
     const presetPicker = document.getElementById('inp-preset-picker');
     presetPicker.innerHTML =
       '<option value="">预设场景...</option>' +
       SCENARIO_PRESETS.map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
 
+    document.getElementById('inp-batch-idle').innerHTML = idleOptionsHtml('ultra_idle');
     document.getElementById('inp-add-catalog').innerHTML = catalogOptionsHtml('gemini_pro_tr');
 
     document.getElementById('timeline-tbody').innerHTML = HISTORICAL_TIMELINE.map(
@@ -212,19 +223,36 @@
     tbody.innerHTML = res.monthlyRows
       .map((row) => {
         const isSel = selectedMonths.has(row.index);
-        const hasUltraItem = row.items.some((it) => it.isGeminiUltra || it.dynamicPrice === 'gemini_ultra_5x');
-        const replaceableItems = row.items.filter((it) => it.replaceableByBf && !it.isGeminiUltra);
+        const idleItems = row.items.filter((it) => it.isIdlePlan || it.isGeminiUltra || it.dynamicPrice === 'gemini_ultra_5x');
+        const hasIdlePlan = idleItems.length > 0;
+        const replaceableItems = row.items.filter((it) => it.replaceableByBf && !it.isIdlePlan && !it.isGeminiUltra);
         const isBfActive = row.monthSavedByBf > 0;
 
-        const ultraBtnHtml = hasUltraItem
-          ? `<button type="button" class="ultra-toggle-btn is-on" data-toggle-ultra="${row.index}" title="点击取消本月 Ultra">✓ 已开 Ultra · 黑五空闲</button>`
-          : `<button type="button" class="ultra-toggle-btn" data-toggle-ultra="${row.index}" title="点击标记本月已开 Ultra">未开（点此标记）</button>`;
+        let idleCellHtml;
+        if (hasIdlePlan) {
+          idleCellHtml = idleItems
+            .map((it) => {
+              const isEditing =
+                inlineEditor &&
+                inlineEditor.mode === 'edit_idle' &&
+                inlineEditor.monthIdx === row.index &&
+                inlineEditor.itemId === it.id;
+              return `
+                <span class="sub-token tone-yellow" style="${isEditing ? 'outline:1.5px solid #37352f;' : ''}">
+                  <button type="button" class="tok-main-btn" data-edit-idle="${row.index}" data-item-id="${escapeHtml(it.id)}" title="点击切换致空闲 Plan">${escapeHtml(it.short)} ▾</button>
+                  <button type="button" class="tok-del-btn" data-row-del="${row.index}" data-item-id="${escapeHtml(it.id)}" title="移除">×</button>
+                </span>`;
+            })
+            .join('');
+        } else {
+          idleCellHtml = `<button type="button" class="ultra-toggle-btn" data-open-idle-add="${row.index}">+ 选致空闲 Plan</button>`;
+        }
 
         let planCellHtml;
-        if (hasUltraItem && !row.ultraFallbackToPro) {
-          planCellHtml = '<span class="plan-muted">本月由 Ultra 覆盖，黑五 Pro 处于空闲</span>';
-        } else if (hasUltraItem && row.ultraFallbackToPro) {
-          planCellHtml = '<span class="tag tag-blue">土区断续 · 已自动转为双号 Pro 兜底</span>';
+        if (hasIdlePlan && !row.ultraFallbackToPro) {
+          planCellHtml = '<span class="plan-muted">本月被左侧 Plan 覆盖，黑五 Pro 空闲</span>';
+        } else if (hasIdlePlan && row.ultraFallbackToPro) {
+          planCellHtml = '<span class="tag tag-blue">土区断续 · 已转为双号 Pro 兜底</span>';
         } else if (replaceableItems.length === 0) {
           planCellHtml = `
             <div class="row-tokens">
@@ -257,12 +285,12 @@
 
         const saveText = isBfActive
           ? `<span class="mono">${fmtYen(row.monthSavedByBf)}/月</span>`
-          : hasUltraItem
+          : hasIdlePlan
             ? '<span class="unit">黑五空闲</span>'
             : '<span class="unit">—</span>';
 
         const mainRow = `
-          <tr class="db-row ${isSel ? 'is-selected' : ''}">
+          <tr class="db-row ${isSel ? 'is-selected' : ''}" data-row-idx="${row.index}">
             <td class="col-check">
               <input type="checkbox" data-chk-month="${row.index}" ${isSel ? 'checked' : ''} aria-label="勾选${row.month.label}" />
             </td>
@@ -270,12 +298,31 @@
               <span class="db-month-main">${row.month.label}</span>
               <span class="db-month-phase">${row.phase.label}</span>
             </td>
-            <td class="col-ultra">${ultraBtnHtml}</td>
+            <td class="col-ultra">${idleCellHtml}</td>
             <td class="col-plan">${planCellHtml}</td>
             <td class="col-save num mono">${saveText}</td>
           </tr>`;
 
         if (!inlineEditor || inlineEditor.monthIdx !== row.index) return mainRow;
+
+        if (inlineEditor.mode === 'edit_idle' || inlineEditor.mode === 'add_idle') {
+          const curId = inlineEditor.itemId || 'ultra_idle';
+          const idleRow = `
+            <tr class="db-inline-add-row">
+              <td colspan="5">
+                <div class="inline-add-bar">
+                  <span class="unit">${row.month.short} 致黑五空闲的 Plan：</span>
+                  <select class="flat-select" id="inline-idle-select" style="min-width:240px;">${idleOptionsHtml(curId)}</select>
+                  <button type="button" class="primary-btn btn-sm" data-save-idle="${row.index}">应用</button>
+                  <span class="unit" style="margin-left:6px;">或自定义：</span>
+                  <input class="flat-input" id="inline-idle-cname" type="text" placeholder="名称，如某高阶套餐" style="width:150px;" />
+                  <button type="button" class="subtle-btn btn-sm" data-save-idle-custom="${row.index}">设为致空闲</button>
+                  <button type="button" class="text-btn text-btn-muted" data-close-inline-add="1">关闭</button>
+                </div>
+              </td>
+            </tr>`;
+          return mainRow + idleRow;
+        }
 
         if (inlineEditor.mode === 'edit') {
           const target = row.items.find((it) => it.id === inlineEditor.itemId);
@@ -327,7 +374,7 @@
       <tr>
         <td></td>
         <td class="mono" style="font-weight:600;">排布统计</td>
-        <td>Ultra 空闲 <strong>${res.ultraOverlapMonths}</strong> 月</td>
+        <td>致空闲 Plan <strong>${res.ultraOverlapMonths}</strong> 月</td>
         <td>平替生效 <strong>${res.proCoveredMonths}</strong> 月 · 停用 <strong>${res.idleNoneMonths}</strong> 月</td>
         <td class="num unit">第 5 步汇总计价</td>
       </tr>`;
@@ -455,11 +502,11 @@
       .map((r) => r.month.short);
     const idleText =
       res.ultraOverlapMonths > 0
-        ? `其中 ${idleUltraMonths.join('、')}（共 ${res.ultraOverlapMonths} 个月）已标记为 Ultra，黑五 Pro 将处于空闲状态；`
-        : '当前排布没有被 Ultra 占用的黑五空闲月；';
+        ? `其中 ${idleUltraMonths.join('、')}（共 ${res.ultraOverlapMonths} 个月）存在致空闲 Plan，黑五 Pro 将处于空闲状态；`
+        : '当前排布没有被其他 Plan 占用的黑五空闲月；';
 
     document.getElementById('insight-step-1-title').textContent =
-      `已排布：平替生效 ${res.proCoveredMonths} 个月 · Ultra 空闲 ${res.ultraOverlapMonths} 个月 · 停用 ${res.idleNoneMonths} 个月`;
+      `已排布：平替生效 ${res.proCoveredMonths} 个月 · 致空闲 Plan ${res.ultraOverlapMonths} 个月 · 停用 ${res.idleNoneMonths} 个月`;
     document.getElementById('insight-step-1-detail').textContent =
       `${idleText}具体汇率折算、模型周期与最终盈亏将在后续步骤统一计算。`;
 
@@ -532,7 +579,7 @@
 
     document.getElementById('kpi-idle-summary').textContent =
       res.totalIdleMonths > 0
-        ? `共 ${res.totalIdleMonths} 个月空闲（Ultra 重叠 ${res.ultraOverlapMonths} 月 + 停用 ${res.idleNoneMonths} 月，折合摊销约 ${fmtYen(res.totalIdleCostCny)}）`
+        ? `共 ${res.totalIdleMonths} 个月空闲（致空闲 Plan ${res.ultraOverlapMonths} 月 + 停用 ${res.idleNoneMonths} 月，折合摊销约 ${fmtYen(res.totalIdleCostCny)}）`
         : '0 个月（全年 12 个月均在生效）';
 
     document.getElementById('kpi-breakeven').textContent = Number.isFinite(res.breakEvenMonths)
@@ -673,19 +720,20 @@
       showToast('已套用整年模板');
     });
 
-    // Batch Set Ultra (causes Black Friday Pro to be idle)
+    // Batch Set Idle Plan (causes Black Friday Pro to sit idle)
     document.getElementById('btn-batch-ultra').addEventListener('click', () => {
       const indices = getSelectedIndices();
       if (indices.length === 0) {
         showToast('请先勾选至少 1 个月份');
         return;
       }
+      const idleId = document.getElementById('inp-batch-idle').value || 'ultra_idle';
       inlineEditor = null;
       mutateMonths(indices, (arr) => {
         arr.length = 0;
-        arr.push(makeSubItem('ultra_idle', 1));
+        arr.push(makeSubItem(idleId, 1));
       });
-      showToast(`已将 ${indices.length} 个月设为 Ultra（黑五空闲）`);
+      showToast(`已将 ${indices.length} 个月设为致空闲 Plan`);
     });
 
     // Batch Set Replaceable Subscription
@@ -723,6 +771,7 @@
         showToast('请先勾选要应用的月份');
         return;
       }
+      const kind = document.getElementById('inp-custom-kind').value;
       const nameInp = document.getElementById('inp-custom-name');
       const curInp = document.getElementById('inp-custom-currency');
       const priceInp = document.getElementById('inp-custom-price');
@@ -734,28 +783,118 @@
         nameInp.focus();
         return;
       }
-      const customId = `custom_${name.toLowerCase().replace(/\s+/g, '_')}`;
+      const isIdlePlan = kind === 'idle';
+      const customId = `custom_${isIdlePlan ? 'idle_' : ''}${name.toLowerCase().replace(/\s+/g, '_')}`;
       mutateMonths(indices, (arr) => {
         arr.length = 0;
-        arr.push(makeSubItem(null, 1, { id: customId, name, currency, amount, replaceableByBf: true }));
+        arr.push(makeSubItem(null, 1, { id: customId, name, currency, amount, isIdlePlan, replaceableByBf: !isIdlePlan }));
       });
       nameInp.value = '';
       priceInp.value = '';
       showToast(`已应用到 ${indices.length} 个月份：${name}`);
     });
 
-    // Database Table Interactions
+    // Database Table Interactions + Shift-click + Notion-style Mouse Marquee Drag Selection
     const dbTbody = document.getElementById('db-months-tbody');
+    const dbWrap = dbTbody.closest('.notion-db-wrap');
+    const marqueeBox = document.createElement('div');
+    marqueeBox.className = 'db-marquee-box';
+    document.body.appendChild(marqueeBox);
 
-    dbTbody.addEventListener('change', (e) => {
+    let marquee = null;
+
+    dbWrap.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      // Do not hijack direct clicks on buttons, inputs, selects, or checkboxes
+      if (e.target.closest('button, input, select, option, label, a')) return;
+      if (!e.target.closest('tbody')) return;
+
+      marquee = {
+        startX: e.clientX,
+        startY: e.clientY,
+        active: false,
+        additive: e.ctrlKey || e.metaKey || e.shiftKey,
+        baseSelection: new Set(selectedMonths),
+      };
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!marquee) return;
+      const dx = e.clientX - marquee.startX;
+      const dy = e.clientY - marquee.startY;
+      if (!marquee.active && Math.hypot(dx, dy) < 6) return;
+
+      if (!marquee.active) {
+        marquee.active = true;
+        dbWrap.classList.add('is-marquee-dragging');
+        marqueeBox.style.display = 'block';
+      }
+
+      const left = Math.min(marquee.startX, e.clientX);
+      const top = Math.min(marquee.startY, e.clientY);
+      const width = Math.abs(dx);
+      const height = Math.abs(dy);
+
+      marqueeBox.style.left = `${left}px`;
+      marqueeBox.style.top = `${top}px`;
+      marqueeBox.style.width = `${width}px`;
+      marqueeBox.style.height = `${height}px`;
+
+      const rectBottom = top + height;
+      const rectRight = left + width;
+      const nextSet = marquee.additive ? new Set(marquee.baseSelection) : new Set();
+
+      dbTbody.querySelectorAll('tr.db-row[data-row-idx]').forEach((tr) => {
+        const r = tr.getBoundingClientRect();
+        const intersects = !(r.right < left || r.left > rectRight || r.bottom < top || r.top > rectBottom);
+        const idx = Number(tr.dataset.rowIdx);
+        if (intersects) {
+          nextSet.add(idx);
+          tr.classList.add('is-selected');
+          const box = tr.querySelector('[data-chk-month]');
+          if (box) box.checked = true;
+        } else if (!marquee.additive) {
+          tr.classList.remove('is-selected');
+          const box = tr.querySelector('[data-chk-month]');
+          if (box) box.checked = false;
+        }
+      });
+
+      selectedMonths = nextSet;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!marquee) return;
+      const wasActive = marquee.active;
+      marquee = null;
+      dbWrap.classList.remove('is-marquee-dragging');
+      marqueeBox.style.display = 'none';
+      if (wasActive) {
+        render();
+      }
+    });
+
+    dbTbody.addEventListener('click', (e) => {
       const chk = e.target.closest('[data-chk-month]');
-      if (chk) {
-        const idx = Number(chk.dataset.chkMonth);
+      if (!chk) return;
+      const idx = Number(chk.dataset.chkMonth);
+      if (e.shiftKey && lastCheckedIdx !== null) {
+        const start = Math.min(lastCheckedIdx, idx);
+        const end = Math.max(lastCheckedIdx, idx);
+        for (let i = start; i <= end; i++) {
+          if (chk.checked) selectedMonths.add(i);
+          else selectedMonths.delete(i);
+        }
+      } else {
         if (chk.checked) selectedMonths.add(idx);
         else selectedMonths.delete(idx);
-        render();
-        return;
       }
+      lastCheckedIdx = idx;
+      render();
+    });
+
+    dbTbody.addEventListener('change', (e) => {
+      if (e.target.closest('[data-chk-month]')) return;
 
       if (e.target.id === 'inline-edit-swap') {
         const found = SUB_CATALOG.find((c) => c.id === e.target.value);
@@ -784,17 +923,58 @@
     });
 
     dbTbody.addEventListener('click', (e) => {
-      // Dedicated Ultra column toggle (clearly separated from replaceable plans)
-      const ultraBtn = e.target.closest('[data-toggle-ultra]');
-      if (ultraBtn) {
-        const mIdx = Number(ultraBtn.dataset.toggleUltra);
+      // Open idle-plan picker for a month
+      const openIdleBtn = e.target.closest('[data-open-idle-add]');
+      if (openIdleBtn) {
+        const mIdx = Number(openIdleBtn.dataset.openIdleAdd);
+        inlineEditor = inlineEditor && inlineEditor.mode === 'add_idle' && inlineEditor.monthIdx === mIdx
+          ? null
+          : { monthIdx: mIdx, mode: 'add_idle' };
+        render();
+        return;
+      }
+
+      // Edit existing idle-plan tag
+      const editIdleBtn = e.target.closest('[data-edit-idle]');
+      if (editIdleBtn) {
+        const mIdx = Number(editIdleBtn.dataset.editIdle);
+        const id = editIdleBtn.dataset.itemId;
+        inlineEditor = inlineEditor && inlineEditor.mode === 'edit_idle' && inlineEditor.monthIdx === mIdx
+          ? null
+          : { monthIdx: mIdx, mode: 'edit_idle', itemId: id };
+        render();
+        return;
+      }
+
+      // Save selected idle plan
+      const saveIdleBtn = e.target.closest('[data-save-idle]');
+      if (saveIdleBtn) {
+        const mIdx = Number(saveIdleBtn.dataset.saveIdle);
+        const selEl = document.getElementById('inline-idle-select');
+        const idleId = selEl ? selEl.value : 'ultra_idle';
         inlineEditor = null;
         mutateMonths([mIdx], (arr) => {
-          const hasUltra = arr.some((it) => it.isGeminiUltra || it.dynamicPrice === 'gemini_ultra_5x');
           arr.length = 0;
-          if (!hasUltra) {
-            arr.push(makeSubItem('ultra_idle', 1));
-          }
+          arr.push(makeSubItem(idleId, 1));
+        });
+        return;
+      }
+
+      // Save custom idle plan
+      const saveIdleCusBtn = e.target.closest('[data-save-idle-custom]');
+      if (saveIdleCusBtn) {
+        const mIdx = Number(saveIdleCusBtn.dataset.saveIdleCustom);
+        const nameEl = document.getElementById('inline-idle-cname');
+        const name = nameEl ? nameEl.value.trim() : '';
+        if (!name) {
+          showToast('请先输入致空闲 Plan 名称');
+          if (nameEl) nameEl.focus();
+          return;
+        }
+        inlineEditor = null;
+        mutateMonths([mIdx], (arr) => {
+          arr.length = 0;
+          arr.push(makeSubItem(null, 1, { id: `custom_idle_${name}`, name, currency: 'CNY', amount: 0, isIdlePlan: true, replaceableByBf: false }));
         });
         return;
       }

@@ -34,26 +34,106 @@
   ];
 
   /**
-   * Marginal baseline options for each month:
-   * What would you pay if you DO NOT buy Black Friday Gemini Pro?
-   * (Subscriptions you always keep regardless of Black Friday cancel out and are omitted.)
+   * Two cleanly separated catalogs:
+   * 1) IDLE_PLAN_CATALOG: Higher-tier or external plans that make Black Friday Pro sit idle
+   *    (e.g., Google Ultra, Claude Max, ChatGPT Pro, Team/School seat, or custom).
+   * 2) SUB_CATALOG (replaceableByBf: true): Subscriptions that Black Friday Pro would replace.
    */
-  const SUB_CATALOG = [
-    // Idle / Non-replaceable states
+  const IDLE_PLAN_CATALOG = [
     {
       id: 'ultra_idle',
-      group: '黑五空闲（不抵扣）',
-      name: '使用 Ultra 5x（黑五 Pro 空闲）',
-      short: 'Ultra（黑五空闲）',
+      group: '致黑五空闲的 Plan',
+      name: 'Google Ultra 5x（土区旧价）',
+      short: 'Ultra 5x · 土旧',
       tone: 'yellow',
       currency: 'TRY',
       amount: 2000,
       dynamicPrice: 'gemini_ultra_5x',
+      isIdlePlan: true,
       isGeminiUltra: true,
       replaceableByBf: false,
       includesMusic: true,
-      note: '本月已开高阶 Ultra，副号黑五 Pro 闲置，不产生抵扣收益',
+      note: '开启高阶 Ultra 期间，黑五 Pro 闲置；续费稳定性可在第 3 步配置',
     },
+    {
+      id: 'idle_ultra_jp',
+      group: '致黑五空闲的 Plan',
+      name: 'Google Ultra 5x（日区）',
+      short: 'Ultra 5x · 日区',
+      tone: 'yellow',
+      currency: 'JPY',
+      amount: 14500,
+      dynamicPrice: null,
+      isIdlePlan: true,
+      isGeminiUltra: true,
+      replaceableByBf: false,
+      includesMusic: true,
+      note: '14,500 JPY/月 ≈ ¥608，含完整 YouTube Music',
+    },
+    {
+      id: 'idle_ultra_20x',
+      group: '致黑五空闲的 Plan',
+      name: 'Google Ultra 20x',
+      short: 'Ultra 20x',
+      tone: 'yellow',
+      currency: 'JPY',
+      amount: 32000,
+      dynamicPrice: null,
+      isIdlePlan: true,
+      isGeminiUltra: true,
+      replaceableByBf: false,
+      includesMusic: true,
+      note: '32,000 JPY/月 ≈ ¥1,344',
+    },
+    {
+      id: 'idle_claude_max',
+      group: '致黑五空闲的 Plan',
+      name: 'Claude Max（主力占用）',
+      short: 'Claude Max',
+      tone: 'yellow',
+      currency: 'USD',
+      amount: 100,
+      dynamicPrice: null,
+      isIdlePlan: true,
+      isGeminiUltra: false,
+      replaceableByBf: false,
+      includesMusic: false,
+      note: '本月主力切至 Claude Max ($100/月)，黑五 Pro 闲置',
+    },
+    {
+      id: 'idle_gpt_pro',
+      group: '致黑五空闲的 Plan',
+      name: 'ChatGPT Pro（主力占用）',
+      short: 'ChatGPT Pro',
+      tone: 'yellow',
+      currency: 'USD',
+      amount: 200,
+      dynamicPrice: null,
+      isIdlePlan: true,
+      isGeminiUltra: false,
+      replaceableByBf: false,
+      includesMusic: false,
+      note: '本月主力切至 ChatGPT Pro ($200/月)，黑五 Pro 闲置',
+    },
+    {
+      id: 'idle_org_seat',
+      group: '致黑五空闲的 Plan',
+      name: '公司 / 学校统一账号',
+      short: '团队/学校账号',
+      tone: 'yellow',
+      currency: 'CNY',
+      amount: 0,
+      dynamicPrice: null,
+      isIdlePlan: true,
+      isGeminiUltra: false,
+      replaceableByBf: false,
+      includesMusic: false,
+      note: '本月使用单位或学校免费配额，黑五 Pro 闲置',
+    },
+  ];
+
+  const SUB_CATALOG = [
+    ...IDLE_PLAN_CATALOG,
     {
       id: 'none_idle',
       group: '黑五空闲（不抵扣）',
@@ -63,6 +143,7 @@
       currency: 'CNY',
       amount: 0,
       dynamicPrice: null,
+      isIdlePlan: false,
       replaceableByBf: false,
       includesMusic: false,
       note: '本月无订阅需求，黑五 Pro 闲置',
@@ -238,6 +319,7 @@
         currency,
         amount,
         dynamicPrice: base.dynamicPrice || null,
+        isIdlePlan: Boolean(base.isIdlePlan),
         isGeminiPro: Boolean(base.isGeminiPro),
         isGeminiUltra: Boolean(base.isGeminiUltra),
         replaceableByBf: customOverride && customOverride.replaceableByBf != null
@@ -248,23 +330,27 @@
         isCustom: false,
       };
     }
-    const name = (customOverride && customOverride.name) || '自定义可平替订阅';
+    const isIdleCustom = Boolean(customOverride && customOverride.isIdlePlan);
+    const name = (customOverride && customOverride.name) || (isIdleCustom ? '自定义致空闲 Plan' : '自定义可平替订阅');
     const currency = (customOverride && customOverride.currency) || 'CNY';
     const amount = Math.max(0, Number(customOverride && (customOverride.amount ?? customOverride.priceCny)) || 0);
     return {
       id: (customOverride && customOverride.id) || `custom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       name,
       short: name.length > 14 ? name.slice(0, 14) : name,
-      tone: 'purple',
+      tone: isIdleCustom ? 'yellow' : 'purple',
       qty: Math.max(1, Number(qty) || 1),
       currency,
       amount,
       dynamicPrice: null,
+      isIdlePlan: isIdleCustom,
       isGeminiPro: false,
       isGeminiUltra: false,
-      replaceableByBf: customOverride && customOverride.replaceableByBf != null
-        ? Boolean(customOverride.replaceableByBf)
-        : true,
+      replaceableByBf: isIdleCustom
+        ? false
+        : customOverride && customOverride.replaceableByBf != null
+          ? Boolean(customOverride.replaceableByBf)
+          : true,
       midYearHike: Boolean(customOverride && customOverride.midYearHike),
       includesMusic: false,
       isCustom: true,
@@ -434,6 +520,7 @@
     MONTHS,
     FX_RATES,
     CURRENCIES,
+    IDLE_PLAN_CATALOG,
     SUB_CATALOG,
     BF_DEAL_PRESETS,
     DEFAULT_STATE,

@@ -228,7 +228,7 @@
         const qty = Math.max(1, Number(item.qty) || 1);
         const isPro = Boolean(item.isGeminiPro || item.dynamicPrice === 'gemini_pro');
         const isUltra5xDyn = item.dynamicPrice === 'gemini_ultra_5x';
-        const isUltra = Boolean(item.isGeminiUltra || isUltra5xDyn);
+        const isIdlePlanItem = Boolean(item.isIdlePlan || item.isGeminiUltra || isUltra5xDyn);
         const canReplace = item.replaceableByBf != null ? Boolean(item.replaceableByBf) : isPro;
 
         if (item.id === 'none_idle') {
@@ -278,7 +278,7 @@
 
         const unit = getItemUnitPrice(item, i, state);
         if (item.includesMusic) hasMusicIncluded = true;
-        if (isUltra) {
+        if (isIdlePlanItem) {
           geminiUltraCost += unit * qty;
           hasUltraActive = true;
         } else {
