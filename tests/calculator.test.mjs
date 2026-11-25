@@ -118,6 +118,26 @@ test('Dual-basket supports multi-subscription stacking (GPT Pro + Devin) and tie
   assert.equal(res.crossoverMonthIndex, 0);
 });
 
+test('Dual-basket supports multi-seat subscriptions (2x Gemini Pro) and 1 BF seat offsets only 1 seat', () => {
+  const s = Object.assign(clone(DEFAULT_STATE), buildPlanPair('empty'), {
+    fxAnnualChangePct: { TRY: 0, JPY: 0, HKD: 0, TWD: 0, USD: 0 },
+  });
+  // Plan A has 2x Gemini Pro US ($19.99 * 2); Plan B offsets only 1 seat -> 1x Gemini Pro US remains
+  s.monthPlans[0] = [makeSubItem('gemini_pro_us', 2)];
+  const derived = require('../js/data.js').deriveDefaultBuyPlans(s.monthPlans);
+  s.buyMonthPlans = derived.buyMonthPlans;
+  s.buyMonthSynced = derived.buyMonthSynced;
+
+  assert.equal(s.buyMonthPlans[0].length, 1);
+  assert.equal(s.buyMonthPlans[0][0].qty, 1);
+
+  const res = calculateLedger(s);
+  const oneProCny = 19.99 * 6.67;
+  assert.ok(Math.abs(res.monthlyRows[0].skipMonthFlow - oneProCny * 2) < 0.2);
+  assert.ok(Math.abs(res.monthlyRows[0].buyMonthFlow - oneProCny) < 0.2);
+  assert.ok(Math.abs(res.monthlyRows[0].monthSavedByBf - oneProCny) < 0.2);
+});
+
 test('Moving effectiveSotaMonths (K) changes downsideNet (D) and EV, and EV endpoints p=0/100 match D/U', () => {
   const sShort = Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 4, retainProbPct: 60 });
   const sLong = Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 9, retainProbPct: 60 });

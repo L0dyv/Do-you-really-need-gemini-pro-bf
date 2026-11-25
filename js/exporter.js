@@ -350,15 +350,19 @@
   function buildStandaloneHtml(state, res, lang) {
     const isEn = lang === 'en-US';
     const svg = buildSummarySvg(state, res, lang);
+    const fmtShortQty = (it) => {
+      const qty = Math.max(1, Number(it.qty) || 1);
+      return qty > 1 ? `${esc(it.short)} ×${qty}` : esc(it.short);
+    };
     const monthRowsHtml = res.monthlyRows
       .map((r, idx) => {
         const mLabel = isEn ? EN_MONTHS_LONG[idx] : r.month.label;
         const planA = r.items.length
-          ? r.items.map((it) => esc(it.short)).join(' + ')
+          ? r.items.map(fmtShortQty).join(' + ')
           : '—';
         const bfTag = isEn ? 'BF Pro' : '黑五 Pro';
         const planB = r.buyItems && r.buyItems.length
-          ? `${bfTag} + ${r.buyItems.map((it) => esc(it.short)).join(' + ')}`
+          ? `${bfTag} + ${r.buyItems.map(fmtShortQty).join(' + ')}`
           : bfTag;
         const diffCls = r.monthSavedByBf > 0.5 ? 'pos' : r.monthSavedByBf < -0.5 ? 'neg' : '';
         return `<tr><td>${esc(mLabel)}</td><td>${planA}</td><td>${planB}</td><td class="num ${diffCls}">${fmtYen(r.monthSavedByBf, true)}</td><td class="num">${fmtYen(r.cumBuy)}</td><td class="num">${fmtYen(r.cumSkip)}</td></tr>`;

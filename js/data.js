@@ -1361,7 +1361,18 @@
         });
       }
       if (dropIdx >= 0) {
-        buyMonthPlans.push(items.filter((_, idx) => idx !== dropIdx).map((it) => Object.assign({}, it)));
+        const nextB = [];
+        items.forEach((it, idx) => {
+          if (idx === dropIdx) {
+            const qty = Math.max(1, Number(it.qty) || 1);
+            if (qty > 1) {
+              nextB.push(Object.assign({}, it, { qty: qty - 1 }));
+            }
+          } else {
+            nextB.push(Object.assign({}, it));
+          }
+        });
+        buyMonthPlans.push(nextB);
         buyMonthSynced.push(false);
       } else {
         buyMonthPlans.push(items.map((it) => Object.assign({}, it)));

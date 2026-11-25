@@ -354,18 +354,22 @@
     render();
   }
 
+  function formatItemPillLabel(item) {
+    const base = localizeItemShort(item.short);
+    const qty = Math.max(1, Number(item.qty) || 1);
+    return qty > 1 ? `${base} ×${qty}` : base;
+  }
+
   function getUnionPillsForTargets(column, targetIndices) {
-    const seen = new Set();
-    const pills = [];
+    const map = new Map();
     targetIndices.forEach((mIdx) => {
       const basket = getColumnBasket(column, mIdx);
       basket.forEach((it) => {
-        if (!it || it.id === 'none_idle' || seen.has(it.id)) return;
-        seen.add(it.id);
-        pills.push(it);
+        if (!it || it.id === 'none_idle' || map.has(it.id)) return;
+        map.set(it.id, it);
       });
     });
-    return pills;
+    return Array.from(map.values());
   }
 
   function findFamilyIdForItem(item) {
@@ -412,15 +416,21 @@
         : t('picker.batchN', { n: targetIndices.length });
     }
 
-    // Top bar of currently selected pills (Notion Multi-Select token bar)
+    // Top bar of currently selected pills (Notion Multi-Select token bar with - / + seat stepper)
     let selectedBarHtml = '';
     if (currentPills.length > 0) {
       const selChips = currentPills
         .map((it) => {
           const isFoc = activeSlot && activeSlot.id === it.id;
+          const qty = Math.max(1, Number(it.qty) || 1);
+          const showStepper = it.id !== 'idle_org_seat';
+          const stepperHtml = showStepper
+            ? `<button type="button" class="np-sel-qty-btn" data-np-dec-id="${escapeHtml(it.id)}" title="-1">−</button><button type="button" class="np-sel-qty-btn" data-np-inc-id="${escapeHtml(it.id)}" title="+1">+</button>`
+            : '';
           return `
             <span class="np-sel-pill tag-${it.tone || 'gray'} ${isFoc ? 'is-focused' : ''}">
-              <button type="button" class="np-sel-pill-btn" data-np-focus-item="${escapeHtml(it.id)}">${escapeHtml(localizeItemShort(it.short))}</button>
+              <button type="button" class="np-sel-pill-btn" data-np-focus-item="${escapeHtml(it.id)}">${escapeHtml(localizeItemShort(it.short))}${qty > 1 ? ` ×${qty}` : ''}</button>
+              ${stepperHtml}
               <button type="button" class="np-sel-pill-x" data-np-remove-id="${escapeHtml(it.id)}" aria-label="${escapeHtml(t('step2.removeItemTitle'))}">×</button>
             </span>`;
         })
@@ -889,7 +899,7 @@
         return `
           <span class="pill-chip-group ${tone} ${isSyncedGhost ? 'is-synced-ghost' : ''}">
             <button type="button" class="cell-pill-btn ${isOpen ? 'is-open' : ''}" data-open-picker="${column}:${rowIdx}:${escapeHtml(item.id)}">
-              <span class="cell-pill-text">${escapeHtml(localizeItemShort(item.short))}</span>
+              <span class="cell-pill-text">${escapeHtml(formatItemPillLabel(item))}</span>
             </button>
             <button type="button" class="pill-chip-x" data-remove-item="${column}:${rowIdx}:${escapeHtml(item.id)}" title="${removeTitle}" aria-label="${removeTitle}">×</button>
           </span>${hikeBadge}`;
@@ -970,6 +980,14 @@
     document.getElementById('db-b-months-tbody').innerHTML = res.monthlyRows
       .map((row) => {
         const isSelB = selectedMonthsB.has(row.index);
+        const buyIds = new Set(row.buyItems.map((it) => it.id));
+        const refAHtml = row.items.length > 0
+          ? `<div class="ref-pills-wrap">${row.items.map((it) => {
+              const dropped = !row.buySynced && !buyIds.has(it.id);
+              return `<span class="ref-mini-pill tag-${it.tone || 'gray'} ${dropped ? 'is-dropped' : ''}">${escapeHtml(formatItemPillLabel(it))}</span>`;
+            }).join('')}</div>`
+          : '<span class="ref-empty-dash">—</span>';
+
         const buyCellHtml = `
           <div class="cell-skip-inner">
             <input type="checkbox" class="cell-chk" data-chk-b-month="${row.index}" ${isSelB ? 'checked' : ''} aria-label="${escapeHtml(getMonthLabel(row.index))}" />
@@ -999,6 +1017,7 @@
               <span class="db-month-main">${escapeHtml(getMonthLabel(row.index))}</span>
               <button type="button" class="phase-pill phase-${row.phase.key}" data-open-phase-pop="1" data-tooltip="${phaseTip}">${escapeHtml(localizePhase(row.phase))}${PHASE_CUE_SVG}</button>
             </td>
+            <td class="col-ref-a">${refAHtml}</td>
             <td class="col-skip ${isSelB ? 'is-cell-selected' : ''}" data-b-cell-idx="${row.index}">${buyCellHtml}</td>
             <td class="col-save num mono"><span class="bf-diff-stack">${extraPart}${diffBadge}</span></td>
           </tr>`;
@@ -1014,6 +1033,7 @@
     document.getElementById('db-b-months-tfoot').innerHTML = `
       <tr>
         <td class="mono" style="font-weight:600;">${escapeHtml(t('step2b.footLabel'))}</td>
+        <td class="mono" style="color:var(--ink-2);">${fmtYen(res.totalSkipCost)}</td>
         <td>${t('step2b.footPlanA', { totalA: fmtYen(res.totalSkipCost), totalB: fmtYen(res.totalBuyCost), bf: fmtYen(res.bfCost), extraB: fmtYen(extraB) })}</td>
         <td class="num">${footDiffHtml}</td>
       </tr>`;
@@ -1263,7 +1283,16 @@
     // STEP 2
     renderDatabaseTable(res);
 
-    // STEP 3 (Pure FX Outlook)
+    // STEP 5: FX Valuation Basis summary + dynamic FX panel inside results page
+    const fxBasisSummary = document.getElementById('fx-basis-summary');
+    if (res.activeFxCurrencies && res.activeFxCurrencies.length > 0) {
+      const fxListStr = res.activeFxCurrencies
+        .map((c) => `${c.currency} ${c.annualPct > 0 ? '+' : ''}${Math.round(c.annualPct)}%/yr`)
+        .join(' · ');
+      fxBasisSummary.textContent = t('step4.toggleFxBasisActive', { fx: fxListStr });
+    } else {
+      fxBasisSummary.textContent = t('step4.toggleFxBasis');
+    }
     renderDynamicFxPanel(res);
 
     // Center Peek Modal: Model Lifecycle & Retention Probability
@@ -1435,6 +1464,31 @@
       })
       .join('');
 
+    document.getElementById('compare-12m-tbody').innerHTML = res.monthlyRows
+      .map((r) => {
+        const planAHtml = r.items.length
+          ? r.items.map((it) => `<span class="ref-mini-pill tag-${it.tone || 'gray'}" style="opacity:0.9;">${escapeHtml(formatItemPillLabel(it))}</span>`).join(' ')
+          : '<span class="ref-empty-dash">—</span>';
+        const bfShort = lang === 'en-US' ? 'BF Pro' : '黑五 Pro';
+        const extraHtml = r.buyItems && r.buyItems.length
+          ? r.buyItems.map((it) => `<span class="ref-mini-pill tag-${it.tone || 'gray'}" style="opacity:0.9;">${escapeHtml(formatItemPillLabel(it))}</span>`).join(' ')
+          : '';
+        const planBHtml = `<span class="ref-mini-pill tag-gemini" style="opacity:0.95;font-weight:600;">${escapeHtml(bfShort)}</span>${extraHtml ? ` <span class="bf-row-plus">+</span> ${extraHtml}` : ''}`;
+        const diffVal = Math.round(r.monthSavedByBf);
+        const diffCls = diffVal > 0 ? 'is-pos' : diffVal < 0 ? 'is-neg' : '';
+        const cumNet = Math.round(r.cumSkip - r.cumBuy);
+        const cumCls = cumNet > 0 ? 'is-pos' : cumNet < 0 ? 'is-neg' : '';
+        return `
+          <tr>
+            <td style="white-space:nowrap;">${escapeHtml(getMonthLabel(r.index))}</td>
+            <td><div class="ref-pills-wrap">${planAHtml}</div></td>
+            <td><div class="ref-pills-wrap">${planBHtml}</div></td>
+            <td class="num mono ${diffCls}" style="font-weight:${diffVal !== 0 ? '600' : '400'};">${escapeHtml(fmtYen(r.monthSavedByBf, true))}</td>
+            <td class="num mono ${cumCls}">${escapeHtml(fmtYen(cumNet, true))}</td>
+          </tr>`;
+      })
+      .join('');
+
     renderSensitivityMatrix(res);
   }
 
@@ -1547,13 +1601,18 @@
       let droppedCount = 0;
       for (let m = 0; m < 12; m++) {
         const curB = getColumnBasket('B', m);
-        const hasPro = curB.some((it) => it && (it.isGeminiPro || it.dynamicPrice === 'gemini_pro'));
-        if (hasPro) {
+        const proIdx = curB.findIndex((it) => it && (it.isGeminiPro || it.dynamicPrice === 'gemini_pro'));
+        if (proIdx >= 0) {
           if (droppedCount === 0) recordUndoSnapshot();
           unsyncBuyMonth(m);
-          state.buyMonthPlans[m] = state.buyMonthPlans[m].filter(
-            (it) => !(it && (it.isGeminiPro || it.dynamicPrice === 'gemini_pro'))
-          );
+          const target = state.buyMonthPlans[m][proIdx];
+          const qty = Math.max(1, Number(target && target.qty) || 1);
+          // 1 Black Friday seat can offset at most 1 monthly Gemini Pro seat per month!
+          if (qty > 1) {
+            target.qty = qty - 1;
+          } else {
+            state.buyMonthPlans[m].splice(proIdx, 1);
+          }
           droppedCount += 1;
         }
       }
@@ -1723,6 +1782,37 @@
         return;
       }
 
+      const incBtn = e.target.closest('[data-np-inc-id]');
+      if (incBtn && pickerState) {
+        const targetId = incBtn.dataset.npIncId;
+        const { column, targetIndices } = pickerState;
+        const indices = targetIndices.slice();
+        if (column === 'A') markMonthsEdited(indices);
+        pickerState.focusedItemId = targetId;
+        mutateColumnMonths(column, indices, (arr) => {
+          const hit = arr.find((it) => it && it.id === targetId);
+          if (hit) hit.qty = Math.min(10, Math.max(1, Number(hit.qty) || 1) + 1);
+        });
+        return;
+      }
+
+      const decBtn = e.target.closest('[data-np-dec-id]');
+      if (decBtn && pickerState) {
+        const targetId = decBtn.dataset.npDecId;
+        const { column, targetIndices } = pickerState;
+        const indices = targetIndices.slice();
+        if (column === 'A') markMonthsEdited(indices);
+        mutateColumnMonths(column, indices, (arr) => {
+          const idx = arr.findIndex((it) => it && it.id === targetId);
+          if (idx >= 0) {
+            const qty = Math.max(1, Number(arr[idx].qty) || 1);
+            if (qty > 1) arr[idx].qty = qty - 1;
+            else arr.splice(idx, 1);
+          }
+        });
+        return;
+      }
+
       const rmSelBtn = e.target.closest('[data-np-remove-id]');
       if (rmSelBtn && pickerState) {
         const removeId = rmSelBtn.dataset.npRemoveId;
@@ -1763,33 +1853,23 @@
           return;
         }
 
-        // Check if every target month already contains a variant from this family
+        // Clicking an already-present family adds +1 seat (supports 2x Pro, 2x Plus, etc.!),
+        // except free org seat which stays qty 1
         const variantIdSet = new Set(family.variants.map((v) => v.catalogId));
-        let addedAny = false;
-        let existingHitId = null;
-
-        indices.forEach((mIdx) => {
-          const basket = getColumnBasket(column, mIdx);
-          const hit = basket.find((it) => it && variantIdSet.has(it.id));
-          if (hit) {
-            if (!existingHitId) existingHitId = hit.id;
-          } else {
-            addedAny = true;
-          }
-        });
-
-        if (!addedAny && existingHitId) {
-          pickerState.focusedItemId = existingHitId;
-          renderNotionPicker();
-          return;
-        }
-
-        pickerState.focusedItemId = variant.catalogId;
+        let focusId = variant.catalogId;
         mutateColumnMonths(column, indices, (arr) => {
-          if (!arr.some((it) => it && variantIdSet.has(it.id))) {
+          const existing = arr.find((it) => it && variantIdSet.has(it.id));
+          if (existing) {
+            focusId = existing.id;
+            if (family.id !== 'fam_org') {
+              existing.qty = Math.min(10, Math.max(1, Number(existing.qty) || 1) + 1);
+            }
+          } else {
             arr.push(makeSubItem(variant.catalogId, 1));
           }
         });
+        pickerState.focusedItemId = focusId;
+        renderNotionPicker();
         return;
       }
 
@@ -1806,7 +1886,8 @@
         pickerState.focusedItemId = catId;
         mutateColumnMonths(column, indices, (arr) => {
           const idx = arr.findIndex((it) => it && familyVariantIds.has(it.id));
-          const nextItem = makeSubItem(catId, 1);
+          const prevQty = idx >= 0 ? Math.max(1, Number(arr[idx].qty) || 1) : 1;
+          const nextItem = makeSubItem(catId, prevQty);
           if (idx >= 0) arr[idx] = nextItem;
           else arr.push(nextItem);
         });
@@ -2100,7 +2181,11 @@
         if (col === 'A') markMonthsEdited(targets);
         mutateColumnMonths(col, targets, (arr) => {
           for (let i = arr.length - 1; i >= 0; i--) {
-            if (arr[i] && arr[i].id === removeId) arr.splice(i, 1);
+            if (arr[i] && arr[i].id === removeId) {
+              const qty = Math.max(1, Number(arr[i].qty) || 1);
+              if (qty > 1) arr[i].qty = qty - 1;
+              else arr.splice(i, 1);
+            }
           }
         });
         return;
