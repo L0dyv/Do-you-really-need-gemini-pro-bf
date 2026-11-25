@@ -348,10 +348,13 @@
             <span class="phase-pill is-legend phase-next_gen" data-i18n="modal.legendNext">新旗舰窗口</span>
           </div>
 
-          <div class="prop-row" style="margin-top: 8px;">
+          <div class="prop-row prop-row-labeled-slider" style="margin-top: 8px;">
             <span class="prop-key" data-i18n="modal.retainKey">SOTA 掉队后惯性多用</span>
             <div class="prop-val prop-val-slider">
-              <input type="range" id="inp-post-sota-extra" min="0" max="12" step="1" />
+              <div class="slider-track-wrap">
+                <span class="slider-thumb-tag mono" id="tag-post-sota-month">27年9月</span>
+                <input type="range" id="inp-post-sota-extra" min="0" max="12" step="1" />
+              </div>
               <span class="mono val-badge" id="lbl-post-sota-extra">+3 个月</span>
             </div>
           </div>

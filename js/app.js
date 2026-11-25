@@ -1336,6 +1336,12 @@
     extraSlider.value = String(res.rawPostSotaExtra);
     extraSlider.disabled = false;
 
+    const rawUntilText = formatFutureMonth(2026, 11, res.sotaCutoff + res.rawPostSotaExtra);
+    const thumbTagEl = document.getElementById('tag-post-sota-month');
+    const extraRatio = res.rawPostSotaExtra / 12;
+    thumbTagEl.style.left = `calc(${(extraRatio * 100).toFixed(3)}% + ${(8 - extraRatio * 16).toFixed(2)}px)`;
+    thumbTagEl.textContent = lang === 'en-US' ? rawUntilText : rawUntilText.slice(2);
+
     document.getElementById('lbl-sota-len').textContent = t('modal.monthsVal', { n: state.effectiveSotaMonths });
     document.getElementById('lbl-next-interval').textContent = t('modal.monthsVal', { n: state.nextFlagshipInterval });
     document.getElementById('lbl-post-sota-extra').textContent = t('modal.extraMonthsVal', { n: res.rawPostSotaExtra });
