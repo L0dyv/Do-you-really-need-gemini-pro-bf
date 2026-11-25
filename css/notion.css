@@ -2052,6 +2052,15 @@ input[type="range"]::-moz-range-thumb {
   transition: left 0.15s ease, width 0.15s ease;
 }
 
+.lifecycle-seg-next {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--tag-green-fg);
+  border-radius: 0 2px 2px 0;
+  transition: left 0.15s ease, width 0.15s ease;
+}
+
 .lc-node {
   position: absolute;
   top: 50%;

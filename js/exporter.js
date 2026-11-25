@@ -102,42 +102,58 @@
     const evDigits = `${M.sym}${Math.abs(evRounded).toLocaleString('en-US')}`;
     const rateStr = `${res.evReturnPct >= 0 ? '+' : ''}${res.evReturnPct.toFixed(1)}%`;
     const activeM = res.expectedActiveMonths != null ? res.expectedActiveMonths : 12;
-    const extraM = res.postSotaExtraMonths != null ? res.postSotaExtraMonths : 0;
+    const sotaM = res.sotaActiveMonths != null ? res.sotaActiveMonths : res.sotaCutoff;
+    const extraM = res.postSotaUsedMonths != null ? res.postSotaUsedMonths : (res.postSotaExtraMonths || 0);
+    const nextM = res.nextGenActiveMonths || 0;
+    const spanParts = (isEn
+      ? [
+          sotaM > 0 ? `${sotaM}m SOTA` : null,
+          extraM > 0 ? `${extraM}m extra` : null,
+          nextM > 0 ? `${nextM}m Next SOTA` : null,
+        ]
+      : [
+          sotaM > 0 ? `本次 SOTA ${sotaM} 月` : null,
+          extraM > 0 ? `后续 ${extraM} 月` : null,
+          nextM > 0 ? `下代 SOTA ${nextM} 月` : null,
+        ]).filter(Boolean).join(' + ');
     const evHeroLabel = activeM >= 12
-      ? (isEn ? `Expected Net Savings (All 12 mo) · ${cur}` : `预期净节省（用满全年 12 个月）· ${cur}`)
-      : (isEn ? `Expected Net Savings (Active ${activeM} mo) · ${cur}` : `预期净节省（按用满前 ${activeM} 个月）· ${cur}`);
+      ? (isEn ? `Expected Net Savings (All 12 mo active) · ${cur}` : `预期净节省（全年 12 个月生效）· ${cur}`)
+      : (isEn ? `Expected Net Savings (${activeM} mo active) · ${cur}` : `预期净节省（共生效 ${activeM} 个月）· ${cur}`);
     const evRateLine = res.bfCost > 0
       ? (isEn
-          ? `${res.sotaCutoff} mo SOTA + ${extraM} mo post-SOTA (${activeM} mo total) · ${rateStr} on upfront`
-          : `前 ${res.sotaCutoff} 月 SOTA + 后续多用 ${extraM} 月（共 ${activeM} 个月）· 相对预付 ${rateStr}`)
+          ? `${spanParts} (${activeM} mo total) · ${rateStr} on upfront`
+          : `${spanParts}（共 ${activeM} 个月）· 相对预付 ${rateStr}`)
       : '';
     let spanSub;
     if (res.breakEvenStatus === 'already_even') {
       const mLine = res.breakEvenMonthNum != null ? res.breakEvenMonthNum : 1;
-      spanSub = isEn ? `Breaks even in SOTA span (Mo ${mLine})` : `SOTA 前 ${res.sotaCutoff} 月内已回本（第 ${mLine} 月）`;
+      spanSub = isEn ? `Breaks even in SOTA span (Mo ${mLine})` : `本次 SOTA 前 ${res.sotaCutoff} 月内已回本（第 ${mLine} 月）`;
     } else if (res.breakEvenStatus === 'impossible') {
       spanSub = isEn ? 'Not even within 12 months' : '全年 12 个月仍未回本';
     } else if (res.monthMargin != null && res.monthMargin > 0) {
       spanSub = isEn
-        ? `${res.sotaCutoff}m SOTA + ${extraM}m extra · +${res.monthMargin}m margin`
-        : `SOTA ${res.sotaCutoff}月 + 后续 ${extraM}月 · 超回本线 +${res.monthMargin} 月`;
+        ? `${spanParts} · +${res.monthMargin}m margin`
+        : `${spanParts} · 超回本线 +${res.monthMargin} 月`;
     } else if (res.monthMargin === 0) {
       spanSub = isEn
-        ? `${res.sotaCutoff}m SOTA + ${extraM}m extra · exact payback`
-        : `SOTA ${res.sotaCutoff}月 + 后续 ${extraM}月 · 刚好第 ${res.breakEvenMonthNum} 月回本`;
+        ? `${spanParts} · exact payback`
+        : `${spanParts} · 刚好第 ${res.breakEvenMonthNum} 月回本`;
     } else {
       const shortM = Math.abs(res.monthMargin || 0);
       spanSub = isEn
-        ? `${res.sotaCutoff}m SOTA + ${extraM}m extra · ${shortM}m short`
-        : `SOTA ${res.sotaCutoff}月 + 后续 ${extraM}月 · 距回本差 ${shortM} 月`;
+        ? `${spanParts} · ${shortM}m short`
+        : `${spanParts} · 距回本差 ${shortM} 月`;
     }
 
-    // Build effective cumulative series reflecting expectedActiveMonths cutoff
+    // Build effective cumulative series reflecting expectedActiveMask (including in-term Next SOTA return)
     let effCumBuy = res.bfCost;
     let effCumSkip = 0;
     let effCrossIdx = null;
+    const activeMask = Array.isArray(res.expectedActiveMask) && res.expectedActiveMask.length === 12
+      ? res.expectedActiveMask
+      : res.monthlyRows.map((_, i) => i < activeM);
     const effRows = res.monthlyRows.map((r, i) => {
-      const isActive = i < activeM;
+      const isActive = Boolean(activeMask[i]);
       effCumSkip += r.skipMonthFlow;
       effCumBuy += isActive ? r.buyMonthFlow : r.skipMonthFlow;
       if (effCrossIdx === null && effCumSkip >= effCumBuy) {
@@ -182,11 +198,15 @@
       : `标准情况 · 按你的预期（共 ${activeM} 个月）`;
     const stdSub = activeM >= 12
       ? (isEn
-          ? `${res.sotaCutoff} mo SOTA + post-SOTA through Mo 12 (full Plan B)`
-          : `SOTA 前 ${res.sotaCutoff} 月 + 后续继续用满全年（完整执行方案 B）`)
-      : (isEn
-          ? `${res.sotaCutoff} mo SOTA + ${extraM} mo post-SOTA (reverts to Plan A after)`
-          : `SOTA 前 ${res.sotaCutoff} 月 + 后续多用 ${extraM} 月（之后停用改回方案 A）`);
+          ? `${spanParts} (active all 12 months)`
+          : `${spanParts}（全年 12 个月完整生效）`)
+      : (res.nextGenInTerm && res.gapInactiveMonths > 0
+          ? (isEn
+              ? `${spanParts} (${res.gapInactiveMonths}-mo mid-year gap reverts to Plan A)`
+              : `${spanParts}（中间空窗 ${res.gapInactiveMonths} 个月改回方案 A）`)
+          : (isEn
+              ? `${spanParts} (reverts to Plan A after)`
+              : `${spanParts}（之后停用改回方案 A）`));
     const stdRowSvg = `
       <rect x="${padX}" y="${stdRowY}" width="${contentW}" height="${stdRowH}" fill="#fafaf9"/>
       <line x1="${padX}" y1="${stdRowY}" x2="${W - padX}" y2="${stdRowY}" stroke="#37352f" stroke-width="1.2"/>
@@ -217,8 +237,8 @@
 
     const tblBottomY = subStartY + res.scenarios.length * tblRowH;
     const evFormulaLine = isEn
-      ? `Net Saved = Without BF − Buy (${cur}, spot 1 USD ≈ 6.67 CNY). Top row matches your ${activeM}-mo outlook (${res.sotaCutoff}m SOTA + ${extraM}m post-SOTA).`
-      : `净节省 = 不买黑五 − 买入支出（${cur}，基准 1 USD ≈ 6.67 CNY）。首行按你预期的 ${activeM} 个月（SOTA ${res.sotaCutoff} 月 + 后续 ${extraM} 月）计算。`;
+      ? `Net Saved = Without BF − Buy (${cur}, spot 1 USD ≈ 6.67 CNY). Top row matches your ${activeM}-mo outlook (${spanParts}).`
+      : `净节省 = 不买黑五 − 买入支出（${cur}，基准 1 USD ≈ 6.67 CNY）。首行按你预期的 ${activeM} 个月（${spanParts}）计算。`;
 
     // 3. Cumulative Chart with Day 0 ("今日" / "Now")
     const chartTop = 656;

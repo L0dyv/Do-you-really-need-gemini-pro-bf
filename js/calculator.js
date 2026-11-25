@@ -128,7 +128,9 @@
     const sotaLen = Math.max(1, Number(state.effectiveSotaMonths) || 7);
     const nextInterval = Math.max(2, Number(state.nextFlagshipInterval) || 10);
     const sotaCutoff = Math.min(12, Math.max(0, Math.round(sotaLen - launched)));
-    const nextGenCutoff = Math.min(12, Math.max(0, Math.round(nextInterval - launched - 1)));
+    const nextGenStartMonth = Math.max(1, Math.round(nextInterval - launched)); // 1-indexed month when next SOTA arrives
+    const nextGenInTerm = nextGenStartMonth <= 12;
+    const nextGenCutoff = Math.min(12, Math.max(0, nextGenStartMonth - 1));
     const maxPostSotaExtra = Math.max(0, 12 - sotaCutoff);
     let postSotaExtraMonths;
     if (state.postSotaExtraMonths != null && Number.isFinite(Number(state.postSotaExtraMonths))) {
@@ -139,16 +141,41 @@
     } else {
       postSotaExtraMonths = Math.min(maxPostSotaExtra, 3);
     }
-    const expectedActiveMonths = Math.min(12, sotaCutoff + postSotaExtraMonths);
+    const willingEndMonth = Math.min(12, sotaCutoff + postSotaExtraMonths);
+
+    // 12-month active mask: current SOTA + willing post-SOTA months + next-gen SOTA if inside 12-mo term
+    const expectedActiveMask = Array.from({ length: 12 }, (_, idx) => {
+      const m = idx + 1;
+      if (m <= sotaCutoff) return true;
+      if (m <= willingEndMonth) return true;
+      if (nextGenInTerm && m >= nextGenStartMonth) return true;
+      return false;
+    });
+
+    const nextGenActiveMonths = nextGenInTerm ? Math.max(0, 12 - nextGenStartMonth + 1) : 0;
+    const firstWaveCap = nextGenInTerm ? Math.min(willingEndMonth, nextGenStartMonth - 1) : willingEndMonth;
+    const sotaActiveMonths = Math.min(sotaCutoff, firstWaveCap);
+    const postSotaUsedMonths = Math.max(0, firstWaveCap - sotaActiveMonths);
+    const expectedActiveMonths = expectedActiveMask.filter(Boolean).length;
+    const gapInactiveMonths = 12 - expectedActiveMonths;
+
     return {
       launched,
       sotaLen,
       nextInterval,
       sotaCutoff,
+      nextGenStartMonth,
+      nextGenInTerm,
       nextGenCutoff,
       maxPostSotaExtra,
       rawPostSotaExtra: postSotaExtraMonths,
       postSotaExtraMonths,
+      willingEndMonth,
+      sotaActiveMonths,
+      postSotaUsedMonths,
+      nextGenActiveMonths,
+      gapInactiveMonths,
+      expectedActiveMask,
       expectedActiveMonths,
     };
   }
@@ -246,25 +273,37 @@
    *   - simulate(K)  === SOTA cutoff downside branch (D)
    *   - simulate(0)  === pure upfront sunk-cost floor (-bfCost)
    */
-  function simulateCutoff(baseRows, bfCost, cutoffMonths) {
-    const limit = Math.min(12, Math.max(0, Math.round(cutoffMonths)));
+  function simulateActiveMask(baseRows, bfCost, activeMask) {
     let buyTotal = bfCost;
     let skipTotal = 0;
+    let activeCount = 0;
     for (let i = 0; i < baseRows.length; i++) {
       const r = baseRows[i];
       skipTotal += r.skipMonthFlow;
-      if (i < limit) {
+      if (activeMask && activeMask[i]) {
         buyTotal += r.buyMonthFlow;
+        activeCount += 1;
       } else {
-        // After cutoff, BF Pro is no longer used to replace baseline subscriptions
         buyTotal += r.skipMonthFlow;
       }
     }
     return {
-      cutoff: limit,
+      activeCount,
       buyTotal,
       skipTotal,
       diff: skipTotal - buyTotal,
+    };
+  }
+
+  function simulateCutoff(baseRows, bfCost, cutoffMonths) {
+    const limit = Math.min(12, Math.max(0, Math.round(cutoffMonths)));
+    const mask = baseRows.map((_, i) => i < limit);
+    const res = simulateActiveMask(baseRows, bfCost, mask);
+    return {
+      cutoff: limit,
+      buyTotal: res.buyTotal,
+      skipTotal: res.skipTotal,
+      diff: res.diff,
     };
   }
 
@@ -327,23 +366,19 @@
   }
 
   /**
-   * Build a compact 3x3 sensitivity matrix: Expected Active Months (around m)
+   * Build a compact 3x3 sensitivity matrix: SOTA Duration (K - 2, K, K + 2)
    * x Primary Active Foreign Currency FX (-5pp, 0, +5pp).
+   * Preserves user's post-SOTA extra months and next-gen SOTA return window in every cell!
    */
   function buildSensitivityMatrix(state, activeFxCurrencies) {
-    const cutoffs = getLifecycleCutoffs(state);
-    const baseM = cutoffs.expectedActiveMonths;
+    const baseK = Math.min(12, Math.max(1, Math.round(Number(state.effectiveSotaMonths) || 7)));
     let monthCols;
-    if (baseM <= 0) {
-      monthCols = [0, 2, 4];
-    } else if (baseM === 1) {
-      monthCols = [0, 1, 3];
-    } else if (baseM === 11) {
-      monthCols = [9, 11, 12];
-    } else if (baseM >= 12) {
+    if (baseK <= 2) {
+      monthCols = [1, 2, 4];
+    } else if (baseK >= 11) {
       monthCols = [8, 10, 12];
     } else {
-      monthCols = [baseM - 2, baseM, baseM + 2];
+      monthCols = [baseK - 2, baseK, baseK + 2];
     }
 
     const primaryFx = activeFxCurrencies && activeFxCurrencies.length > 0 ? activeFxCurrencies[0] : null;
@@ -359,17 +394,17 @@
     const fxOffsets = [-5, 0, 5];
     const rows = fxOffsets.map((delta) => {
       const fxPct = Math.max(-90, basePct + delta);
-      const patched = Object.assign({}, state, {
-        fxAnnualChangePct: Object.assign({}, resolveFxAnnualMap(state), { [code]: fxPct }),
-      });
-      const sub = computeCoreLedger(patched);
-      const cells = monthCols.map((mVal) => {
-        const sim = simulateCutoff(sub.monthlyRows, sub.bfCost, mVal);
+      const cells = monthCols.map((kVal) => {
+        const patched = Object.assign({}, state, {
+          effectiveSotaMonths: kVal,
+          fxAnnualChangePct: Object.assign({}, resolveFxAnnualMap(state), { [code]: fxPct }),
+        });
+        const sub = computeCoreLedger(patched);
         return {
-          mVal,
+          mVal: kVal,
           fxPct,
-          ev: sim.diff,
-          isCenter: delta === 0 && mVal === baseM,
+          ev: sub.expectedNetSavings,
+          isCenter: delta === 0 && kVal === baseK,
         };
       });
       return { delta, fxPct, cells };
@@ -509,14 +544,14 @@
 
     const equivalentUsageMonths = avgProPrice > 0 ? bfCost / avgProPrice : Infinity;
 
-    // Unified SOTA + Post-SOTA Inertia Month Cutoff Math (Deterministic & Transparent)
+    // Unified SOTA + Post-SOTA + Next-Gen SOTA Return Mask Math (Deterministic & Transparent)
     const simDown = simulateCutoff(monthlyRows, bfCost, cutoffs.sotaCutoff);
-    const simExpected = simulateCutoff(monthlyRows, bfCost, cutoffs.expectedActiveMonths);
+    const simExpected = simulateActiveMask(monthlyRows, bfCost, cutoffs.expectedActiveMask);
     const simUp = simulateCutoff(monthlyRows, bfCost, 12);
-    const downsideNet = simDown.diff;         // Stopping right after SOTA (K months)
-    const expectedNetSavings = simExpected.diff; // Using K + postSotaExtraMonths months
+    const downsideNet = simDown.diff;            // Stopping right after current SOTA (K months)
+    const expectedNetSavings = simExpected.diff; // Current SOTA + post-SOTA + next-gen SOTA inside term
     const expectedBuyCost = simExpected.buyTotal;
-    const upsideNet = simUp.diff;             // Full 12 months Plan B
+    const upsideNet = simUp.diff;                // Full 12 months Plan B
 
     // Find earliest active month m in [0..12] where cumulative net >= 0
     let breakEvenMonthNum = null;
@@ -565,9 +600,17 @@
       breakEvenStatus,
       monthMargin,
       sotaCutoff: cutoffs.sotaCutoff,
+      nextGenStartMonth: cutoffs.nextGenStartMonth,
+      nextGenInTerm: cutoffs.nextGenInTerm,
       rawPostSotaExtra: cutoffs.rawPostSotaExtra,
       postSotaExtraMonths: cutoffs.postSotaExtraMonths,
       maxPostSotaExtra: cutoffs.maxPostSotaExtra,
+      willingEndMonth: cutoffs.willingEndMonth,
+      sotaActiveMonths: cutoffs.sotaActiveMonths,
+      postSotaUsedMonths: cutoffs.postSotaUsedMonths,
+      nextGenActiveMonths: cutoffs.nextGenActiveMonths,
+      gapInactiveMonths: cutoffs.gapInactiveMonths,
+      expectedActiveMask: cutoffs.expectedActiveMask,
       expectedActiveMonths: cutoffs.expectedActiveMonths,
       nextGenCutoff: cutoffs.nextGenCutoff,
       crossoverMonthIndex,
@@ -602,7 +645,9 @@
       expectedNetSavings,
       expectedBuyCost,
       expectedActiveMonths,
-      postSotaExtraMonths,
+      sotaActiveMonths,
+      postSotaUsedMonths,
+      nextGenActiveMonths,
       breakEvenMonthNum,
       breakEvenStatus,
       monthMargin,
@@ -610,6 +655,17 @@
       totalProValueSaved,
       bfCost,
     } = core;
+
+    const spanPartsZh = [
+      `本次 SOTA ${sotaActiveMonths} 月`,
+      postSotaUsedMonths > 0 ? `后续多用 ${postSotaUsedMonths} 月` : null,
+      nextGenActiveMonths > 0 ? `下代 SOTA ${nextGenActiveMonths} 月` : null,
+    ].filter(Boolean).join(' + ');
+    const spanPartsEn = [
+      `${sotaActiveMonths}m SOTA`,
+      postSotaUsedMonths > 0 ? `${postSotaUsedMonths}m post-SOTA` : null,
+      nextGenActiveMonths > 0 ? `${nextGenActiveMonths}m next SOTA` : null,
+    ].filter(Boolean).join(' + ');
 
     let verdict;
     if (breakEvenStatus === 'impossible' && upsideNet < 0 && expectedNetSavings < 0) {
@@ -635,36 +691,36 @@
             badge: 'Worth Buying',
             tone: 'green',
             headline: `Breaks even within SOTA span (${fmtSignedM(downsideNet)} by Mo ${core.sotaCutoff})`,
-            detail: `Even if dropped right after Month ${core.sotaCutoff}, you stay net positive; using ${expectedActiveMonths} months as expected saves ${fmtM(expectedNetSavings)}.`,
+            detail: `Even if dropped right after Month ${core.sotaCutoff}, you stay net positive; across ${expectedActiveMonths} active months (${spanPartsEn}), you save ${fmtM(expectedNetSavings)}.`,
           }
         : {
             level: 'buy',
             badge: '值得入手',
             tone: 'green',
             headline: `SOTA 期内即可锁定回本（前 ${core.sotaCutoff} 月已省 ${fmtSignedM(downsideNet)}）`,
-            detail: `即便 SOTA 结束立刻停用依然不亏；按你预期用满 ${expectedActiveMonths} 个月（含后续多用 ${postSotaExtraMonths} 月），预计净省 ${fmtM(expectedNetSavings)}。`,
+            detail: `即便 SOTA 结束立刻停用依然不亏；按你预期生效 ${expectedActiveMonths} 个月（${spanPartsZh}），预计净省 ${fmtM(expectedNetSavings)}。`,
           };
     } else if (expectedNetSavings >= 40) {
       const marginTxtZh = monthMargin != null && monthMargin > 0
         ? `超出回本线 +${monthMargin} 个月`
-        : `达到第 ${breakEvenMonthNum} 月回本线`;
+        : (breakEvenMonthNum != null ? `达到第 ${breakEvenMonthNum} 月回本线` : `生效 ${expectedActiveMonths} 个月可省`);
       const marginTxtEn = monthMargin != null && monthMargin > 0
         ? `+${monthMargin} mo past payback (Mo ${breakEvenMonthNum})`
-        : `clears Mo ${breakEvenMonthNum} payback`;
+        : (breakEvenMonthNum != null ? `clears Mo ${breakEvenMonthNum} payback` : `${expectedActiveMonths} active mo`);
       verdict = isEn
         ? {
             level: 'buy',
             badge: 'Worth Buying',
             tone: 'green',
-            headline: `Expected ${expectedActiveMonths}-mo usage saves ${fmtM(expectedNetSavings)} (${marginTxtEn})`,
-            detail: `Without BF totals ${fmtM(core.totalSkipCost)} vs ${fmtM(expectedBuyCost)} with BF (active ${expectedActiveMonths} mo: ${core.sotaCutoff} mo SOTA + ${postSotaExtraMonths} mo post-SOTA).`,
+            headline: `Expected ${expectedActiveMonths} active months save ${fmtM(expectedNetSavings)} (${marginTxtEn})`,
+            detail: `Without BF totals ${fmtM(core.totalSkipCost)} vs ${fmtM(expectedBuyCost)} with BF (${spanPartsEn}).`,
           }
         : {
             level: 'buy',
             badge: '值得入手',
             tone: 'green',
-            headline: `按预期用满 ${expectedActiveMonths} 个月可省 ${fmtM(expectedNetSavings)}（${marginTxtZh}）`,
-            detail: `不买黑五总计 ${fmtM(core.totalSkipCost)}，按前 ${core.sotaCutoff} 月 SOTA + 后续多用 ${postSotaExtraMonths} 月买入总支出 ${fmtM(expectedBuyCost)}，预计净省 ${fmtSignedM(expectedNetSavings)}。`,
+            headline: `按预期生效 ${expectedActiveMonths} 个月可省 ${fmtM(expectedNetSavings)}（${marginTxtZh}）`,
+            detail: `不买黑五总计 ${fmtM(core.totalSkipCost)}，按 ${spanPartsZh} 买入总支出 ${fmtM(expectedBuyCost)}，预计净省 ${fmtSignedM(expectedNetSavings)}。`,
           };
     } else if (expectedNetSavings >= -40) {
       const lineZh = breakEvenMonthNum != null ? `第 ${breakEvenMonthNum} 个月` : '12 个月内未达标';
@@ -675,35 +731,35 @@
             badge: 'Borderline · Wait',
             tone: 'amber',
             headline: `Near break-even at ${expectedActiveMonths} active months (${fmtSignedM(expectedNetSavings)})`,
-            detail: `Payback requires reaching ${lineEn}. Staying on Plan A avoids locking ${fmtM(bfCost)} upfront for a marginal gain.`,
+            detail: `Active span: ${spanPartsEn}. Continuous payback requires ${lineEn}; staying on Plan A avoids locking ${fmtM(bfCost)} upfront for a marginal gain.`,
           }
         : {
             level: 'neutral',
             badge: '接近打平 · 谨慎观望',
             tone: 'amber',
-            headline: `按预期用满 ${expectedActiveMonths} 个月接近打平（${fmtSignedM(expectedNetSavings)}）`,
-            detail: `累计回本需撑到${lineZh}；收益空间很小，保留方案 A 按月随用随买更灵活，不必提前锁定 ${fmtM(bfCost)}。`,
+            headline: `按预期生效 ${expectedActiveMonths} 个月接近打平（${fmtSignedM(expectedNetSavings)}）`,
+            detail: `生效区间为 ${spanPartsZh}，连续累计回本需撑到${lineZh}；收益空间很小，保留方案 A 按月随用随买更灵活，不必提前锁定 ${fmtM(bfCost)}。`,
           };
     } else {
       const gapTxtZh = breakEvenMonthNum != null
-        ? `需撑到第 ${breakEvenMonthNum} 个月才回本（比预期多 ${Math.max(1, breakEvenMonthNum - expectedActiveMonths)} 个月）`
+        ? `连续回本需撑到第 ${breakEvenMonthNum} 个月（当前生效 ${expectedActiveMonths} 个月：${spanPartsZh}）`
         : '即便用满全年 12 个月也未能回本';
       const gapTxtEn = breakEvenMonthNum != null
-        ? `Payback needs Month ${breakEvenMonthNum} (${Math.max(1, breakEvenMonthNum - expectedActiveMonths)} mo beyond your ${expectedActiveMonths}-mo outlook)`
+        ? `Continuous payback needs Month ${breakEvenMonthNum} (your active span is ${expectedActiveMonths} mo: ${spanPartsEn})`
         : 'Even full 12-month usage stays net negative';
       verdict = isEn
         ? {
             level: 'skip',
             badge: 'Net Loss · Skip',
             tone: 'red',
-            headline: `Expected ${expectedActiveMonths}-mo usage loses ${fmtM(expectedNetSavings)}`,
+            headline: `Expected ${expectedActiveMonths} active months lose ${fmtM(expectedNetSavings)}`,
             detail: `${gapTxtEn}. Full 12-mo Plan B yields ${fmtSignedM(upsideNet)}, while dropping after Mo ${core.sotaCutoff} yields ${fmtSignedM(downsideNet)}.`,
           }
         : {
             level: 'skip',
             badge: '预计亏损 · 建议跳过',
             tone: 'red',
-            headline: `按预期用满 ${expectedActiveMonths} 个月预计净亏 ${fmtM(expectedNetSavings)}`,
+            headline: `按预期生效 ${expectedActiveMonths} 个月预计净亏 ${fmtM(expectedNetSavings)}`,
             detail: `${gapTxtZh}；完整执行 12 个月为 ${fmtSignedM(upsideNet)}，SOTA 第 ${core.sotaCutoff} 月止停用为 ${fmtSignedM(downsideNet)}。`,
           };
     }
@@ -726,6 +782,7 @@
     getLifecycleCutoffs,
     getModelPhase,
     getItemUnitPrice,
+    simulateActiveMask,
     simulateCutoff,
     calculateLedger,
   };

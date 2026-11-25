@@ -681,8 +681,7 @@
           tk.classList.remove('is-active');
         });
         statusEl.textContent = t('step4.replayWeight', {
-          k: res.sotaCutoff,
-          extra: res.postSotaExtraMonths,
+          parts: formatSpanParts(res, getLang()),
           m: res.expectedActiveMonths,
         });
       }, 820)
@@ -1070,16 +1069,32 @@
     renderNotionPicker();
   }
 
-  // Compute row-by-row cash flows when inspecting one of the 4 early-abandonment scenarios
-  function buildScenarioViewRows(baseRows, bfCost, cutoff) {
-    const limit = Math.min(12, Math.max(0, Math.round(cutoff)));
+  function formatSpanParts(res, lang) {
+    const isEn = lang === 'en-US';
+    return (isEn
+      ? [
+          res.sotaActiveMonths > 0 ? `${res.sotaActiveMonths}m SOTA` : null,
+          res.postSotaUsedMonths > 0 ? `${res.postSotaUsedMonths}m extra` : null,
+          res.nextGenActiveMonths > 0 ? `${res.nextGenActiveMonths}m Next SOTA` : null,
+        ]
+      : [
+          res.sotaActiveMonths > 0 ? `本次 SOTA ${res.sotaActiveMonths} 月` : null,
+          res.postSotaUsedMonths > 0 ? `后续 ${res.postSotaUsedMonths} 月` : null,
+          res.nextGenActiveMonths > 0 ? `下代 SOTA ${res.nextGenActiveMonths} 月` : null,
+        ]).filter(Boolean).join(' + ');
+  }
+
+  // Compute row-by-row cash flows for either a fixed cutoff (number) or a 12-month active mask (boolean[])
+  function buildScenarioViewRows(baseRows, bfCost, cutoffOrMask) {
+    const isMask = Array.isArray(cutoffOrMask);
+    const limit = isMask ? null : Math.min(12, Math.max(0, Math.round(cutoffOrMask)));
     let cumBuy = bfCost;
     let cumSkip = 0;
     let crossoverMonthIndex = null;
     let totalSaved = 0;
     let activeSavedMonths = 0;
     const rows = baseRows.map((r, i) => {
-      const reverted = i >= limit;
+      const reverted = isMask ? !cutoffOrMask[i] : i >= limit;
       const buyMonthFlow = reverted ? r.skipMonthFlow : r.buyMonthFlow;
       const monthSavedByBf = r.skipMonthFlow - buyMonthFlow;
       cumBuy += buyMonthFlow;
@@ -1331,7 +1346,7 @@
     // Step 4: Model Lifecycle & Post-SOTA Continuation Months
     const sotaUntilText = formatFutureMonth(2026, 11, state.effectiveSotaMonths);
     const nextWhenText = formatFutureMonth(2026, 11, state.nextFlagshipInterval);
-    const totalUntilText = formatFutureMonth(2026, 11, res.expectedActiveMonths);
+    const willingUntilText = formatFutureMonth(2026, 11, res.willingEndMonth);
     const fmtNodeMonth = (txt) => (lang === 'en-US' ? txt : txt.slice(2));
 
     const extraSlider = document.getElementById('inp-post-sota-extra');
@@ -1349,28 +1364,60 @@
       t('modal.sotaHelp', { n: state.effectiveSotaMonths, until: sotaUntilText });
     document.getElementById('help-next-when').textContent =
       t('modal.nextHelp', { n: state.nextFlagshipInterval, when: nextWhenText });
-    document.getElementById('help-post-sota-extra').textContent =
-      res.expectedActiveMonths >= 12
-        ? t('modal.retainHelpFull', { k: res.sotaCutoff, extra: res.postSotaExtraMonths })
-        : res.postSotaExtraMonths === 0
-          ? t('modal.retainHelpZero', { k: res.sotaCutoff, until: sotaUntilText })
-          : t('modal.retainHelpDyn', {
-              k: res.sotaCutoff,
-              until: sotaUntilText,
-              extra: res.postSotaExtraMonths,
-              total: res.expectedActiveMonths,
-              totalUntil: totalUntilText,
-            });
 
-    // Single Unified 12-Month Axis: [0..SOTA] black, [SOTA..Active] blue, plus Next-Gen SOTA green node
+    let extraHelpTxt;
+    if (res.expectedActiveMonths >= 12 && res.nextGenInTerm && res.willingEndMonth < 12) {
+      extraHelpTxt = t('modal.retainHelpFullNext', { nextStart: res.nextGenStartMonth });
+    } else if (res.willingEndMonth >= 12) {
+      extraHelpTxt = t('modal.retainHelpFull', { k: res.sotaCutoff, extra: res.postSotaExtraMonths });
+    } else if (res.postSotaExtraMonths === 0) {
+      extraHelpTxt = t('modal.retainHelpZero', { k: res.sotaCutoff, until: sotaUntilText });
+      if (res.nextGenInTerm && res.nextGenActiveMonths > 0) {
+        extraHelpTxt = extraHelpTxt.replace(/[。.]$/, '') + t('modal.retainHelpNextSuffix', {
+          nextStart: res.nextGenStartMonth,
+          nextM: res.nextGenActiveMonths,
+          total: res.expectedActiveMonths,
+        });
+      }
+    } else {
+      extraHelpTxt = t('modal.retainHelpDyn', {
+        k: res.sotaCutoff,
+        until: sotaUntilText,
+        extra: res.postSotaExtraMonths,
+        total: res.willingEndMonth,
+        totalUntil: willingUntilText,
+      });
+      if (res.nextGenInTerm && res.nextGenActiveMonths > 0) {
+        extraHelpTxt = extraHelpTxt.replace(/[。.]$/, '') + t('modal.retainHelpNextSuffix', {
+          nextStart: res.nextGenStartMonth,
+          nextM: res.nextGenActiveMonths,
+          total: res.expectedActiveMonths,
+        });
+      }
+    }
+    document.getElementById('help-post-sota-extra').textContent = extraHelpTxt;
+
+    // Single Unified 12-Month Axis:
+    // [0..SOTA] black -> [SOTA..willing] blue -> (gap gray) -> [nextSOTA..12] green (if inside 12-mo term)
+    const nextStartPct = res.nextGenInTerm ? ((res.nextGenStartMonth - 1) / 12) * 100 : 100;
     const sotaPct = (res.sotaCutoff / 12) * 100;
-    const activePct = (res.expectedActiveMonths / 12) * 100;
-    const nextPct = Math.min(100, Math.max(8, (state.nextFlagshipInterval / 12) * 100));
+    const blackEndPct = res.nextGenInTerm ? Math.min(sotaPct, nextStartPct) : sotaPct;
+    const willingPct = (res.willingEndMonth / 12) * 100;
+    const blueEndPct = res.nextGenInTerm ? Math.min(willingPct, nextStartPct) : willingPct;
 
-    document.getElementById('lc-active-seg').style.width = `${sotaPct.toFixed(4)}%`;
+    document.getElementById('lc-active-seg').style.width = `${Math.max(0, blackEndPct).toFixed(4)}%`;
     const extraSegEl = document.getElementById('lc-extra-seg');
-    extraSegEl.style.left = `${sotaPct.toFixed(4)}%`;
-    extraSegEl.style.width = `${Math.max(0, activePct - sotaPct).toFixed(4)}%`;
+    extraSegEl.style.left = `${blackEndPct.toFixed(4)}%`;
+    extraSegEl.style.width = `${Math.max(0, blueEndPct - blackEndPct).toFixed(4)}%`;
+
+    const nextSegEl = document.getElementById('lc-next-seg');
+    if (res.nextGenInTerm) {
+      nextSegEl.style.left = `${nextStartPct.toFixed(4)}%`;
+      nextSegEl.style.width = `${Math.max(0, 100 - nextStartPct).toFixed(4)}%`;
+    } else {
+      nextSegEl.style.left = '100%';
+      nextSegEl.style.width = '0%';
+    }
 
     const sotaNodeEl = document.getElementById('lc-sota-node');
     const extraNodeEl = document.getElementById('lc-extra-node');
@@ -1380,23 +1427,28 @@
     sotaNodeEl.classList.toggle('lc-node-end-align', sotaPct >= 95);
     document.getElementById('lc-sota-month').textContent = fmtNodeMonth(sotaUntilText);
 
-    const showExtraNode = res.postSotaExtraMonths > 0;
+    const showExtraNode = res.postSotaUsedMonths > 0 && (!res.nextGenInTerm || blueEndPct < nextStartPct - 0.01);
     extraNodeEl.style.display = showExtraNode ? 'flex' : 'none';
     if (showExtraNode) {
-      extraNodeEl.style.left = `${activePct.toFixed(4)}%`;
-      extraNodeEl.classList.toggle('lc-node-end-align', activePct >= 95);
-      document.getElementById('lc-extra-month').textContent = fmtNodeMonth(totalUntilText);
+      const extraDotPct = blueEndPct;
+      const extraDotMonth = formatFutureMonth(2026, 11, res.sotaActiveMonths + res.postSotaUsedMonths);
+      extraNodeEl.style.left = `${extraDotPct.toFixed(4)}%`;
+      extraNodeEl.classList.toggle('lc-node-end-align', extraDotPct >= 95);
+      document.getElementById('lc-extra-month').textContent = fmtNodeMonth(extraDotMonth);
     }
 
-    nextNodeEl.style.left = `${nextPct.toFixed(4)}%`;
-    nextNodeEl.classList.toggle('lc-node-end-align', nextPct >= 95);
+    nextNodeEl.style.left = `${nextStartPct.toFixed(4)}%`;
+    nextNodeEl.classList.toggle('lc-node-end-align', nextStartPct >= 95);
     document.getElementById('lc-next-month').textContent = fmtNodeMonth(nextWhenText);
+    document.getElementById('lc-next-label').textContent = res.nextGenInTerm
+      ? t('modal.nodeNextShort')
+      : t('modal.nodeNextOutShort');
 
     // Anti-collision staggering so month labels above & role labels below never overlap
-    const extraNearSota = showExtraNode && Math.abs(activePct - sotaPct) < 13;
+    const extraNearSota = showExtraNode && Math.abs(blueEndPct - sotaPct) < 13;
     extraNodeEl.classList.toggle('is-staggered', extraNearSota);
-    const nextNearSota = Math.abs(nextPct - sotaPct) < 13;
-    const nextNearExtra = showExtraNode && Math.abs(nextPct - activePct) < 13;
+    const nextNearSota = Math.abs(nextStartPct - sotaPct) < 13;
+    const nextNearExtra = showExtraNode && Math.abs(nextStartPct - blueEndPct) < 13;
     nextNodeEl.classList.toggle('is-staggered', (nextNearSota || nextNearExtra) && !(nextNearExtra && extraNearSota));
 
     // STEP 5: Institutional Financial Decision Memo (supports switching between Standard Outlook & any of the 4 scenarios)
@@ -1408,8 +1460,9 @@
     const scenOverlay = activeSc
       ? buildScenarioViewRows(res.monthlyRows, res.bfCost, activeSc.cutoff)
       : (res.expectedActiveMonths < 12
-          ? buildScenarioViewRows(res.monthlyRows, res.bfCost, res.expectedActiveMonths)
+          ? buildScenarioViewRows(res.monthlyRows, res.bfCost, res.expectedActiveMask)
           : null);
+    const spanPartsText = formatSpanParts(res, lang);
 
     document.querySelectorAll('[data-disp-cur]').forEach((btn) => {
       btn.classList.toggle('is-active', btn.dataset.dispCur === dispCur);
@@ -1421,8 +1474,7 @@
     document.getElementById('scen-footnote').textContent = t('step4.scenFootnoteCur', {
       cur: dispCur,
       ev: fmtYen(res.expectedNetSavings, true),
-      k: res.sotaCutoff,
-      extra: res.postSotaExtraMonths,
+      parts: spanPartsText,
       m: res.expectedActiveMonths,
     });
 
@@ -1487,8 +1539,7 @@
       const rateStr = `${res.evReturnPct >= 0 ? '+' : ''}${res.evReturnPct.toFixed(1)}%`;
       document.getElementById('memo-ev-rate').textContent = res.bfCost > 0
         ? t('step4.evRateFormula', {
-            k: res.sotaCutoff,
-            extra: res.postSotaExtraMonths,
+            parts: spanPartsText,
             m: res.expectedActiveMonths,
             rate: rateStr,
           })
@@ -1505,20 +1556,17 @@
         probSubEl.textContent = t('step4.condProbImpossible');
       } else if (res.monthMargin > 0) {
         probSubEl.textContent = t('step4.condProbAbove', {
-          k: res.sotaCutoff,
-          extra: res.postSotaExtraMonths,
+          parts: spanPartsText,
           gap: res.monthMargin,
         });
       } else if (res.monthMargin === 0) {
         probSubEl.textContent = t('step4.condProbExact', {
-          k: res.sotaCutoff,
-          extra: res.postSotaExtraMonths,
+          parts: spanPartsText,
           line: res.breakEvenMonthNum,
         });
       } else {
         probSubEl.textContent = t('step4.condProbBelow', {
-          k: res.sotaCutoff,
-          extra: res.postSotaExtraMonths,
+          parts: spanPartsText,
           gap: Math.abs(res.monthMargin || 0),
         });
       }
@@ -1594,8 +1642,10 @@
     const evPillCls = evRoundedNum > 0 ? 'is-pos' : evRoundedNum < 0 ? 'is-neg' : 'is-zero';
     const isStdActive = !activeSc;
     const stdSubTxt = res.expectedActiveMonths >= 12
-      ? t('step4.scenStdSubFull', { k: res.sotaCutoff, extra: res.postSotaExtraMonths })
-      : t('step4.scenStdSub', { k: res.sotaCutoff, extra: res.postSotaExtraMonths });
+      ? t('step4.scenStdSubFull', { parts: spanPartsText })
+      : res.nextGenInTerm && res.gapInactiveMonths > 0
+        ? t('step4.scenStdSub', { parts: spanPartsText, gap: res.gapInactiveMonths })
+        : t('step4.scenStdSubNoGap', { parts: spanPartsText });
     const stdRowHtml = `
       <tr class="fin-row-selectable fin-row-standard ${isStdActive ? 'fin-row-active' : ''}" data-scenario-id="__ev__" role="button" tabindex="0" aria-pressed="${isStdActive ? 'true' : 'false'}">
         <td>
@@ -2499,11 +2549,12 @@
         res.crossoverMonthIndex !== null
           ? getMonthLabel(res.crossoverMonthIndex)
           : t('step4.condCrossNone');
+      const partsTxt = formatSpanParts(res, lang);
       const lines = (lang === 'en-US'
         ? [
             '[Do You Really Need Gemini Pro Black Friday?]',
             `- Verdict: ${res.verdict.badge} (${res.verdict.headline})`,
-            `- Expected Active Span: ${res.expectedActiveMonths} mo (${res.sotaCutoff} mo SOTA + ${res.postSotaExtraMonths} mo post-SOTA · Payback: ${lineStr})`,
+            `- Expected Active Span: ${res.expectedActiveMonths} mo (${partsTxt} · Payback: ${lineStr})`,
             `- Plan A (No BF) vs Buy (at ${res.expectedActiveMonths} mo): ${fmtYen(res.totalSkipCost)} vs ${fmtYen(res.expectedBuyCost)}`,
             `- Expected Net Savings: ${fmtYen(res.expectedNetSavings, true)}`,
             `- Cumulative Payback: ${crossStr}`,
@@ -2512,11 +2563,11 @@
         : [
             '【AI 黑五包年决策账本】',
             `- 结论：${res.verdict.badge}（${res.verdict.headline}）`,
-            `- 预期使用时长：共 ${res.expectedActiveMonths} 个月（SOTA ${res.sotaCutoff} 月 + 后续多用 ${res.postSotaExtraMonths} 月 · 回本线：${lineStr}）`,
+            `- 预期生效时长：共 ${res.expectedActiveMonths} 个月（${partsTxt} · 回本线：${lineStr}）`,
             `- 总花费对照：不买黑五 ${fmtYen(res.totalSkipCost)} vs 按预期买入支出 ${fmtYen(res.expectedBuyCost)}`,
             `- 预期净节省：${fmtYen(res.expectedNetSavings, true)}`,
             `- 累计回本节点：${crossStr}`,
-            `- 仅用 SOTA（${res.sotaCutoff} 月）/ 用满全年（12 月）：${fmtYen(res.downsideNet, true)} / ${fmtYen(res.upsideNet, true)}`,
+            `- 仅用本次 SOTA（${res.sotaCutoff} 月）/ 用满全年（12 月）：${fmtYen(res.downsideNet, true)} / ${fmtYen(res.upsideNet, true)}`,
           ]).join('\n');
 
       try {
