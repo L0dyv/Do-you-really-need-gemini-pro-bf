@@ -164,16 +164,6 @@
       <div class="step-kicker mono">STEP 02 / 05</div>
       <div class="step-title-bar">
         <h1 class="page-title" style="margin-bottom:0;" data-i18n="step2.titleA">如果不买黑五，你会怎么订？</h1>
-        <div class="step2-hero-actions">
-          <select class="ghost-select" id="inp-plan-template" aria-label="整年模板">
-            <option value="" data-i18n="step2.tplPlaceholder">整年模板...</option>
-            <option value="region_pro" data-i18n="step2.tplRegionPro">按当前地区填充全年 12 月 Pro</option>
-            <option value="default" data-i18n="step2.tplDefault">12-3月土区旧价 Ultra / 4-11月月付 Pro</option>
-            <option value="offseason_only" data-i18n="step2.tplOffseason">1-3月 Ultra / 4-8月 Pro / 9-11月不买</option>
-            <option value="replace_gpt" data-i18n="step2.tplReplaceGpt">12-3月 Ultra / 4-11月 ChatGPT Plus</option>
-            <option value="empty" data-i18n="step2.tplEmpty">清空全年（全部不买）</option>
-          </select>
-        </div>
       </div>
 
       <!-- Fixed-height Toolbar Slot (Zero Layout Shift when Selection Bar appears) -->
@@ -227,7 +217,6 @@
       <div class="step-title-bar">
         <h1 class="page-title" style="margin-bottom:0;" data-i18n="step2b.titleB">如果买了黑五 Pro，你还会怎么订？</h1>
         <div class="step2-hero-actions">
-          <button type="button" class="subtle-btn btn-sm" id="btn-auto-drop-pro" data-i18n="step2b.dropProBtn">一键划掉重复的 Gemini Pro</button>
           <button type="button" class="ghost-btn" id="btn-sync-all-b" data-i18n="step2b.syncAllBtn">全部恢复与上一步同步</button>
         </div>
       </div>
@@ -236,7 +225,7 @@
       <div class="db-toolbar-slot">
         <div class="db-header-line" id="db-b-header-line">
           <div class="db-header-left">
-            <span class="db-view-hint" data-i18n="step2b.hintB">每月已固定包含「黑五 Gemini Pro」（不可删改），其余订阅默认同步自上一步；在有变化的月份点 × 划掉省下的订阅，或拖动勾选批量修改</span>
+            <span class="db-view-hint" data-i18n="step2b.hintB">每月已固定包含「黑五 Gemini Pro」（自动抵扣上一步中的 1 份月付 Gemini Pro）；其余订阅默认同步，如需微调可点 × 划掉或拖动多选</span>
           </div>
         </div>
 
@@ -386,8 +375,14 @@
       <div class="step-kicker mono">STEP 05 / 05 · DECISION MEMO</div>
       <div class="memo-header">
         <div class="memo-title-row">
-          <h1 class="page-title memo-page-title" data-i18n="step4.memoTitle">黑五订阅决策</h1>
-          <span class="tag" id="verdict-badge">计算中</span>
+          <div class="memo-title-left">
+            <h1 class="page-title memo-page-title" data-i18n="step4.memoTitle">黑五订阅决策</h1>
+            <span class="tag" id="verdict-badge">计算中</span>
+          </div>
+          <div class="currency-switch mono" id="memo-currency-switch" role="group" aria-label="结算展示币种">
+            <button type="button" class="cur-opt" data-disp-cur="CNY">CNY ¥</button>
+            <button type="button" class="cur-opt" data-disp-cur="USD">USD $</button>
+          </div>
         </div>
         <p class="memo-headline" id="verdict-headline"></p>
         <p class="page-lead memo-detail" id="verdict-detail"></p>
@@ -396,7 +391,7 @@
       <!-- Institutional 2:1 Hero Financial Block -->
       <div class="memo-hero">
         <div class="memo-hero-primary">
-          <div class="memo-ev-label" data-i18n="step4.heroEvLabel">12 个月期望净节省 (EV) · CNY</div>
+          <div class="memo-ev-label" id="memo-ev-label">12 个月期望净节省 (EV) · CNY</div>
           <div class="memo-ev-value mono" id="memo-ev-hero">--</div>
           <div class="memo-ev-meta mono" id="memo-ev-rate"></div>
         </div>
@@ -451,22 +446,22 @@
       <div class="doc-block">
         <div class="block-head">
           <h2 class="block-title" data-i18n="step4.scenTitle">四种情景对照</h2>
-          <span class="block-note mono" data-i18n="step4.scenNote">单位：CNY · 买入支出含今日预付</span>
+          <span class="block-note mono" id="scen-unit-note">单位：CNY · 买入支出含今日预付</span>
         </div>
         <div class="notion-db-wrap">
           <table class="notion-db fin-table">
             <thead>
               <tr>
                 <th data-i18n="step4.scenColTitle">情景</th>
-                <th class="num" data-i18n="step4.scenColBuy">买入支出 (CNY)</th>
-                <th class="num" data-i18n="step4.scenColSkip">月付支出 (CNY)</th>
-                <th class="num" data-i18n="step4.scenColDiff">净节省 (CNY)</th>
+                <th class="num" id="th-scen-buy">买入支出 (CNY)</th>
+                <th class="num" id="th-scen-skip">月付支出 (CNY)</th>
+                <th class="num" id="th-scen-diff">净节省 (CNY)</th>
               </tr>
             </thead>
             <tbody id="scenarios-tbody"></tbody>
           </table>
         </div>
-        <p class="fin-footnote" id="scen-footnote" data-i18n="step4.scenFootnote">净节省 = 月付支出 − 买入支出。金额为各行所示期间的名义人民币支出，买入支出含今日预付。</p>
+        <p class="fin-footnote" id="scen-footnote"></p>
       </div>
 
       <div class="doc-block">

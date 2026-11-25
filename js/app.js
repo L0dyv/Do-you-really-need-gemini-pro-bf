@@ -19,12 +19,14 @@
     DEFAULT_FX_ANNUAL_PCT,
     DEFAULT_STATE,
     FX_CURRENCY_META,
+    FX_RATES,
     HISTORICAL_TIMELINE,
     MONTHS,
     PLAN_BRAND_GROUPS,
     SCENARIO_PRESETS,
     TRY_FX_HISTORY,
     buildPlanPair,
+    deriveSyncedBuyBasket,
     deriveDefaultBuyPlans,
     makeSubItem,
   } = window.SubLedgerData;
@@ -66,6 +68,7 @@
   let state = loadState();
   let currentStep = 0;
   let maxVisitedStep = 0;
+  let displayCurrency = getLang() === 'en-US' ? 'USD' : 'CNY';
   let selectedMonths = new Set();  // Step 2 (Plan A) selection
   let selectedMonthsB = new Set(); // Step 3 (Plan B) selection
   let lastCheckedIdx = null;
@@ -182,22 +185,42 @@
     }
   }
 
+  function getDisplayCurrency() {
+    return displayCurrency === 'USD' ? 'USD' : 'CNY';
+  }
+
+  function convertDisplay(cnyVal) {
+    return getDisplayCurrency() === 'USD'
+      ? cnyVal / FX_RATES.CNY_PER_USD
+      : cnyVal;
+  }
+
   function fmtYen(n, withSign) {
-    const rounded = Math.round(n);
+    const cur = getDisplayCurrency();
+    const sym = cur === 'USD' ? '$' : '¥';
+    const val = convertDisplay(n);
+    const rounded = Math.round(val);
     if (withSign) {
-      if (rounded === 0) return '¥0';
-      return `${rounded > 0 ? '+' : '-'}¥${Math.abs(rounded).toLocaleString('zh-CN')}`;
+      if (rounded === 0) return `${sym}0`;
+      return `${rounded > 0 ? '+' : '-'}${sym}${Math.abs(rounded).toLocaleString('en-US')}`;
     }
-    return `¥${rounded.toLocaleString('zh-CN')}`;
+    return `${sym}${rounded.toLocaleString('en-US')}`;
+  }
+
+  function fmtMoneyDec(n, decimals) {
+    const cur = getDisplayCurrency();
+    const sym = cur === 'USD' ? '$' : '¥';
+    const val = convertDisplay(n);
+    return `${sym}${val.toFixed(decimals != null ? decimals : 1)}`;
   }
 
   function fmtNum(n, withSign) {
-    const rounded = Math.round(n);
+    const rounded = Math.round(convertDisplay(n));
     if (withSign) {
       if (rounded === 0) return '0';
-      return `${rounded > 0 ? '+' : '-'}${Math.abs(rounded).toLocaleString('zh-CN')}`;
+      return `${rounded > 0 ? '+' : '-'}${Math.abs(rounded).toLocaleString('en-US')}`;
     }
-    return rounded.toLocaleString('zh-CN');
+    return rounded.toLocaleString('en-US');
   }
 
   function fmtNativeAmount(amount, currency) {
@@ -322,7 +345,7 @@
     ensureBuyArrays();
     if (column === 'B') {
       return state.buyMonthSynced[mIdx]
-        ? (Array.isArray(state.monthPlans[mIdx]) ? state.monthPlans[mIdx] : [])
+        ? deriveSyncedBuyBasket(state.monthPlans[mIdx])
         : (Array.isArray(state.buyMonthPlans[mIdx]) ? state.buyMonthPlans[mIdx] : []);
     }
     return Array.isArray(state.monthPlans[mIdx]) ? state.monthPlans[mIdx] : [];
@@ -331,8 +354,7 @@
   function unsyncBuyMonth(mIdx) {
     ensureBuyArrays();
     if (state.buyMonthSynced[mIdx]) {
-      const src = Array.isArray(state.monthPlans[mIdx]) ? state.monthPlans[mIdx] : [];
-      state.buyMonthPlans[mIdx] = cloneState(src);
+      state.buyMonthPlans[mIdx] = cloneState(deriveSyncedBuyBasket(state.monthPlans[mIdx]));
       state.buyMonthSynced[mIdx] = false;
     } else if (!Array.isArray(state.buyMonthPlans[mIdx])) {
       state.buyMonthPlans[mIdx] = [];
@@ -572,7 +594,7 @@
     exportEl.style.display = 'none';
 
     render();
-    const res = calculateLedger(state, getLang());
+    const res = calculateLedger(state, getLang(), getDisplayCurrency());
 
     const counterEl = document.getElementById('calc-replay-counter');
     const ticksEl = document.getElementById('calc-replay-ticks');
@@ -862,13 +884,20 @@
   const PHASE_CUE_SVG =
     '<span class="phase-pill-cue" aria-hidden="true"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 5h12M2 11h12"/><circle cx="6" cy="5" r="1.8" fill="currentColor"/><circle cx="10.5" cy="11" r="1.8" fill="currentColor"/></svg></span>';
 
-  function renderPillStack(column, rowIdx, items, isSyncedGhost) {
+  function renderPillStack(column, rowIdx, items, isSyncedGhost, baselineItemsA) {
     const addTitle = escapeHtml(t('step2.addAnotherTitle'));
     const removeTitle = escapeHtml(t('step2.removeItemTitle'));
 
     if (!items || items.length === 0) {
       if (column === 'B') {
         if (isSyncedGhost) {
+          const autoOffsetCovered = Array.isArray(baselineItemsA) && baselineItemsA.length > 0;
+          if (autoOffsetCovered) {
+            return `
+              <div class="bf-compare-cell">
+                <button type="button" class="bf-no-extra-pill" data-open-picker="B:${rowIdx}:" title="${addTitle}">${escapeHtml(t('step2.bfNoExtra'))} <span aria-hidden="true">▾</span></button>
+              </div>`;
+          }
           return `
             <div class="bf-compare-cell">
               <button type="button" class="cell-pill-btn tone-empty" data-open-picker="B:${rowIdx}:">
@@ -989,10 +1018,13 @@
     document.getElementById('db-b-months-tbody').innerHTML = res.monthlyRows
       .map((row) => {
         const isSelB = selectedMonthsB.has(row.index);
-        const buyIds = new Set(row.buyItems.map((it) => it.id));
+        const buyQtyById = new Map();
+        row.buyItems.forEach((it) => {
+          buyQtyById.set(it.id, (buyQtyById.get(it.id) || 0) + Math.max(1, Number(it.qty) || 1));
+        });
         const refAHtml = row.items.length > 0
           ? `<div class="ref-pills-wrap">${row.items.map((it) => {
-              const dropped = !row.buySynced && !buyIds.has(it.id);
+              const dropped = (buyQtyById.get(it.id) || 0) === 0;
               return `<span class="ref-mini-pill tag-${it.tone || 'gray'} ${dropped ? 'is-dropped' : ''}">${escapeHtml(formatItemPillLabel(it))}</span>`;
             }).join('')}</div>`
           : '<span class="ref-empty-dash">—</span>';
@@ -1003,7 +1035,7 @@
             <div class="cell-pills-wrap">
               ${lockedPillHtml}
               <span class="bf-row-plus" aria-hidden="true">+</span>
-              ${renderPillStack('B', row.index, row.buyItems, row.buySynced)}
+              ${renderPillStack('B', row.index, row.buyItems, row.buySynced, row.items)}
             </div>
           </div>`;
 
@@ -1097,10 +1129,11 @@
     const lblD = t('step4.payoffDownLabel', { k: res.sotaCutoff });
     const lblU = t('step4.payoffUpLabel');
 
+    const zeroAxisLabel = getDisplayCurrency() === 'USD' ? '$0' : '¥0';
     container.innerHTML = `
       <svg class="payoff-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Downside and Upside payoff comparison">
         <line x1="${xZero.toFixed(1)}" y1="8" x2="${xZero.toFixed(1)}" y2="${H - 8}" stroke="#d3d1cb" stroke-width="1.2"/>
-        <text x="${xZero.toFixed(1)}" y="${H - 1}" text-anchor="middle" fill="#9b9a97" font-size="10.5" font-family="JetBrains Mono, monospace">¥0</text>
+        <text x="${xZero.toFixed(1)}" y="${H - 1}" text-anchor="middle" fill="#9b9a97" font-size="10.5" font-family="JetBrains Mono, monospace">${zeroAxisLabel}</text>
 
         <!-- Row 1: Downside D -->
         <text x="2" y="27" fill="#37352f" font-size="12.5" font-weight="500">${escapeHtml(lblD)}</text>
@@ -1130,12 +1163,20 @@
     const plotW = width - padL - padR;
     const plotH = height - padT - padB;
 
-    const maxY = Math.max(600, res.bfCost, ...rows.map((r) => Math.max(r.cumBuy, r.cumSkip)));
-    const niceMaxY = Math.ceil(maxY / 500) * 500;
+    const cur = getDisplayCurrency();
+    const sym = cur === 'USD' ? '$' : '¥';
+    const maxYDisp = Math.max(
+      cur === 'USD' ? 100 : 600,
+      convertDisplay(res.bfCost),
+      ...rows.map((r) => Math.max(convertDisplay(r.cumBuy), convertDisplay(r.cumSkip)))
+    );
+    const stepUnit = cur === 'USD' ? 100 : 500;
+    const niceMaxYDisp = Math.ceil(maxYDisp / stepUnit) * stepUnit;
 
     // 13 x-positions: 0 = Today (Now), 1..12 = months 0..11
     const xAt = (idx) => padL + (idx / rows.length) * plotW;
-    const yAt = (val) => padT + plotH - (val / niceMaxY) * plotH;
+    const yAtDisp = (dispVal) => padT + plotH - (dispVal / niceMaxYDisp) * plotH;
+    const yAt = (cnyVal) => yAtDisp(convertDisplay(cnyVal));
 
     const buyPts = [
       `${xAt(0).toFixed(1)},${yAt(res.bfCost).toFixed(1)}`,
@@ -1148,11 +1189,11 @@
 
     const gridLines = [];
     for (let s = 0; s <= 4; s++) {
-      const val = (niceMaxY / 4) * s;
-      const y = yAt(val).toFixed(1);
+      const val = (niceMaxYDisp / 4) * s;
+      const y = yAtDisp(val).toFixed(1);
       gridLines.push(`
         <line x1="${padL}" y1="${y}" x2="${width - padR}" y2="${y}" stroke="#e9e9e7" stroke-width="1"/>
-        <text x="${padL - 10}" y="${Number(y) + 4}" text-anchor="end" fill="#9b9a97" font-size="11" font-family="JetBrains Mono, monospace">¥${Math.round(val)}</text>
+        <text x="${padL - 10}" y="${Number(y) + 4}" text-anchor="end" fill="#9b9a97" font-size="11" font-family="JetBrains Mono, monospace">${sym}${Math.round(val)}</text>
       `);
     }
 
@@ -1235,7 +1276,7 @@
         </thead>
         <tbody>${bodyRows}</tbody>
       </table>
-      <p class="sens-note">${escapeHtml(t('step4.sensNote'))}</p>`;
+      <p class="sens-note">${escapeHtml(t('step4.sensNoteCur', { cur: getDisplayCurrency() }))}</p>`;
   }
 
   function render() {
@@ -1246,7 +1287,7 @@
     document.querySelectorAll('[data-lang-opt]').forEach((el) => {
       el.classList.toggle('is-active', el.dataset.langOpt === lang);
     });
-    const res = calculateLedger(state, lang);
+    const res = calculateLedger(state, lang, getDisplayCurrency());
 
     document.querySelectorAll('.step').forEach((sec) => {
       sec.classList.toggle('is-active', Number(sec.dataset.step) === currentStep);
@@ -1358,7 +1399,19 @@
       }
     }
 
-    // STEP 4: Institutional Financial Decision Memo
+    // STEP 5: Institutional Financial Decision Memo
+    const dispCur = getDisplayCurrency();
+    const dispSym = dispCur === 'USD' ? '$' : '¥';
+    document.querySelectorAll('[data-disp-cur]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.dispCur === dispCur);
+    });
+    document.getElementById('memo-ev-label').textContent = t('step4.heroEvLabelCur', { cur: dispCur });
+    document.getElementById('scen-unit-note').textContent = t('step4.scenNoteCur', { cur: dispCur });
+    document.getElementById('th-scen-buy').textContent = t('step4.scenColBuyCur', { cur: dispCur });
+    document.getElementById('th-scen-skip').textContent = t('step4.scenColSkipCur', { cur: dispCur });
+    document.getElementById('th-scen-diff').textContent = t('step4.scenColDiffCur', { cur: dispCur });
+    document.getElementById('scen-footnote').textContent = t('step4.scenFootnoteCur', { cur: dispCur });
+
     const badge = document.getElementById('verdict-badge');
     badge.className = `tag tag-${res.verdict.tone}`;
     badge.textContent = res.verdict.badge;
@@ -1366,14 +1419,14 @@
     document.getElementById('verdict-detail').textContent = res.verdict.detail;
 
     // Hero EV value (crisp ink numeral + colored sign)
-    const evRounded = Math.round(res.expectedNetSavings);
+    const evRounded = Math.round(convertDisplay(res.expectedNetSavings));
     const evHeroEl = document.getElementById('memo-ev-hero');
     if (evRounded > 0) {
-      evHeroEl.innerHTML = `<span class="ev-sign-pos">+</span>¥${Math.abs(evRounded).toLocaleString('zh-CN')}`;
+      evHeroEl.innerHTML = `<span class="ev-sign-pos">+</span>${dispSym}${Math.abs(evRounded).toLocaleString('en-US')}`;
     } else if (evRounded < 0) {
-      evHeroEl.innerHTML = `<span class="ev-sign-neg">-</span>¥${Math.abs(evRounded).toLocaleString('zh-CN')}`;
+      evHeroEl.innerHTML = `<span class="ev-sign-neg">-</span>${dispSym}${Math.abs(evRounded).toLocaleString('en-US')}`;
     } else {
-      evHeroEl.textContent = '¥0';
+      evHeroEl.textContent = `${dispSym}0`;
     }
     const rateStr = `${res.evReturnPct >= 0 ? '+' : ''}${res.evReturnPct.toFixed(1)}%`;
     document.getElementById('memo-ev-rate').textContent = res.bfCost > 0
@@ -1405,7 +1458,7 @@
         : t('step4.condCrossNone');
     document.getElementById('memo-cond-crossover-sub').textContent =
       Number.isFinite(res.equivalentUsageMonths) && res.proCoveredMonths > 0
-        ? t('step4.condCrossSub', { n: res.equivalentUsageMonths.toFixed(1), avg: Math.round(res.avgProPrice) })
+        ? t('step4.condCrossSub', { n: res.equivalentUsageMonths.toFixed(1), avg: fmtYen(res.avgProPrice) })
         : t('step4.condCrossSubInf');
 
     // Hairline Upfront & Idle Strip
@@ -1415,7 +1468,7 @@
     document.getElementById('memo-strip').innerHTML = `
       <span>${escapeHtml(t('step4.stripUpfront', { bf: fmtYen(res.bfCost) }))}</span>
       <span class="memo-strip-sep">·</span>
-      <span>${escapeHtml(t('step4.stripMonthly', { avg: res.bfMonthlyAvg.toFixed(1) }))}</span>
+      <span>${escapeHtml(t('step4.stripMonthly', { avg: fmtMoneyDec(res.bfMonthlyAvg, 1) }))}</span>
       <span class="memo-strip-sep">·</span>
       <span>${escapeHtml(idleStripPart)}</span>`;
 
@@ -1539,9 +1592,17 @@
     document.getElementById('btn-lang-toggle').addEventListener('click', () => {
       const next = getLang() === 'zh-CN' ? 'en-US' : 'zh-CN';
       setLang(next);
+      displayCurrency = next === 'en-US' ? 'USD' : 'CNY';
       renderStaticTables();
       render();
       showToast(t('toast.langSwitched'));
+    });
+
+    document.getElementById('memo-currency-switch').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-disp-cur]');
+      if (!btn) return;
+      displayCurrency = btn.dataset.dispCur === 'USD' ? 'USD' : 'CNY';
+      render();
     });
 
     document.getElementById('btn-reset').addEventListener('click', () => {
@@ -1603,30 +1664,6 @@
     // Step 2 & Step 3: Tune Lifecycle shortcuts + Plan B toolbar actions
     document.getElementById('btn-th-phase').addEventListener('click', jumpToLifecycleSection);
     document.getElementById('btn-th-b-phase').addEventListener('click', jumpToLifecycleSection);
-
-    document.getElementById('btn-auto-drop-pro').addEventListener('click', () => {
-      ensureBuyArrays();
-      let droppedCount = 0;
-      for (let m = 0; m < 12; m++) {
-        const curB = getColumnBasket('B', m);
-        const proIdx = curB.findIndex((it) => it && (it.isGeminiPro || it.dynamicPrice === 'gemini_pro'));
-        if (proIdx >= 0) {
-          if (droppedCount === 0) recordUndoSnapshot();
-          unsyncBuyMonth(m);
-          const target = state.buyMonthPlans[m][proIdx];
-          const qty = Math.max(1, Number(target && target.qty) || 1);
-          // 1 Black Friday seat can offset at most 1 monthly Gemini Pro seat per month!
-          if (qty > 1) {
-            target.qty = qty - 1;
-          } else {
-            state.buyMonthPlans[m].splice(proIdx, 1);
-          }
-          droppedCount += 1;
-        }
-      }
-      render();
-      showToast(droppedCount > 0 ? t('toast.droppedPro', { n: droppedCount }) : t('toast.droppedProNone'));
-    });
 
     document.getElementById('btn-sync-all-b').addEventListener('click', () => {
       recordUndoSnapshot();
@@ -1709,23 +1746,6 @@
       pickerState = null;
       render();
       showToast(t('step2b.syncedN', { n: indices.length }));
-    });
-
-    document.getElementById('inp-plan-template').addEventListener('change', (e) => {
-      const key = e.target.value;
-      if (!key) return;
-      recordUndoSnapshot();
-      const preset = BF_DEAL_PRESETS[state.bfPreset];
-      const regionProId = (preset && preset.defaultMonthlyProId) || 'gemini_pro_tr';
-      const pair = buildPlanPair(key, regionProId);
-      state.monthPlans = pair.monthPlans;
-      state.buyMonthPlans = pair.buyMonthPlans;
-      state.buyMonthSynced = pair.buyMonthSynced;
-      state.monthEdited = Array(12).fill(key !== 'region_pro');
-      pickerState = null;
-      e.target.value = '';
-      render();
-      showToast(t('toast.templateApplied'));
     });
 
     document.getElementById('btn-open-batch-picker').addEventListener('click', (e) => {
@@ -2282,8 +2302,9 @@
 
     document.getElementById('btn-copy-hd-img').addEventListener('click', async () => {
       const lang = getLang();
-      const res = calculateLedger(state, lang);
-      const svg = buildSummarySvg(state, res, lang);
+      const cur = getDisplayCurrency();
+      const res = calculateLedger(state, lang, cur);
+      const svg = buildSummarySvg(state, res, lang, cur);
       try {
         const pngBlob = await svgToHighResPngBlob(svg, 3);
         if (navigator.clipboard && typeof window.ClipboardItem !== 'undefined') {
@@ -2306,8 +2327,9 @@
 
     document.getElementById('btn-export-svg').addEventListener('click', () => {
       const lang = getLang();
-      const res = calculateLedger(state, lang);
-      const svg = buildSummarySvg(state, res, lang);
+      const cur = getDisplayCurrency();
+      const res = calculateLedger(state, lang, cur);
+      const svg = buildSummarySvg(state, res, lang, cur);
       const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
       triggerDownload(blob, 'do-you-really-need-gemini-pro-bf.svg');
       showToast(t('toast.exportedSvg'));
@@ -2315,8 +2337,9 @@
 
     document.getElementById('btn-export-html').addEventListener('click', () => {
       const lang = getLang();
-      const res = calculateLedger(state, lang);
-      const html = buildStandaloneHtml(state, res, lang);
+      const cur = getDisplayCurrency();
+      const res = calculateLedger(state, lang, cur);
+      const html = buildStandaloneHtml(state, res, lang, cur);
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       triggerDownload(blob, 'do-you-really-need-gemini-pro-bf-report.html');
       showToast(t('toast.exportedHtml'));
@@ -2324,7 +2347,7 @@
 
     document.getElementById('btn-copy-summary').addEventListener('click', async () => {
       const lang = getLang();
-      const res = calculateLedger(state, lang);
+      const res = calculateLedger(state, lang, getDisplayCurrency());
       const lineStr =
         res.breakEvenProbStatus === 'already_even'
           ? (lang === 'en-US' ? 'Locked in SOTA span' : '主力期内已回本')
