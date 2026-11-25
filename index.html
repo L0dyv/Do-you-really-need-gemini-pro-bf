@@ -342,37 +342,37 @@
           </div>
 
           <div class="phase-modal-legend">
-            <span class="phase-pill is-legend phase-honeymoon" data-i18n="modal.legendHoneymoon">SOTA 领先期（1–3月）</span>
+            <span class="phase-pill is-legend phase-honeymoon" data-i18n="modal.legendHoneymoon">SOTA 领先期</span>
             <span class="phase-pill is-legend phase-steady" data-i18n="modal.legendSteady">第一梯队稳态</span>
             <span class="phase-pill is-legend phase-risk" data-i18n="modal.legendRisk">空窗/掉队风险</span>
             <span class="phase-pill is-legend phase-next_gen" data-i18n="modal.legendNext">新旗舰窗口</span>
           </div>
 
           <div class="prop-row" style="margin-top: 8px;">
-            <span class="prop-key" data-i18n="modal.retainKey">SOTA 期后留存把握 (p)</span>
+            <span class="prop-key" data-i18n="modal.retainKey">SOTA 掉队后惯性多用</span>
             <div class="prop-val prop-val-slider">
-              <input type="range" id="inp-retain-prob" min="0" max="100" step="5" />
-              <span class="mono val-badge" id="lbl-retain-prob">65%</span>
+              <input type="range" id="inp-post-sota-extra" min="0" max="5" step="1" />
+              <span class="mono val-badge" id="lbl-post-sota-extra">+3 个月</span>
             </div>
           </div>
-          <p class="muted-note" id="help-retain-prob" style="padding: 4px 4px 6px;"></p>
+          <p class="muted-note" id="help-post-sota-extra" style="padding: 4px 4px 6px;"></p>
         </div>
 
         <div class="ev-block" style="margin-top: 20px;">
           <div class="ev-top">
-            <span data-i18n="modal.evTitle">主观留存把握 vs 数学盈亏平衡线</span>
+            <span data-i18n="modal.evTitle">你的预期使用时长 vs 累计回本节点</span>
             <span class="mono" id="lbl-ev-gap">--</span>
           </div>
           <div class="ev-track">
             <div class="ev-threshold" id="ev-threshold-line">
-              <span class="ev-threshold-tag mono" id="ev-threshold-tag">盈亏线</span>
+              <span class="ev-threshold-tag mono" id="ev-threshold-tag">回本线</span>
             </div>
             <div class="ev-dot" id="ev-user-dot"></div>
           </div>
           <div class="ev-axis mono">
-            <span data-i18n="modal.evLeft">0%（SOTA 止即停用）</span>
-            <span>50%</span>
-            <span data-i18n="modal.evRight">100%（按计划用满全年）</span>
+            <span data-i18n="modal.evLeft">0 个月</span>
+            <span data-i18n="modal.evMid">6 个月</span>
+            <span data-i18n="modal.evRight">12 个月（用满全年）</span>
           </div>
         </div>
 
@@ -424,7 +424,7 @@
         </div>
         <dl class="memo-hero-conds">
           <div class="memo-cond-item">
-            <dt data-i18n="step4.condProbLabel">留存把握</dt>
+            <dt data-i18n="step4.condProbLabel">预期使用时长</dt>
             <dd>
               <strong class="mono" id="memo-cond-prob">--</strong>
               <span class="memo-cond-sub mono" id="memo-cond-prob-sub">--</span>
@@ -515,7 +515,7 @@
           </details>
 
           <details class="notion-toggle" id="sensitivity-toggle">
-            <summary data-i18n="step4.toggleSensitivity">3 × 3 敏感性矩阵（留存把握 ±10pp × 汇率 ±5pp）</summary>
+            <summary data-i18n="step4.toggleSensitivity">3 × 3 敏感性矩阵（使用时长 ±2 月 × 汇率 ±5pp）</summary>
             <div class="toggle-body" id="sensitivity-container"></div>
           </details>
 

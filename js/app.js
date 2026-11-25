@@ -165,8 +165,21 @@
         plansB = derived.buyMonthPlans;
         syncedB = derived.buyMonthSynced;
       }
+      const sotaLen = Math.min(12, Math.max(1, Number(parsed.effectiveSotaMonths) || DEFAULT_STATE.effectiveSotaMonths));
+      const maxExtra = Math.max(0, 12 - sotaLen);
+      let migratedExtra;
+      if (parsed.postSotaExtraMonths != null && Number.isFinite(Number(parsed.postSotaExtraMonths))) {
+        migratedExtra = Math.min(maxExtra, Math.max(0, Math.round(Number(parsed.postSotaExtraMonths))));
+      } else if (parsed.retainProbPct != null && Number.isFinite(Number(parsed.retainProbPct))) {
+        const legacyP = Math.min(100, Math.max(0, Number(parsed.retainProbPct))) / 100;
+        migratedExtra = Math.min(maxExtra, Math.max(0, Math.round(legacyP * maxExtra)));
+      } else {
+        migratedExtra = Math.min(maxExtra, DEFAULT_STATE.postSotaExtraMonths);
+      }
       return Object.assign(createInitialUiState(), parsed, {
         fxAnnualChangePct: Object.assign({}, DEFAULT_FX_ANNUAL_PCT),
+        effectiveSotaMonths: sotaLen,
+        postSotaExtraMonths: migratedExtra,
         monthPlans: plansA,
         buyMonthPlans: plansB,
         buyMonthSynced: syncedB,
@@ -660,23 +673,28 @@
       );
     }
 
-    // 820–980ms: EV weighting summary
+    // 820–980ms: Expected active usage span summary
     calcTimers.push(
       setTimeout(() => {
         ticks.forEach((tk) => {
           tk.classList.add('is-lit');
           tk.classList.remove('is-active');
         });
-        const wU = Math.round(Number(state.retainProbPct) || 0);
-        const wD = 100 - wU;
-        statusEl.textContent = `${t('step4.replayWeight', { wD, wU })} · D ${fmtYen(res.downsideNet, true)} / U ${fmtYen(res.upsideNet, true)}`;
+        statusEl.textContent = t('step4.replayWeight', {
+          k: res.sotaCutoff,
+          extra: res.postSotaExtraMonths,
+          m: res.expectedActiveMonths,
+        });
       }, 820)
     );
 
     // 1020ms: Final reveal
     calcTimers.push(
       setTimeout(() => {
-        statusEl.textContent = t('step4.replayDone', { ev: fmtYen(res.expectedNetSavings, true) });
+        statusEl.textContent = t('step4.replayDone', {
+          m: res.expectedActiveMonths,
+          ev: fmtYen(res.expectedNetSavings, true),
+        });
         isCalculatingFinal = false;
         stageEl.style.display = 'none';
         resultEl.style.display = 'block';
@@ -804,7 +822,11 @@
     document.getElementById('inp-bf-raw').value = state.bfRawAmount != null ? state.bfRawAmount : state.bfCostCny;
     document.getElementById('inp-sota-len').value = state.effectiveSotaMonths;
     document.getElementById('inp-next-interval').value = state.nextFlagshipInterval;
-    document.getElementById('inp-retain-prob').value = state.retainProbPct;
+    const maxExtra = Math.max(0, 12 - (Number(state.effectiveSotaMonths) || 7));
+    const extraEl = document.getElementById('inp-post-sota-extra');
+    extraEl.max = String(maxExtra);
+    extraEl.value = String(Math.min(maxExtra, Math.max(0, Number(state.postSotaExtraMonths) || 0)));
+    extraEl.disabled = maxExtra === 0;
   }
 
   function isStepUnlocked(idx) {
@@ -1197,7 +1219,7 @@
     `;
   }
 
-  // Collapsible 3x3 Sensitivity Matrix (p +-10pp x primary FX +-5pp)
+  // Collapsible 3x3 Sensitivity Matrix (active months +-2 x primary FX +-5pp)
   function renderSensitivityMatrix(res) {
     const container = document.getElementById('sensitivity-container');
     const sens = res.sensitivity;
@@ -1206,7 +1228,7 @@
       return;
     }
     const corner = t('step4.sensCorner', { cur: sens.primaryCurrency });
-    const theadCols = sens.pCols.map((pVal) => `<th class="mono">p = ${pVal}%</th>`).join('');
+    const theadCols = sens.monthCols.map((mVal) => `<th class="mono">${escapeHtml(t('modal.monthsVal', { n: mVal }))}</th>`).join('');
     const bodyRows = sens.rows
       .map((row) => {
         const fxLabel = `${row.fxPct > 0 ? '+' : ''}${row.fxPct}%`;
@@ -1306,18 +1328,37 @@
 
     renderDynamicFxPanel(res);
 
-    // Center Peek Modal: Model Lifecycle & Retention Probability
+    // Step 4: Model Lifecycle & Post-SOTA Inertia Months
     const sotaUntilText = formatFutureMonth(2026, 11, state.effectiveSotaMonths);
     const nextWhenText = formatFutureMonth(2026, 11, state.nextFlagshipInterval);
+    const totalUntilText = formatFutureMonth(2026, 11, res.expectedActiveMonths);
+    const extraSlider = document.getElementById('inp-post-sota-extra');
+    extraSlider.max = String(res.maxPostSotaExtra);
+    extraSlider.value = String(res.postSotaExtraMonths);
+    extraSlider.disabled = res.maxPostSotaExtra === 0;
+
     document.getElementById('lbl-sota-len').textContent = t('modal.monthsVal', { n: state.effectiveSotaMonths });
     document.getElementById('lbl-next-interval').textContent = t('modal.monthsVal', { n: state.nextFlagshipInterval });
-    document.getElementById('lbl-retain-prob').textContent = `${state.retainProbPct}%`;
+    document.getElementById('lbl-post-sota-extra').textContent =
+      res.maxPostSotaExtra === 0
+        ? t('modal.extraMonthsFull')
+        : t('modal.extraMonthsVal', { n: res.postSotaExtraMonths });
     document.getElementById('help-sota-until').textContent =
       t('modal.sotaHelp', { n: state.effectiveSotaMonths, until: sotaUntilText });
     document.getElementById('help-next-when').textContent =
       t('modal.nextHelp', { n: state.nextFlagshipInterval, when: nextWhenText });
-    document.getElementById('help-retain-prob').textContent =
-      t('modal.retainHelpDyn', { k: res.sotaCutoff, until: sotaUntilText });
+    document.getElementById('help-post-sota-extra').textContent =
+      res.expectedActiveMonths >= 12
+        ? t('modal.retainHelpFull', { k: res.sotaCutoff, extra: res.postSotaExtraMonths })
+        : res.postSotaExtraMonths === 0
+          ? t('modal.retainHelpZero', { k: res.sotaCutoff, until: sotaUntilText })
+          : t('modal.retainHelpDyn', {
+              k: res.sotaCutoff,
+              until: sotaUntilText,
+              extra: res.postSotaExtraMonths,
+              total: res.expectedActiveMonths,
+              totalUntil: totalUntilText,
+            });
 
     const sotaPct = Math.min(94, Math.max(8, (state.effectiveSotaMonths / 12) * 100));
     const nextPct = Math.min(96, Math.max(12, (state.nextFlagshipInterval / 12) * 100));
@@ -1330,36 +1371,43 @@
     const evLineEl = document.getElementById('ev-threshold-line');
     const evTagEl = document.getElementById('ev-threshold-tag');
     const evGapEl = document.getElementById('lbl-ev-gap');
-    document.getElementById('ev-user-dot').style.left = `${state.retainProbPct}%`;
+    const userDotPct = Math.min(100, Math.max(0, (res.expectedActiveMonths / 12) * 100));
+    document.getElementById('ev-user-dot').style.left = `${userDotPct}%`;
 
-    if (res.breakEvenProbStatus === 'threshold' && res.breakEvenProbPct != null) {
+    if (res.breakEvenMonthNum != null && res.breakEvenMonthNum > 0) {
       evLineEl.style.display = 'block';
-      const clamped = Math.min(96, Math.max(4, res.breakEvenProbPct));
-      evLineEl.style.left = `${clamped}%`;
-      evTagEl.textContent = t('modal.evLine', { pct: res.breakEvenProbPct.toFixed(0) });
-      const rawGap = state.retainProbPct - res.breakEvenProbPct;
-      const effectiveGap = res.breakEvenProbDirection === 'lte' ? -rawGap : rawGap;
-      evGapEl.textContent = effectiveGap >= 0
-        ? t('modal.evAbove', { gap: effectiveGap.toFixed(1) })
-        : t('modal.evBelow', { gap: effectiveGap.toFixed(1) });
+      const linePct = Math.min(96, Math.max(4, (res.breakEvenMonthNum / 12) * 100));
+      evLineEl.style.left = `${linePct}%`;
+      evTagEl.textContent = t('modal.evLine', { m: res.breakEvenMonthNum });
+      if (res.breakEvenStatus === 'already_even') {
+        evGapEl.textContent = t('modal.evAlready');
+      } else if (res.monthMargin > 0) {
+        evGapEl.textContent = t('modal.evAbove', { gap: res.monthMargin });
+      } else if (res.monthMargin === 0) {
+        evGapEl.textContent = t('modal.evExact', { m: res.breakEvenMonthNum });
+      } else {
+        evGapEl.textContent = t('modal.evBelow', { gap: Math.abs(res.monthMargin) });
+      }
     } else {
       evLineEl.style.display = 'none';
-      if (res.breakEvenProbStatus === 'already_even') {
+      if (res.breakEvenStatus === 'already_even') {
         evGapEl.textContent = t('modal.evAlready');
-      } else if (res.breakEvenProbStatus === 'impossible') {
-        evGapEl.textContent = t('modal.evImpossible');
       } else {
-        evGapEl.textContent = res.upsideNet >= 0 ? t('modal.evDetPos') : t('modal.evDetNeg');
+        evGapEl.textContent = t('modal.evImpossible');
       }
     }
 
-    // STEP 5: Institutional Financial Decision Memo (supports switching between EV & any of the 4 scenarios)
+    // STEP 5: Institutional Financial Decision Memo (supports switching between Standard Outlook & any of the 4 scenarios)
     const dispCur = getDisplayCurrency();
     const dispSym = dispCur === 'USD' ? '$' : '¥';
     const activeSc = activeScenarioId
       ? (res.scenarios.find((sc) => sc.id === activeScenarioId) || null)
       : null;
-    const scenOverlay = activeSc ? buildScenarioViewRows(res.monthlyRows, res.bfCost, activeSc.cutoff) : null;
+    const scenOverlay = activeSc
+      ? buildScenarioViewRows(res.monthlyRows, res.bfCost, activeSc.cutoff)
+      : (res.expectedActiveMonths < 12
+          ? buildScenarioViewRows(res.monthlyRows, res.bfCost, res.expectedActiveMonths)
+          : null);
 
     document.querySelectorAll('[data-disp-cur]').forEach((btn) => {
       btn.classList.toggle('is-active', btn.dataset.dispCur === dispCur);
@@ -1368,15 +1416,12 @@
     document.getElementById('th-scen-buy').textContent = t('step4.scenColBuyCur', { cur: dispCur });
     document.getElementById('th-scen-skip').textContent = t('step4.scenColSkipCur', { cur: dispCur });
     document.getElementById('th-scen-diff').textContent = t('step4.scenColDiffCur', { cur: dispCur });
-    const wU = Math.min(100, Math.max(0, Math.round(Number(state.retainProbPct) || 0)));
-    const wD = 100 - wU;
     document.getElementById('scen-footnote').textContent = t('step4.scenFootnoteCur', {
       cur: dispCur,
       ev: fmtYen(res.expectedNetSavings, true),
-      wD,
-      d: fmtYen(res.downsideNet, true),
-      wU,
-      u: fmtYen(res.upsideNet, true),
+      k: res.sotaCutoff,
+      extra: res.postSotaExtraMonths,
+      m: res.expectedActiveMonths,
     });
 
     const badge = document.getElementById('verdict-badge');
@@ -1428,7 +1473,10 @@
         ? t('step4.condCrossSub', { n: scenOverlay.equivalentUsageMonths.toFixed(1), avg: fmtYen(scenOverlay.avgProPrice) })
         : t('step4.condCrossSubInf');
     } else {
-      document.getElementById('memo-ev-label').textContent = t('step4.heroEvLabelCur', { cur: dispCur });
+      document.getElementById('memo-ev-label').textContent =
+        res.expectedActiveMonths >= 12
+          ? t('step4.heroEvLabelFull', { cur: dispCur })
+          : t('step4.heroEvLabelCur', { m: res.expectedActiveMonths, cur: dispCur });
       badge.className = `tag tag-${res.verdict.tone}`;
       badge.textContent = res.verdict.badge;
       document.getElementById('verdict-headline').textContent = res.verdict.headline;
@@ -1437,37 +1485,52 @@
       const rateStr = `${res.evReturnPct >= 0 ? '+' : ''}${res.evReturnPct.toFixed(1)}%`;
       document.getElementById('memo-ev-rate').textContent = res.bfCost > 0
         ? t('step4.evRateFormula', {
-            wD,
-            d: fmtYen(res.downsideNet, true),
-            wU,
-            u: fmtYen(res.upsideNet, true),
+            k: res.sotaCutoff,
+            extra: res.postSotaExtraMonths,
+            m: res.expectedActiveMonths,
             rate: rateStr,
           })
         : '';
 
-      // Condition 1: Retention Confidence vs Break-Even Line
-      probEl.textContent = `${state.retainProbPct}%`;
-      if (res.breakEvenProbStatus === 'already_even') {
-        probSubEl.textContent = t('step4.condProbLocked');
-      } else if (res.breakEvenProbStatus === 'impossible') {
+      // Condition 1: Expected Active Months vs Payback Month
+      probEl.textContent = t('step4.condProbVal', { m: res.expectedActiveMonths });
+      if (res.breakEvenStatus === 'already_even') {
+        probSubEl.textContent = t('step4.condProbLocked', {
+          k: res.sotaCutoff,
+          line: res.breakEvenMonthNum != null ? res.breakEvenMonthNum : 1,
+        });
+      } else if (res.breakEvenStatus === 'impossible') {
         probSubEl.textContent = t('step4.condProbImpossible');
-      } else if (res.breakEvenProbStatus === 'deterministic') {
-        probSubEl.textContent = t('step4.condProbDet');
-      } else if (res.breakEvenProbPct != null) {
-        const gap = (res.breakEvenProbDirection === 'lte'
-          ? res.breakEvenProbPct - state.retainProbPct
-          : state.retainProbPct - res.breakEvenProbPct);
-        probSubEl.textContent = gap >= 0
-          ? t('step4.condProbAbove', { line: res.breakEvenProbPct.toFixed(1), gap: gap.toFixed(1) })
-          : t('step4.condProbBelow', { line: res.breakEvenProbPct.toFixed(1), gap: gap.toFixed(1) });
+      } else if (res.monthMargin > 0) {
+        probSubEl.textContent = t('step4.condProbAbove', {
+          k: res.sotaCutoff,
+          extra: res.postSotaExtraMonths,
+          gap: res.monthMargin,
+        });
+      } else if (res.monthMargin === 0) {
+        probSubEl.textContent = t('step4.condProbExact', {
+          k: res.sotaCutoff,
+          extra: res.postSotaExtraMonths,
+          line: res.breakEvenMonthNum,
+        });
+      } else {
+        probSubEl.textContent = t('step4.condProbBelow', {
+          k: res.sotaCutoff,
+          extra: res.postSotaExtraMonths,
+          gap: Math.abs(res.monthMargin || 0),
+        });
       }
 
       // Condition 2: True Cumulative Calendar Payback + Equivalent Usage Subtext
-      crossEl.textContent = res.crossoverMonthIndex !== null
-        ? getMonthLabel(res.crossoverMonthIndex)
+      const effCrossIdx = scenOverlay ? scenOverlay.crossoverMonthIndex : res.crossoverMonthIndex;
+      const effEquiv = scenOverlay ? scenOverlay.equivalentUsageMonths : res.equivalentUsageMonths;
+      const effAvg = scenOverlay ? scenOverlay.avgProPrice : res.avgProPrice;
+      const effActiveSaved = scenOverlay ? scenOverlay.activeSavedMonths : res.proCoveredMonths;
+      crossEl.textContent = effCrossIdx !== null
+        ? getMonthLabel(effCrossIdx)
         : t('step4.condCrossNone');
-      crossSubEl.textContent = Number.isFinite(res.equivalentUsageMonths) && res.proCoveredMonths > 0
-        ? t('step4.condCrossSub', { n: res.equivalentUsageMonths.toFixed(1), avg: fmtYen(res.avgProPrice) })
+      crossSubEl.textContent = Number.isFinite(effEquiv) && effActiveSaved > 0
+        ? t('step4.condCrossSub', { n: effEquiv.toFixed(1), avg: fmtYen(effAvg) })
         : t('step4.condCrossSubInf');
     }
 
@@ -1524,18 +1587,21 @@
     // Cumulative Chart, Tiered Scenario Table (Standard EV Row + 4 Compact What-If Rows), 3x3 Sensitivity Matrix
     renderChart(res, scenOverlay);
 
-    const expectedBuyCost = res.totalSkipCost - res.expectedNetSavings;
+    const expectedBuyCost = res.expectedBuyCost;
     const evRoundedNum = Math.round(res.expectedNetSavings);
     const evPillCls = evRoundedNum > 0 ? 'is-pos' : evRoundedNum < 0 ? 'is-neg' : 'is-zero';
     const isStdActive = !activeSc;
+    const stdSubTxt = res.expectedActiveMonths >= 12
+      ? t('step4.scenStdSubFull', { k: res.sotaCutoff, extra: res.postSotaExtraMonths })
+      : t('step4.scenStdSub', { k: res.sotaCutoff, extra: res.postSotaExtraMonths });
     const stdRowHtml = `
       <tr class="fin-row-selectable fin-row-standard ${isStdActive ? 'fin-row-active' : ''}" data-scenario-id="__ev__" role="button" tabindex="0" aria-pressed="${isStdActive ? 'true' : 'false'}">
         <td>
           <div class="scen-cell-wrap">
             <span class="scen-radio-dot" aria-hidden="true"></span>
             <div>
-              <div class="fin-scen-title">${escapeHtml(t('step4.scenStdTitle'))}</div>
-              <div class="fin-scen-sub">${escapeHtml(t('step4.scenStdSub', { k: res.sotaCutoff, wU, wD, d: fmtYen(res.downsideNet, true), u: fmtYen(res.upsideNet, true) }))}</div>
+              <div class="fin-scen-title">${escapeHtml(t('step4.scenStdTitle', { m: res.expectedActiveMonths }))}</div>
+              <div class="fin-scen-sub">${escapeHtml(stdSubTxt)}</div>
             </div>
           </div>
         </td>
@@ -2337,10 +2403,14 @@
     dbTbody.addEventListener('click', (e) => handlePlanTableClick(e, 'A'));
     dbBTbody.addEventListener('click', (e) => handlePlanTableClick(e, 'B'));
 
-    // Step 4: Model Lifecycle & Retention Sliders
+    // Step 4: Model Lifecycle & Post-SOTA Inertia Sliders
     document.getElementById('inp-sota-len').addEventListener('input', (e) => {
       recordUndoSnapshot('sota-len');
       state.effectiveSotaMonths = Number(e.target.value);
+      const maxExtra = Math.max(0, 12 - state.effectiveSotaMonths);
+      if ((Number(state.postSotaExtraMonths) || 0) > maxExtra) {
+        state.postSotaExtraMonths = maxExtra;
+      }
       render();
     });
 
@@ -2350,9 +2420,9 @@
       render();
     });
 
-    document.getElementById('inp-retain-prob').addEventListener('input', (e) => {
-      recordUndoSnapshot('retain-prob');
-      state.retainProbPct = Number(e.target.value);
+    document.getElementById('inp-post-sota-extra').addEventListener('input', (e) => {
+      recordUndoSnapshot('post-sota-extra');
+      state.postSotaExtraMonths = Number(e.target.value);
       render();
     });
 
@@ -2416,12 +2486,12 @@
       const lang = getLang();
       const res = calculateLedger(state, lang, getDisplayCurrency());
       const lineStr =
-        res.breakEvenProbStatus === 'already_even'
-          ? (lang === 'en-US' ? 'Locked in SOTA span' : '主力期内已回本')
-          : res.breakEvenProbStatus === 'impossible'
-            ? (lang === 'en-US' ? 'Unreachable' : '全年仍未回本')
-            : res.breakEvenProbPct != null
-              ? `${res.breakEvenProbPct.toFixed(1)}%`
+        res.breakEvenStatus === 'already_even'
+          ? (lang === 'en-US' ? `Locked in SOTA span (Mo ${res.breakEvenMonthNum})` : `SOTA 期内已回本（第 ${res.breakEvenMonthNum} 月）`)
+          : res.breakEvenStatus === 'impossible'
+            ? (lang === 'en-US' ? 'Unreachable within 12 mo' : '全年仍未回本')
+            : res.breakEvenMonthNum != null
+              ? (lang === 'en-US' ? `Mo ${res.breakEvenMonthNum}` : `第 ${res.breakEvenMonthNum} 个月`)
               : '—';
       const crossStr =
         res.crossoverMonthIndex !== null
@@ -2431,18 +2501,20 @@
         ? [
             '[Do You Really Need Gemini Pro Black Friday?]',
             `- Verdict: ${res.verdict.badge} (${res.verdict.headline})`,
-            `- Plan A (No BF) vs Plan B (With BF incl. upfront): ${fmtYen(res.totalSkipCost)} vs ${fmtYen(res.totalBuyCost)}`,
-            `- 12-Mo Expected Net Savings (EV): ${fmtYen(res.expectedNetSavings, true)} (Your ${state.retainProbPct}% · Break-even ${lineStr})`,
+            `- Expected Active Span: ${res.expectedActiveMonths} mo (${res.sotaCutoff} mo SOTA + ${res.postSotaExtraMonths} mo inertia · Payback: ${lineStr})`,
+            `- Plan A (No BF) vs Buy (at ${res.expectedActiveMonths} mo): ${fmtYen(res.totalSkipCost)} vs ${fmtYen(res.expectedBuyCost)}`,
+            `- Expected Net Savings: ${fmtYen(res.expectedNetSavings, true)}`,
             `- Cumulative Payback: ${crossStr}`,
-            `- Endpoints (D / U): ${fmtYen(res.downsideNet, true)} / ${fmtYen(res.upsideNet, true)}`,
+            `- SOTA-Only (${res.sotaCutoff} mo) / Full Year (12 mo): ${fmtYen(res.downsideNet, true)} / ${fmtYen(res.upsideNet, true)}`,
           ]
         : [
             '【AI 黑五包年决策账本】',
             `- 结论：${res.verdict.badge}（${res.verdict.headline}）`,
-            `- 双方案总花费：不买黑五 ${fmtYen(res.totalSkipCost)} vs 买黑五（含预付）${fmtYen(res.totalBuyCost)}`,
-            `- 12 个月期望净节省 (EV)：${fmtYen(res.expectedNetSavings, true)}（留存把握 ${state.retainProbPct}% · 盈亏线 ${lineStr}）`,
+            `- 预期使用时长：共 ${res.expectedActiveMonths} 个月（SOTA ${res.sotaCutoff} 月 + 惯性多用 ${res.postSotaExtraMonths} 月 · 回本线：${lineStr}）`,
+            `- 总花费对照：不买黑五 ${fmtYen(res.totalSkipCost)} vs 按预期买入支出 ${fmtYen(res.expectedBuyCost)}`,
+            `- 预期净节省：${fmtYen(res.expectedNetSavings, true)}`,
             `- 累计回本节点：${crossStr}`,
-            `- 两端结果（D / U）：${fmtYen(res.downsideNet, true)} / ${fmtYen(res.upsideNet, true)}`,
+            `- 仅用 SOTA（${res.sotaCutoff} 月）/ 用满全年（12 月）：${fmtYen(res.downsideNet, true)} / ${fmtYen(res.upsideNet, true)}`,
           ]).join('\n');
 
       try {
