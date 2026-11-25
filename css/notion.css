@@ -2695,6 +2695,40 @@ input[type="range"]::-moz-range-thumb {
   color: var(--ink);
 }
 
+.scen-pill-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.scen-pill-btn {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--ink-2);
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.scen-pill-btn:hover {
+  background: var(--hover);
+  color: var(--ink);
+  border-color: var(--border-2);
+}
+
+.scen-pill-btn.is-active {
+  background: var(--ink);
+  color: #ffffff;
+  border-color: var(--ink);
+  font-weight: 500;
+}
+
 .fin-table-tiered tbody tr.fin-row-standard td {
   padding-top: 13px;
   padding-bottom: 13px;

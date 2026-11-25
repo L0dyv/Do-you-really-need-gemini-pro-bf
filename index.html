@@ -427,12 +427,13 @@
         <p class="callout-text" data-i18n="step4.legacyUltraNote">提示：账本中含土区旧价 Ultra，当前默认其在对应月份可正常续费；如需测算中途断续或换用其他方案的影响，可直接返回第 2 步修改对应月份。</p>
       </div>
 
-      <!-- Cost Summary Table: Selected Outlook Only -->
+      <!-- Cost Summary Table: Pill Switcher + Single Active Row -->
       <div class="doc-block doc-block-compact">
         <div class="block-head block-head-compact">
           <h2 class="block-title block-title-sm" data-i18n="step4.scenTitle">年度收支对照</h2>
           <span class="block-note mono" id="scen-unit-note">单位：CNY</span>
         </div>
+        <div class="scen-pill-switch" id="scen-pill-switch" role="tablist"></div>
         <div class="notion-db-wrap">
           <table class="notion-db fin-table fin-table-tiered">
             <thead>

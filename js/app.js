@@ -1568,14 +1568,17 @@
       .join('');
     document.getElementById('lc-nodes').innerHTML = nodesHtml;
 
-    // STEP 5: Institutional Financial Decision Memo (Selected Outlook Only)
-    activeScenarioId = null;
+    // STEP 5: Institutional Financial Decision Memo (Pill-Switched Single Active View)
     const dispCur = getDisplayCurrency();
     const dispSym = dispCur === 'USD' ? '$' : '¥';
-    const activeSc = null;
-    const scenOverlay = res.expectedActiveMonths < 12
-      ? buildScenarioViewRows(res.monthlyRows, res.bfCost, res.expectedActiveMask)
+    const activeSc = activeScenarioId
+      ? (res.scenarios.find((sc) => sc.id === activeScenarioId) || null)
       : null;
+    const scenOverlay = activeSc
+      ? buildScenarioViewRows(res.monthlyRows, res.bfCost, activeSc.cutoff)
+      : (res.expectedActiveMonths < 12
+          ? buildScenarioViewRows(res.monthlyRows, res.bfCost, res.expectedActiveMask)
+          : null);
 
     document.querySelectorAll('[data-disp-cur]').forEach((btn) => {
       btn.classList.toggle('is-active', btn.dataset.dispCur === dispCur);
@@ -1747,29 +1750,57 @@
     document.getElementById('legacy-ultra-risk-note').style.display =
       res.hasLegacyTurkeyUltra ? 'block' : 'none';
 
-    // Cumulative Chart, Single-Row Selected Outlook Summary Table, 3x3 Sensitivity Matrix
+    // Cumulative Chart, Compact Scenario Pill Switcher + Single Active Summary Row, 3x3 Sensitivity Matrix
     renderChart(res, scenOverlay);
 
-    const expectedBuyCost = res.expectedBuyCost;
-    const evRoundedNum = Math.round(res.expectedNetSavings);
-    const evPillCls = evRoundedNum > 0 ? 'is-pos' : evRoundedNum < 0 ? 'is-neg' : 'is-zero';
-    const stdSubTxt = res.expectedActiveMonths >= 12
-      ? t('step4.scenStdSubFull', { parts: spanPartsText })
-      : res.nextGenInTerm && res.gapInactiveMonths > 0
-        ? t('step4.scenStdSub', { parts: spanPartsText, gap: res.gapInactiveMonths })
-        : t('step4.scenStdSubNoGap', { parts: spanPartsText });
-    const stdRowHtml = `
-      <tr class="fin-row-standard">
-        <td>
-          <div class="fin-scen-title">${escapeHtml(t('step4.scenStdTitle', { m: res.expectedActiveMonths }))}</div>
-          <div class="fin-scen-sub">${escapeHtml(stdSubTxt)}</div>
-        </td>
-        <td class="num mono" style="font-weight:600;">${fmtNum(expectedBuyCost)}</td>
-        <td class="num mono" style="font-weight:600;">${fmtNum(res.totalSkipCost)}</td>
-        <td class="num mono"><span class="fin-diff-pill ${evPillCls}">${escapeHtml(fmtNum(res.expectedNetSavings, true))}</span></td>
-      </tr>`;
+    const pillsHtml = [
+      `<button type="button" class="scen-pill-btn ${!activeSc ? 'is-active' : ''}" data-scen-pill="__ev__" role="tab" aria-selected="${!activeSc ? 'true' : 'false'}">${escapeHtml(t('step4.scenPillStd', { m: res.expectedActiveMonths }))}</button>`,
+      ...res.scenarios.map((sc) => {
+        const isAct = Boolean(activeSc && activeSc.id === sc.id);
+        const pillText = sc.id === 'full_plan'
+          ? sc.title
+          : `${sc.title} · ${sc.periodNote || ''}`;
+        return `<button type="button" class="scen-pill-btn ${isAct ? 'is-active' : ''}" data-scen-pill="${escapeHtml(sc.id)}" role="tab" aria-selected="${isAct ? 'true' : 'false'}">${escapeHtml(pillText)}</button>`;
+      }),
+    ].join('');
+    document.getElementById('scen-pill-switch').innerHTML = pillsHtml;
 
-    document.getElementById('scenarios-tbody').innerHTML = stdRowHtml;
+    let activeRowHtml;
+    if (activeSc) {
+      const scRounded = Math.round(activeSc.diff);
+      const scPillCls = scRounded > 0 ? 'is-pos' : scRounded < 0 ? 'is-neg' : 'is-zero';
+      activeRowHtml = `
+        <tr class="fin-row-standard">
+          <td>
+            <div class="fin-scen-title">${escapeHtml(activeSc.title)}</div>
+            <div class="fin-scen-sub">${escapeHtml(activeSc.periodNote || '')}</div>
+          </td>
+          <td class="num mono" style="font-weight:600;">${fmtNum(activeSc.buyTotal)}</td>
+          <td class="num mono" style="font-weight:600;">${fmtNum(activeSc.skipTotal)}</td>
+          <td class="num mono"><span class="fin-diff-pill ${scPillCls}">${escapeHtml(fmtNum(activeSc.diff, true))}</span></td>
+        </tr>`;
+    } else {
+      const expectedBuyCost = res.expectedBuyCost;
+      const evRoundedNum = Math.round(res.expectedNetSavings);
+      const evPillCls = evRoundedNum > 0 ? 'is-pos' : evRoundedNum < 0 ? 'is-neg' : 'is-zero';
+      const stdSubTxt = res.expectedActiveMonths >= 12
+        ? t('step4.scenStdSubFull', { parts: spanPartsText })
+        : res.nextGenInTerm && res.gapInactiveMonths > 0
+          ? t('step4.scenStdSub', { parts: spanPartsText, gap: res.gapInactiveMonths })
+          : t('step4.scenStdSubNoGap', { parts: spanPartsText });
+      activeRowHtml = `
+        <tr class="fin-row-standard">
+          <td>
+            <div class="fin-scen-title">${escapeHtml(t('step4.scenStdTitle', { m: res.expectedActiveMonths }))}</div>
+            <div class="fin-scen-sub">${escapeHtml(stdSubTxt)}</div>
+          </td>
+          <td class="num mono" style="font-weight:600;">${fmtNum(expectedBuyCost)}</td>
+          <td class="num mono" style="font-weight:600;">${fmtNum(res.totalSkipCost)}</td>
+          <td class="num mono"><span class="fin-diff-pill ${evPillCls}">${escapeHtml(fmtNum(res.expectedNetSavings, true))}</span></td>
+        </tr>`;
+    }
+
+    document.getElementById('scenarios-tbody').innerHTML = activeRowHtml;
 
     const displayRows = scenOverlay ? scenOverlay.rows : res.monthlyRows;
     document.getElementById('compare-12m-tbody').innerHTML = displayRows
@@ -1863,26 +1894,12 @@
       render();
     });
 
-    const scenTbody = document.getElementById('scenarios-tbody');
-    function selectScenarioRow(id) {
-      if (id === '__ev__') {
-        activeScenarioId = null;
-      } else {
-        activeScenarioId = activeScenarioId === id ? null : id;
-      }
+    document.getElementById('scen-pill-switch').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-scen-pill]');
+      if (!btn) return;
+      const id = btn.dataset.scenPill;
+      activeScenarioId = id === '__ev__' ? null : id;
       render();
-    }
-    scenTbody.addEventListener('click', (e) => {
-      const tr = e.target.closest('tr[data-scenario-id]');
-      if (!tr) return;
-      selectScenarioRow(tr.dataset.scenarioId);
-    });
-    scenTbody.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      const tr = e.target.closest('tr[data-scenario-id]');
-      if (!tr) return;
-      e.preventDefault();
-      selectScenarioRow(tr.dataset.scenarioId);
     });
 
     document.getElementById('btn-reset').addEventListener('click', () => {
