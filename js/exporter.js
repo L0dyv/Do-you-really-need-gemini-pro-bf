@@ -84,7 +84,7 @@
     const cur = displayCurrency || res.displayCurrency || (isEn ? 'USD' : 'CNY');
     const M = makeMoneyHelpers(cur);
     const W = 960;
-    const H = 880;
+    const H = 760;
     const padX = 56;
     const contentW = W - padX * 2;
     const fontSans = 'Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif';
@@ -187,15 +187,15 @@
       ? `Upfront ${M.fmtMoney(res.bfCost)}  ·  Avg ${M.fmtMoneyDec(res.bfMonthlyAvg, 1)}/mo  ·  Plan A ${M.fmtMoney(res.totalSkipCost)} vs Buy ${M.fmtMoney(expectedBuyCost)}  ·  FX: ${fxSummary}`
       : `今日预付 ${M.fmtMoney(res.bfCost)}  ·  年费月均 ${M.fmtMoneyDec(res.bfMonthlyAvg, 1)}/月  ·  不买 ${M.fmtMoney(res.totalSkipCost)} vs 买入 ${M.fmtMoney(expectedBuyCost)}  ·  汇率：${fxSummary}`;
 
-    // 2. Tiered Scenario Table directly under Hero: Prominent Standard Row + 4 Quieter Fixed Cases
+    // 2. Clean Single-Row Selected Outlook Table directly under Hero
     const tblHeadY = 380;
     const stdRowY = tblHeadY + 12;
-    const stdRowH = 44;
+    const stdRowH = 48;
     const evPillBg = evRounded > 0 ? '#dbeddb' : evRounded < 0 ? '#ffe2dd' : '#e3e2e0';
     const evPillFg = evRounded > 0 ? '#1c3829' : evRounded < 0 ? '#5d1715' : '#32302c';
     const stdTitle = isEn
-      ? `Standard · Your Outlook (${activeM} mo)`
-      : `标准情况 · 按你的预期（共 ${activeM} 个月）`;
+      ? `Your Outlook (${activeM} active mo)`
+      : `按你的预期（共 ${activeM} 个月）`;
     const stdSub = activeM >= 12
       ? (isEn
           ? `${spanParts} (active all 12 months)`
@@ -210,39 +210,22 @@
     const stdRowSvg = `
       <rect x="${padX}" y="${stdRowY}" width="${contentW}" height="${stdRowH}" fill="#fafaf9"/>
       <line x1="${padX}" y1="${stdRowY}" x2="${W - padX}" y2="${stdRowY}" stroke="#37352f" stroke-width="1.2"/>
-      <text x="${padX + 8}" y="${stdRowY + 19}" fill="#37352f" font-size="13" font-weight="600" font-family="${fontSans}">${esc(stdTitle)}</text>
-      <text x="${padX + 8}" y="${stdRowY + 35}" fill="#787774" font-size="10.5" font-family="${fontMono}">${esc(stdSub)}</text>
-      <text x="${W - padX - 216}" y="${stdRowY + 26}" text-anchor="end" fill="#37352f" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(expectedBuyCost))}</text>
-      <text x="${W - padX - 112}" y="${stdRowY + 26}" text-anchor="end" fill="#37352f" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(res.totalSkipCost))}</text>
-      <rect x="${W - padX - 84}" y="${stdRowY + 11}" width="80" height="22" rx="3" fill="${evPillBg}"/>
-      <text x="${W - padX - 10}" y="${stdRowY + 26}" text-anchor="end" fill="${evPillFg}" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(res.expectedNetSavings, true))}</text>
+      <text x="${padX + 8}" y="${stdRowY + 20}" fill="#37352f" font-size="13" font-weight="600" font-family="${fontSans}">${esc(stdTitle)}</text>
+      <text x="${padX + 8}" y="${stdRowY + 37}" fill="#787774" font-size="10.5" font-family="${fontMono}">${esc(stdSub)}</text>
+      <text x="${W - padX - 216}" y="${stdRowY + 28}" text-anchor="end" fill="#37352f" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(expectedBuyCost))}</text>
+      <text x="${W - padX - 112}" y="${stdRowY + 28}" text-anchor="end" fill="#37352f" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(res.totalSkipCost))}</text>
+      <rect x="${W - padX - 84}" y="${stdRowY + 13}" width="80" height="22" rx="3" fill="${evPillBg}"/>
+      <text x="${W - padX - 10}" y="${stdRowY + 28}" text-anchor="end" fill="${evPillFg}" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(res.expectedNetSavings, true))}</text>
     `;
 
-    const tblRowH = 29;
-    const subStartY = stdRowY + stdRowH;
-    const scenRows = res.scenarios
-      .map((sc, i) => {
-        const y = subStartY + i * tblRowH;
-        const rounded = Math.round(M.conv(sc.diff));
-        const valFg = rounded > 0 ? '#1c5c34' : rounded < 0 ? '#9e2a2b' : '#787774';
-        return `
-          <line x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}" stroke="#e9e9e7" stroke-width="1"/>
-          <text x="${padX + 8}" y="${y + 19}" fill="#787774" font-size="11.5" font-weight="500" font-family="${fontSans}">${esc(sc.title)} <tspan fill="#9b9a97" font-size="10.5" font-weight="400">· ${esc(sc.periodNote || '')}</tspan></text>
-          <text x="${W - padX - 216}" y="${y + 19}" text-anchor="end" fill="#787774" font-size="11.5" font-family="${fontMono}">${esc(M.fmtNum(sc.buyTotal))}</text>
-          <text x="${W - padX - 112}" y="${y + 19}" text-anchor="end" fill="#787774" font-size="11.5" font-family="${fontMono}">${esc(M.fmtNum(sc.skipTotal))}</text>
-          <text x="${W - padX - 10}" y="${y + 19}" text-anchor="end" fill="${valFg}" font-size="11.5" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(sc.diff, true))}</text>
-        `;
-      })
-      .join('');
-
-    const tblBottomY = subStartY + res.scenarios.length * tblRowH;
+    const tblBottomY = stdRowY + stdRowH;
     const evFormulaLine = isEn
-      ? `Net Saved = Without BF − Buy (${cur}, spot 1 USD ≈ 6.67 CNY). Top row matches your ${activeM}-mo outlook (${spanParts}).`
-      : `净节省 = 不买黑五 − 买入支出（${cur}，基准 1 USD ≈ 6.67 CNY）。首行按你预期的 ${activeM} 个月（${spanParts}）计算。`;
+      ? `Net Saved = Without BF − Buy (${cur}, spot 1 USD ≈ 6.67 CNY). Calculated on your ${activeM}-mo outlook (${spanParts}).`
+      : `净节省 = 不买黑五 − 买入支出（${cur}，基准 1 USD ≈ 6.67 CNY）。按你预期的 ${activeM} 个月（${spanParts}）计算。`;
 
     // 3. Cumulative Chart with Day 0 ("今日" / "Now")
-    const chartTop = 656;
-    const chartH = 148;
+    const chartTop = 524;
+    const chartH = 160;
     const chartLeft = padX + 54;
     const chartRight = W - padX - 10;
     const chartW = chartRight - chartLeft;
@@ -335,7 +318,7 @@
   <text x="${padX}" y="${heroTop + 106}" fill="#787774" font-size="12" font-family="${fontMono}">${esc(evRateLine)}</text>
 
   <line x1="${condX - 24}" y1="${heroTop + 14}" x2="${condX - 24}" y2="${heroBot - 14}" stroke="#e9e9e7" stroke-width="1"/>
-  <text x="${condX}" y="${heroTop + 26}" fill="#9b9a97" font-size="11.5" font-family="${fontSans}">${isEn ? 'Expected Usage' : '预期使用时长'}</text>
+  <text x="${condX}" y="${heroTop + 26}" fill="#9b9a97" font-size="11.5" font-family="${fontSans}">${isEn ? 'Expected Active' : '预期生效时长'}</text>
   <text x="${condX}" y="${heroTop + 48}" fill="#37352f" font-size="19" font-weight="600" font-family="${fontMono}">${isEn ? `${activeM} mo` : `${activeM} 个月`}</text>
   <text x="${condX}" y="${heroTop + 64}" fill="#787774" font-size="11.5" font-family="${fontMono}">${esc(spanSub)}</text>
 
@@ -347,17 +330,16 @@
   <text x="${padX}" y="${heroBot + 24}" fill="#787774" font-size="12" font-family="${fontMono}">${esc(stripText)}</text>
   <line x1="${padX}" y1="${heroBot + 36}" x2="${W - padX}" y2="${heroBot + 36}" stroke="#e9e9e7" stroke-width="1"/>
 
-  <!-- Tiered Scenario Table (Standard EV Primary Row + 4 Compact Fixed Cases) -->
-  <text x="${padX}" y="${tblHeadY - 14}" fill="#37352f" font-size="13.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Standard Result &amp; What-If Cases' : '标准结论与极端情景对照'}</text>
+  <!-- Cost Summary Table (Selected Outlook Only) -->
+  <text x="${padX}" y="${tblHeadY - 14}" fill="#37352f" font-size="13.5" font-weight="600" font-family="${fontSans}">${isEn ? '12-Month Cost Comparison' : '年度收支对照'}</text>
   <text x="${W - padX}" y="${tblHeadY - 14}" text-anchor="end" fill="#9b9a97" font-size="11" font-family="${fontMono}">${isEn ? `Unit: ${cur}` : `单位：${cur}`}</text>
-  <text x="${padX + 12}" y="${tblHeadY + 4}" fill="#787774" font-size="11" font-weight="600" font-family="${fontSans}">${isEn ? 'Scenario' : '情景'}</text>
+  <text x="${padX + 12}" y="${tblHeadY + 4}" fill="#787774" font-size="11" font-weight="600" font-family="${fontSans}">${isEn ? 'Basis' : '方案口径'}</text>
   <text x="${W - padX - 216}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11" font-weight="600" font-family="${fontSans}">${isEn ? `Buy (${cur})` : `买入支出 (${cur})`}</text>
   <text x="${W - padX - 112}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11" font-weight="600" font-family="${fontSans}">${isEn ? `Without BF (${cur})` : `不买黑五 (${cur})`}</text>
   <text x="${W - padX - 6}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11" font-weight="600" font-family="${fontSans}">${isEn ? 'Net Saved' : '净节省'}</text>
   ${stdRowSvg}
-  ${scenRows}
   <line x1="${padX}" y1="${tblBottomY}" x2="${W - padX}" y2="${tblBottomY}" stroke="#e9e9e7" stroke-width="1"/>
-  <text x="${padX}" y="${tblBottomY + 19}" fill="#787774" font-size="11" font-family="${fontSans}">${esc(evFormulaLine)}</text>
+  <text x="${padX}" y="${tblBottomY + 20}" fill="#787774" font-size="11" font-family="${fontSans}">${esc(evFormulaLine)}</text>
 
   <!-- Cumulative Chart -->
   <text x="${padX}" y="${chartTop - 16}" fill="#37352f" font-size="13.5" font-weight="600" font-family="${fontSans}">${isEn ? '12-Month Cumulative Marginal Spend' : '12 个月累积边际支出对比'}</text>

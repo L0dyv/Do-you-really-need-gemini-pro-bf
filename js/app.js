@@ -1454,17 +1454,14 @@
     const nextNearExtra = showExtraNode && Math.abs(nextStartPct - blueEndPct) < 13;
     nextNodeEl.classList.toggle('is-staggered', (nextNearSota || nextNearExtra) && !(nextNearExtra && extraNearSota));
 
-    // STEP 5: Institutional Financial Decision Memo (supports switching between Standard Outlook & any of the 4 scenarios)
+    // STEP 5: Institutional Financial Decision Memo (Selected Outlook Only)
+    activeScenarioId = null;
     const dispCur = getDisplayCurrency();
     const dispSym = dispCur === 'USD' ? '$' : '¥';
-    const activeSc = activeScenarioId
-      ? (res.scenarios.find((sc) => sc.id === activeScenarioId) || null)
+    const activeSc = null;
+    const scenOverlay = res.expectedActiveMonths < 12
+      ? buildScenarioViewRows(res.monthlyRows, res.bfCost, res.expectedActiveMask)
       : null;
-    const scenOverlay = activeSc
-      ? buildScenarioViewRows(res.monthlyRows, res.bfCost, activeSc.cutoff)
-      : (res.expectedActiveMonths < 12
-          ? buildScenarioViewRows(res.monthlyRows, res.bfCost, res.expectedActiveMask)
-          : null);
     const spanPartsText = formatSpanParts(res, lang);
 
     document.querySelectorAll('[data-disp-cur]').forEach((btn) => {
@@ -1637,64 +1634,29 @@
     document.getElementById('legacy-ultra-risk-note').style.display =
       res.hasLegacyTurkeyUltra ? 'block' : 'none';
 
-    // Cumulative Chart, Tiered Scenario Table (Standard EV Row + 4 Compact What-If Rows), 3x3 Sensitivity Matrix
+    // Cumulative Chart, Single-Row Selected Outlook Summary Table, 3x3 Sensitivity Matrix
     renderChart(res, scenOverlay);
 
     const expectedBuyCost = res.expectedBuyCost;
     const evRoundedNum = Math.round(res.expectedNetSavings);
     const evPillCls = evRoundedNum > 0 ? 'is-pos' : evRoundedNum < 0 ? 'is-neg' : 'is-zero';
-    const isStdActive = !activeSc;
     const stdSubTxt = res.expectedActiveMonths >= 12
       ? t('step4.scenStdSubFull', { parts: spanPartsText })
       : res.nextGenInTerm && res.gapInactiveMonths > 0
         ? t('step4.scenStdSub', { parts: spanPartsText, gap: res.gapInactiveMonths })
         : t('step4.scenStdSubNoGap', { parts: spanPartsText });
     const stdRowHtml = `
-      <tr class="fin-row-selectable fin-row-standard ${isStdActive ? 'fin-row-active' : ''}" data-scenario-id="__ev__" role="button" tabindex="0" aria-pressed="${isStdActive ? 'true' : 'false'}">
+      <tr class="fin-row-standard">
         <td>
-          <div class="scen-cell-wrap">
-            <span class="scen-radio-dot" aria-hidden="true"></span>
-            <div>
-              <div class="fin-scen-title">${escapeHtml(t('step4.scenStdTitle', { m: res.expectedActiveMonths }))}</div>
-              <div class="fin-scen-sub">${escapeHtml(stdSubTxt)}</div>
-            </div>
-          </div>
+          <div class="fin-scen-title">${escapeHtml(t('step4.scenStdTitle', { m: res.expectedActiveMonths }))}</div>
+          <div class="fin-scen-sub">${escapeHtml(stdSubTxt)}</div>
         </td>
         <td class="num mono" style="font-weight:600;">${fmtNum(expectedBuyCost)}</td>
         <td class="num mono" style="font-weight:600;">${fmtNum(res.totalSkipCost)}</td>
         <td class="num mono"><span class="fin-diff-pill ${evPillCls}">${escapeHtml(fmtNum(res.expectedNetSavings, true))}</span></td>
-      </tr>
-      <tr class="fin-row-divider">
-        <td colspan="4">${escapeHtml(t('step4.scenSubDivider'))}</td>
       </tr>`;
 
-    const whatIfRowsHtml = res.scenarios
-      .map((sc) => {
-        const rounded = Math.round(sc.diff);
-        const pillCls = rounded > 0 ? 'is-pos' : rounded < 0 ? 'is-neg' : 'is-zero';
-        const isActive = activeSc && activeSc.id === sc.id;
-        const rowCls = [
-          'fin-row-selectable',
-          'fin-row-secondary',
-          isActive ? 'fin-row-active' : '',
-        ].filter(Boolean).join(' ');
-        return `
-          <tr class="${rowCls}" data-scenario-id="${escapeHtml(sc.id)}" role="button" tabindex="0" aria-pressed="${isActive ? 'true' : 'false'}">
-            <td>
-              <div class="scen-cell-wrap scen-cell-inline">
-                <span class="scen-radio-dot" aria-hidden="true"></span>
-                <span class="fin-scen-title">${escapeHtml(sc.title)}</span>
-                <span class="fin-scen-inline-meta">${escapeHtml(sc.periodNote || '')}</span>
-              </div>
-            </td>
-            <td class="num mono">${fmtNum(sc.buyTotal)}</td>
-            <td class="num mono">${fmtNum(sc.skipTotal)}</td>
-            <td class="num mono"><span class="fin-diff-pill ${pillCls}">${escapeHtml(fmtNum(sc.diff, true))}</span></td>
-          </tr>`;
-      })
-      .join('');
-
-    document.getElementById('scenarios-tbody').innerHTML = stdRowHtml + whatIfRowsHtml;
+    document.getElementById('scenarios-tbody').innerHTML = stdRowHtml;
 
     const displayRows = scenOverlay ? scenOverlay.rows : res.monthlyRows;
     document.getElementById('compare-12m-tbody').innerHTML = displayRows
