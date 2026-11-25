@@ -44,13 +44,14 @@
     { idx: 1, key: 'nav.step1' },
     { idx: 2, key: 'nav.step2' },
     { idx: 3, key: 'nav.step3' },
+    { idx: 4, key: 'nav.step4' },
   ];
 
   function cloneState(obj) {
     return JSON.parse(JSON.stringify(obj));
   }
 
-  // Fresh UI starts with Step 1 unselected, Step 2 in Mode 1 (Plan A only), and all 12 months clean & synced
+  // Fresh UI starts with Step 1 unselected, Step 2 (Plan A) empty, and Step 3 (Plan B) synced
   function createInitialUiState() {
     const s = cloneState(DEFAULT_STATE);
     const emptyPair = buildPlanPair('empty');
@@ -65,14 +66,68 @@
   let state = loadState();
   let currentStep = 0;
   let maxVisitedStep = 0;
-  let selectedMonths = new Set();
+  let selectedMonths = new Set();  // Step 2 (Plan A) selection
+  let selectedMonthsB = new Set(); // Step 3 (Plan B) selection
   let lastCheckedIdx = null;
-  let showBfCompare = false;
-  let phaseModalOpen = false;
-  // pickerState: { column: 'A'|'B', mode: 'replace'|'add', targetIndices: number[], itemIdx: number|null, anchorRect: DOMRect, showCustom: boolean }
+  let lastCheckedIdxB = null;
+  // Unified Notion Multi-Select Picker state:
+  // { column: 'A'|'B', targetIndices: number[], focusedItemId: string|null, anchorRect: DOMRect, showCustom: boolean }
   let pickerState = null;
   let calcTimers = [];
   let isCalculatingFinal = false;
+
+  // Undo / Redo History Stack (up to 60 snapshots)
+  const MAX_HISTORY = 60;
+  let historyPast = [];
+  let historyFuture = [];
+  let lastSliderSnapshotKey = null;
+  let lastSliderSnapshotAt = 0;
+
+  function recordUndoSnapshot(coalesceKey) {
+    const snap = JSON.stringify(state);
+    const now = Date.now();
+    if (coalesceKey && coalesceKey === lastSliderSnapshotKey && now - lastSliderSnapshotAt < 900) {
+      lastSliderSnapshotAt = now;
+      return;
+    }
+    if (historyPast.length > 0 && historyPast[historyPast.length - 1] === snap) {
+      return;
+    }
+    historyPast.push(snap);
+    if (historyPast.length > MAX_HISTORY) historyPast.shift();
+    historyFuture = [];
+    lastSliderSnapshotKey = coalesceKey || null;
+    lastSliderSnapshotAt = now;
+  }
+
+  function updateHistoryButtons() {
+    const undoBtn = document.getElementById('btn-undo');
+    const redoBtn = document.getElementById('btn-redo');
+    if (undoBtn) undoBtn.disabled = historyPast.length === 0;
+    if (redoBtn) redoBtn.disabled = historyFuture.length === 0;
+  }
+
+  function performUndo() {
+    if (historyPast.length === 0) return;
+    historyFuture.push(JSON.stringify(state));
+    state = JSON.parse(historyPast.pop());
+    lastSliderSnapshotKey = null;
+    pickerState = null;
+    syncInputsFromState();
+    render();
+    showToast(t('toast.undone'));
+  }
+
+  function performRedo() {
+    if (historyFuture.length === 0) return;
+    historyPast.push(JSON.stringify(state));
+    state = JSON.parse(historyFuture.pop());
+    lastSliderSnapshotKey = null;
+    pickerState = null;
+    syncInputsFromState();
+    render();
+    showToast(t('toast.redone'));
+  }
 
   const pickerEl = document.createElement('div');
   pickerEl.className = 'notion-picker';
@@ -233,6 +288,18 @@
     return Array.from(selectedMonths).filter((i) => i >= 0 && i < 12).sort((a, b) => a - b);
   }
 
+  function getSelectedIndicesB() {
+    return Array.from(selectedMonthsB).filter((i) => i >= 0 && i < 12).sort((a, b) => a - b);
+  }
+
+  function getActiveSelectionSet(column) {
+    return column === 'B' ? selectedMonthsB : selectedMonths;
+  }
+
+  function getActiveSelectedIndices(column) {
+    return column === 'B' ? getSelectedIndicesB() : getSelectedIndices();
+  }
+
   function markMonthsEdited(indices) {
     if (!Array.isArray(state.monthEdited) || state.monthEdited.length !== 12) {
       state.monthEdited = Array(12).fill(false);
@@ -272,7 +339,8 @@
     }
   }
 
-  function mutateColumnMonths(column, indices, mutator) {
+  function mutateColumnMonths(column, indices, mutator, skipSnapshot) {
+    if (!skipSnapshot) recordUndoSnapshot();
     ensureBuyArrays();
     indices.forEach((mIdx) => {
       if (column === 'B') {
@@ -286,13 +354,33 @@
     render();
   }
 
-  // Authentic Brand-Grouped Notion Multi-Select Popover (Supports Plan A & Plan B, Replace & Stack, Zero Jargon)
+  function getUnionPillsForTargets(column, targetIndices) {
+    const seen = new Set();
+    const pills = [];
+    targetIndices.forEach((mIdx) => {
+      const basket = getColumnBasket(column, mIdx);
+      basket.forEach((it) => {
+        if (!it || it.id === 'none_idle' || seen.has(it.id)) return;
+        seen.add(it.id);
+        pills.push(it);
+      });
+    });
+    return pills;
+  }
+
+  function findFamilyIdForItem(item) {
+    if (!item) return null;
+    const hit = findFamilyByCatalogId(item.id);
+    return hit ? hit.family.id : null;
+  }
+
+  // Unified Brand-Grouped Notion Multi-Select Popover (Single & Batch, Plan A & Plan B, Zero Jargon)
   function renderNotionPicker() {
-    if (!pickerState || currentStep !== 1) {
+    if (!pickerState || (currentStep !== 1 && currentStep !== 2)) {
       pickerEl.classList.remove('is-open');
       return;
     }
-    const { column, mode, targetIndices, itemIdx, anchorRect, showCustom } = pickerState;
+    const { column, targetIndices, focusedItemId, anchorRect, showCustom } = pickerState;
     if (!targetIndices || targetIndices.length === 0) {
       pickerState = null;
       pickerEl.classList.remove('is-open');
@@ -300,31 +388,48 @@
     }
 
     const firstIdx = targetIndices[0];
-    const firstArr = getColumnBasket(column, firstIdx);
-    const activeSlot = mode === 'add' ? null : (itemIdx != null ? firstArr[itemIdx] : firstArr[0]) || null;
+    const currentPills = getUnionPillsForTargets(column, targetIndices);
+    const activeSlot =
+      (focusedItemId && currentPills.find((it) => it.id === focusedItemId)) ||
+      (currentPills.length > 0 ? currentPills[currentPills.length - 1] : null);
     const currentId = activeSlot ? activeSlot.id : 'none_idle';
     const found = activeSlot ? findFamilyByCatalogId(currentId) : null;
     const activeFamily = found ? found.family : null;
+    const presentFamilyIds = new Set(currentPills.map((it) => findFamilyIdForItem(it)).filter(Boolean));
 
     let targetLabel;
     if (targetIndices.length === 1) {
-      if (column === 'B') {
-        targetLabel = mode === 'add'
-          ? t('picker.buyAddTarget', { month: getMonthLabel(firstIdx) })
-          : t('picker.buySingleTarget', { month: getMonthLabel(firstIdx) });
-      } else {
-        targetLabel = mode === 'add'
-          ? t('picker.addTarget', { month: getMonthLabel(firstIdx) })
-          : t('picker.singleTarget', { month: getMonthLabel(firstIdx) });
-      }
-    } else if (mode === 'add') {
+      targetLabel = column === 'B'
+        ? t('picker.buySingleTarget', { month: getMonthLabel(firstIdx) })
+        : t('picker.singleTarget', { month: getMonthLabel(firstIdx) });
+    } else if (column === 'B') {
       targetLabel = targetIndices.length === 12
-        ? t('picker.batchAddAll')
-        : t('picker.batchAddN', { n: targetIndices.length });
+        ? t('step2b.batchAll')
+        : t('step2b.batchN', { n: targetIndices.length });
     } else {
       targetLabel = targetIndices.length === 12
         ? t('picker.batchAll')
         : t('picker.batchN', { n: targetIndices.length });
+    }
+
+    // Top bar of currently selected pills (Notion Multi-Select token bar)
+    let selectedBarHtml = '';
+    if (currentPills.length > 0) {
+      const selChips = currentPills
+        .map((it) => {
+          const isFoc = activeSlot && activeSlot.id === it.id;
+          return `
+            <span class="np-sel-pill tag-${it.tone || 'gray'} ${isFoc ? 'is-focused' : ''}">
+              <button type="button" class="np-sel-pill-btn" data-np-focus-item="${escapeHtml(it.id)}">${escapeHtml(localizeItemShort(it.short))}</button>
+              <button type="button" class="np-sel-pill-x" data-np-remove-id="${escapeHtml(it.id)}" aria-label="${escapeHtml(t('step2.removeItemTitle'))}">×</button>
+            </span>`;
+        })
+        .join('');
+      selectedBarHtml = `
+        <div class="np-selected-box">
+          <div class="np-region-label">${escapeHtml(t('picker.selectedInCell'))}</div>
+          <div class="np-selected-chips">${selChips}</div>
+        </div>`;
     }
 
     // Region switcher box inside top of dropdown (for multi-region families)
@@ -343,7 +448,7 @@
         </div>`;
     }
 
-    // Inline custom price editor for EVERY paid subscription/plan
+    // Inline custom price editor for the focused paid subscription
     let priceInlineHtml = '';
     if (activeSlot && activeSlot.id !== 'none_idle' && activeSlot.id !== 'idle_org_seat') {
       const isLegacyUltra = activeSlot.dynamicPrice === 'gemini_ultra_5x';
@@ -362,11 +467,11 @@
         </div>`;
     }
 
-    // Clean brand-grouped list (zero replace/idle jargon!)
+    // Clean brand-grouped multi-select list (clicking any plan adds it directly to ALL target months!)
     const groupsHtml = PLAN_BRAND_GROUPS.map((g) => {
       const rows = g.families
-        .filter((fam) => !(mode === 'add' && fam.id === 'fam_none'))
         .map((fam) => {
+          const isPresent = presentFamilyIds.has(fam.id);
           const isAct = activeFamily && activeFamily.id === fam.id;
           const rightMeta =
             fam.variants.length > 1
@@ -375,13 +480,13 @@
           return `
             <button type="button" class="np-item-btn ${isAct ? 'is-active' : ''}" data-pick-family="${fam.id}">
               <span class="np-item-left">
+                ${isPresent ? '<span class="np-item-check mono">✓</span>' : ''}
                 <span class="tag tag-${fam.tone}" style="font-size:12.5px;padding:1px 7px;">${escapeHtml(localizeItemShort(fam.name))}</span>
               </span>
               <span class="np-item-meta mono">${escapeHtml(rightMeta)}</span>
             </button>`;
         })
         .join('');
-      if (!rows) return '';
       return `<div class="np-brand-title">${escapeHtml(localizeBrand(g.brand))}</div>${rows}`;
     }).join('');
 
@@ -406,6 +511,7 @@
           <span class="np-top-target">${escapeHtml(targetLabel)}</span>
           <button type="button" class="text-btn text-btn-muted" data-np-close="1" style="padding:1px 6px;font-size:12.5px;">${escapeHtml(t('picker.done'))}</button>
         </div>
+        ${selectedBarHtml}
         ${regionHtml}
         ${priceInlineHtml}
       </div>
@@ -414,16 +520,15 @@
     `;
 
     pickerEl.classList.add('is-open');
-    positionFloatingBox(pickerEl, anchorRect, 368, 460);
+    positionFloatingBox(pickerEl, anchorRect, 376, 480);
   }
 
-  function setPhaseModalOpen(open) {
-    phaseModalOpen = Boolean(open);
-    const backdrop = document.getElementById('phase-modal-backdrop');
-    backdrop.classList.toggle('is-open', phaseModalOpen);
-    backdrop.setAttribute('aria-hidden', phaseModalOpen ? 'false' : 'true');
-    const triggerBtn = document.getElementById('btn-phase-settings');
-    if (triggerBtn) triggerBtn.classList.toggle('is-open', phaseModalOpen);
+  function jumpToLifecycleSection() {
+    goToStep(3);
+    setTimeout(() => {
+      const el = document.getElementById('section-model-lifecycle');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 40);
   }
 
   function clearCalcTimers() {
@@ -550,11 +655,10 @@
 
   function goToStep(stepIdx) {
     const nextStep = Math.max(0, Math.min(STEPS.length - 1, stepIdx));
-    const enteringFinal = nextStep === 3 && currentStep !== 3;
+    const enteringFinal = nextStep === 4 && currentStep !== 4;
     currentStep = nextStep;
     maxVisitedStep = Math.max(maxVisitedStep, currentStep);
     pickerState = null;
-    setPhaseModalOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (enteringFinal) {
       runFinalCalculationSequence();
@@ -748,14 +852,15 @@
         if (isSyncedGhost) {
           return `
             <div class="bf-compare-cell">
-              <span class="bf-synced-muted">${escapeHtml(t('step2.bfWaitBaseline'))}</span>
-              <button type="button" class="cell-add-btn" data-add-picker="B:${rowIdx}" title="${addTitle}">+</button>
+              <button type="button" class="cell-pill-btn tone-empty" data-open-picker="B:${rowIdx}:">
+                <span class="cell-pill-text">${escapeHtml(t('step2.bfWaitBaseline'))}</span>
+                <span class="cell-pill-caret" aria-hidden="true">▾</span>
+              </button>
             </div>`;
         }
         return `
           <div class="bf-compare-cell">
-            <button type="button" class="bf-no-extra-pill" data-add-picker="B:${rowIdx}" title="${addTitle}">${escapeHtml(t('step2.bfNoExtra'))}</button>
-            <button type="button" class="cell-add-btn" data-add-picker="B:${rowIdx}" title="${addTitle}">+</button>
+            <button type="button" class="bf-no-extra-pill" data-open-picker="B:${rowIdx}:" title="${addTitle}">${escapeHtml(t('step2.bfNoExtra'))} <span aria-hidden="true">▾</span></button>
             <button type="button" class="bf-sync-chip" data-sync-b="${rowIdx}" title="${escapeHtml(t('step2.bfSyncBackTip'))}">${escapeHtml(t('step2.bfSyncBack'))}</button>
           </div>`;
       }
@@ -763,31 +868,30 @@
         pickerState && pickerState.column === 'A' && pickerState.targetIndices.includes(rowIdx)
       );
       return `
-        <button type="button" class="cell-pill-btn tone-empty ${isOpenEmpty ? 'is-open' : ''}" data-open-picker="A:${rowIdx}:0">
+        <button type="button" class="cell-pill-btn tone-empty ${isOpenEmpty ? 'is-open' : ''}" data-open-picker="A:${rowIdx}:">
           <span class="cell-pill-text">${escapeHtml(t('step2.pickPlaceholder'))}</span>
           <span class="cell-pill-caret" aria-hidden="true">▾</span>
         </button>`;
     }
 
     const chipsHtml = items
-      .map((item, idx) => {
+      .map((item) => {
         const tone = `tone-${item.tone || 'gray'}`;
         const isOpen = Boolean(
           pickerState &&
           pickerState.column === column &&
-          pickerState.mode === 'replace' &&
           pickerState.targetIndices.includes(rowIdx) &&
-          (pickerState.itemIdx === idx || (pickerState.itemIdx == null && idx === 0))
+          pickerState.focusedItemId === item.id
         );
         const hikeBadge = item.midYearHike
           ? `<span class="cell-hike-dot">${escapeHtml(t('step2.hikeTag'))}</span>`
           : '';
         return `
           <span class="pill-chip-group ${tone} ${isSyncedGhost ? 'is-synced-ghost' : ''}">
-            <button type="button" class="cell-pill-btn ${isOpen ? 'is-open' : ''}" data-open-picker="${column}:${rowIdx}:${idx}">
+            <button type="button" class="cell-pill-btn ${isOpen ? 'is-open' : ''}" data-open-picker="${column}:${rowIdx}:${escapeHtml(item.id)}">
               <span class="cell-pill-text">${escapeHtml(localizeItemShort(item.short))}</span>
             </button>
-            <button type="button" class="pill-chip-x" data-remove-item="${column}:${rowIdx}:${idx}" title="${removeTitle}" aria-label="${removeTitle}">×</button>
+            <button type="button" class="pill-chip-x" data-remove-item="${column}:${rowIdx}:${escapeHtml(item.id)}" title="${removeTitle}" aria-label="${removeTitle}">×</button>
           </span>${hikeBadge}`;
       })
       .join('');
@@ -799,38 +903,27 @@
     return `
       <div class="cell-pills-wrap">
         ${chipsHtml}
-        <button type="button" class="cell-add-btn" data-add-picker="${column}:${rowIdx}" title="${addTitle}">+</button>
+        <button type="button" class="cell-caret-btn" data-open-picker="${column}:${rowIdx}:" title="${addTitle}" aria-label="${addTitle}">▾</button>
         ${syncHtml}
       </div>`;
   }
 
+  const LOCK_SVG =
+    '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>';
+
   function renderDatabaseTable(res) {
-    const indices = getSelectedIndices();
-    const selBar = document.getElementById('db-selection-bar');
-    selBar.style.display = indices.length > 0 ? 'flex' : 'none';
+    // --- STEP 2: Plan A (Without Black Friday) ---
+    const indicesA = getSelectedIndices();
+    document.getElementById('db-selection-bar').style.display = indicesA.length > 0 ? 'flex' : 'none';
     document.getElementById('editor-selected-title').textContent =
-      indices.length === 12 ? t('step2.selectedAll') : t('step2.selectedN', { n: indices.length });
+      indicesA.length === 12 ? t('step2.selectedAll') : t('step2.selectedN', { n: indicesA.length });
 
-    const chkAll = document.getElementById('chk-select-all');
-    chkAll.checked = indices.length === 12;
-    chkAll.indeterminate = indices.length > 0 && indices.length < 12;
-
-    const tableEl = document.getElementById('db-months-table');
-    const skipBtn = document.getElementById('btn-mode-skip');
-    const buyBtn = document.getElementById('btn-mode-buy');
-    const saveThLabel = document.getElementById('th-save-label');
-    const viewHint = document.getElementById('db-view-hint');
-    tableEl.classList.toggle('is-compare-hidden', !showBfCompare);
-    skipBtn.classList.toggle('is-active', !showBfCompare);
-    buyBtn.classList.toggle('is-active', showBfCompare);
-    saveThLabel.textContent = showBfCompare ? t('step2.thSaveDiff') : t('step2.thSaveOrig');
-    viewHint.textContent = showBfCompare ? t('step2.hintBuy') : t('step2.hintSkip');
-    document.getElementById('lbl-phase-settings-meta').textContent =
-      t('step2.phaseMeta', { sota: state.effectiveSotaMonths, prob: state.retainProbPct });
+    const chkAllA = document.getElementById('chk-select-all');
+    chkAllA.checked = indicesA.length === 12;
+    chkAllA.indeterminate = indicesA.length > 0 && indicesA.length < 12;
 
     const phaseTip = escapeHtml(t('step2.phaseTooltip'));
-    const tbody = document.getElementById('db-months-tbody');
-    tbody.innerHTML = res.monthlyRows
+    document.getElementById('db-months-tbody').innerHTML = res.monthlyRows
       .map((row) => {
         const isSel = selectedMonths.has(row.index);
         const skipCellHtml = `
@@ -838,25 +931,9 @@
             <input type="checkbox" class="cell-chk" data-chk-month="${row.index}" ${isSel ? 'checked' : ''} aria-label="${escapeHtml(getMonthLabel(row.index))}" />
             ${renderPillStack('A', row.index, row.items, false)}
           </div>`;
-
-        const buyCellHtml = renderPillStack('B', row.index, row.buyItems, row.buySynced);
-
-        let saveText;
-        if (showBfCompare) {
-          if (row.monthSavedByBf > 0.5) {
-            saveText = `<span class="mono save-val-active">${escapeHtml(t('step2.saveMonth', { yen: fmtYen(row.monthSavedByBf) }))}</span>`;
-          } else if (row.monthSavedByBf < -0.5) {
-            saveText = `<span class="mono save-val-neg">${escapeHtml(t('step2.extraSpend', { yen: fmtYen(Math.abs(row.monthSavedByBf)) }))}</span>`;
-          } else if (row.items.length > 0 || row.buyItems.length > 0) {
-            saveText = `<span class="mono save-val-idle">${escapeHtml(t('step2.sameZero'))}</span>`;
-          } else {
-            saveText = `<span class="mono save-val-idle">${escapeHtml(t('step2.emptyZero'))}</span>`;
-          }
-        } else {
-          saveText = row.skipMonthFlow > 0
-            ? `<span class="mono">${fmtYen(row.skipMonthFlow)}</span>`
-            : '<span class="mono save-val-idle">—</span>';
-        }
+        const costText = row.skipMonthFlow > 0
+          ? `<span class="mono">${fmtYen(row.skipMonthFlow)}</span>`
+          : '<span class="mono save-val-idle">—</span>';
 
         return `
           <tr class="db-row" data-row-idx="${row.index}">
@@ -865,30 +942,83 @@
               <button type="button" class="phase-pill phase-${row.phase.key}" data-open-phase-pop="1" data-tooltip="${phaseTip}">${escapeHtml(localizePhase(row.phase))}${PHASE_CUE_SVG}</button>
             </td>
             <td class="col-skip ${isSel ? 'is-cell-selected' : ''}" data-cell-idx="${row.index}">${skipCellHtml}</td>
-            <td class="col-buy">${buyCellHtml}</td>
-            <td class="col-save num mono">${saveText}</td>
+            <td class="col-save num mono">${costText}</td>
           </tr>`;
       })
       .join('');
 
-    renderNotionPicker();
-
     const filledMonths = res.monthlyRows.filter((r) => r.items.length > 0).length;
-    const extraB = Math.max(0, res.totalBuyCost - res.bfCost);
-    const netDiff = res.totalSkipCost - res.totalBuyCost;
-    const footDiffHtml = showBfCompare
-      ? (netDiff >= 0
-          ? `<span class="mono save-val-active">${escapeHtml(t('step2.footDiffSave', { yen: fmtYen(netDiff) }))}</span>`
-          : `<span class="mono save-val-neg">${escapeHtml(t('step2.footDiffLoss', { yen: fmtYen(Math.abs(netDiff)) }))}</span>`)
-      : `<span class="unit">${escapeHtml(t('step2.footRight'))}</span>`;
-
     document.getElementById('db-months-tfoot').innerHTML = `
       <tr>
         <td class="mono" style="font-weight:600;">${escapeHtml(t('step2.footTitle'))}</td>
         <td>${t('step2.footSkip', { totalA: fmtYen(res.totalSkipCost), filled: filledMonths })}</td>
-        <td class="col-buy">${t('step2.footBuy', { bf: fmtYen(res.bfCost), extraB: fmtYen(extraB), totalB: fmtYen(res.totalBuyCost) })}</td>
+        <td class="num mono" style="font-weight:600;">${fmtYen(res.totalSkipCost)}</td>
+      </tr>`;
+
+    // --- STEP 3: Plan B (With Black Friday Pro Locked Every Month + Drag Multi-Select) ---
+    const indicesB = getSelectedIndicesB();
+    document.getElementById('db-b-selection-bar').style.display = indicesB.length > 0 ? 'flex' : 'none';
+    document.getElementById('editor-b-selected-title').textContent =
+      indicesB.length === 12 ? t('step2.selectedAll') : t('step2.selectedN', { n: indicesB.length });
+
+    const chkAllB = document.getElementById('chk-b-select-all');
+    chkAllB.checked = indicesB.length === 12;
+    chkAllB.indeterminate = indicesB.length > 0 && indicesB.length < 12;
+
+    const lockedPillHtml = `<span class="locked-bf-pill" title="${escapeHtml(t('step2b.lockedBfTip'))}">${LOCK_SVG}<span>${escapeHtml(t('step2b.lockedBfPill'))}</span></span>`;
+
+    document.getElementById('db-b-months-tbody').innerHTML = res.monthlyRows
+      .map((row) => {
+        const isSelB = selectedMonthsB.has(row.index);
+        const buyCellHtml = `
+          <div class="cell-skip-inner">
+            <input type="checkbox" class="cell-chk" data-chk-b-month="${row.index}" ${isSelB ? 'checked' : ''} aria-label="${escapeHtml(getMonthLabel(row.index))}" />
+            <div class="cell-pills-wrap">
+              ${lockedPillHtml}
+              <span class="bf-row-plus" aria-hidden="true">+</span>
+              ${renderPillStack('B', row.index, row.buyItems, row.buySynced)}
+            </div>
+          </div>`;
+
+        let diffBadge;
+        if (row.monthSavedByBf > 0.5) {
+          diffBadge = `<span class="mono save-val-active">${escapeHtml(t('step2.saveMonth', { yen: fmtYen(row.monthSavedByBf) }))}</span>`;
+        } else if (row.monthSavedByBf < -0.5) {
+          diffBadge = `<span class="mono save-val-neg">${escapeHtml(t('step2.extraSpend', { yen: fmtYen(Math.abs(row.monthSavedByBf)) }))}</span>`;
+        } else {
+          diffBadge = `<span class="mono save-val-idle">${escapeHtml(t('step2.sameZero'))}</span>`;
+        }
+
+        const extraPart = row.buyMonthFlow > 0
+          ? `<span class="bf-diff-extra mono">${fmtYen(row.buyMonthFlow)} ·</span>`
+          : '';
+
+        return `
+          <tr class="db-row" data-row-b-idx="${row.index}">
+            <td class="col-month">
+              <span class="db-month-main">${escapeHtml(getMonthLabel(row.index))}</span>
+              <button type="button" class="phase-pill phase-${row.phase.key}" data-open-phase-pop="1" data-tooltip="${phaseTip}">${escapeHtml(localizePhase(row.phase))}${PHASE_CUE_SVG}</button>
+            </td>
+            <td class="col-skip ${isSelB ? 'is-cell-selected' : ''}" data-b-cell-idx="${row.index}">${buyCellHtml}</td>
+            <td class="col-save num mono"><span class="bf-diff-stack">${extraPart}${diffBadge}</span></td>
+          </tr>`;
+      })
+      .join('');
+
+    const extraB = Math.max(0, res.totalBuyCost - res.bfCost);
+    const netDiff = res.totalSkipCost - res.totalBuyCost;
+    const footDiffHtml = netDiff >= 0
+      ? `<span class="mono save-val-active">${escapeHtml(t('step2.footDiffSave', { yen: fmtYen(netDiff) }))}</span>`
+      : `<span class="mono save-val-neg">${escapeHtml(t('step2.footDiffLoss', { yen: fmtYen(Math.abs(netDiff)) }))}</span>`;
+
+    document.getElementById('db-b-months-tfoot').innerHTML = `
+      <tr>
+        <td class="mono" style="font-weight:600;">${escapeHtml(t('step2b.footLabel'))}</td>
+        <td>${t('step2b.footPlanA', { totalA: fmtYen(res.totalSkipCost), totalB: fmtYen(res.totalBuyCost), bf: fmtYen(res.bfCost), extraB: fmtYen(extraB) })}</td>
         <td class="num">${footDiffHtml}</td>
       </tr>`;
+
+    renderNotionPicker();
   }
 
   // SVG Bidirectional Payoff Bar (Downside D vs Upside U on shared zero axis)
@@ -1081,6 +1211,7 @@
 
   function render() {
     saveState();
+    updateHistoryButtons();
     const lang = getLang();
     applyDomTranslations();
     document.querySelectorAll('[data-lang-opt]').forEach((el) => {
@@ -1102,11 +1233,11 @@
     prevBtn.classList.toggle('is-hidden', currentStep === 0);
     nextBtn.classList.toggle('is-hidden', hideNext);
     nextBtn.classList.toggle('is-emphasized', currentStep === 0 && isStep1Picked);
-    document.getElementById('side-next-tip').textContent = currentStep === 2 ? t('nav.seeVerdict') : t('nav.next');
+    document.getElementById('side-next-tip').textContent = currentStep === 3 ? t('nav.seeVerdict') : t('nav.next');
     mobPrev.style.visibility = currentStep === 0 ? 'hidden' : 'visible';
     mobNext.style.visibility = hideNext ? 'hidden' : 'visible';
     document.getElementById('export-group').style.display =
-      currentStep === 3 && !isCalculatingFinal ? 'flex' : 'none';
+      currentStep === 4 && !isCalculatingFinal ? 'flex' : 'none';
 
     // STEP 1
     document.querySelectorAll('[data-bf-choice]').forEach((row) => {
@@ -1308,6 +1439,7 @@
   }
 
   function updateCustomBfCost() {
+    recordUndoSnapshot('custom-bf');
     const cur = document.getElementById('inp-bf-currency').value;
     const raw = Math.max(0, Number(document.getElementById('inp-bf-raw').value) || 0);
     state.bfPicked = true;
@@ -1325,18 +1457,20 @@
       goToStep(Number(btn.dataset.goStep));
     });
 
+    document.getElementById('btn-undo').addEventListener('click', performUndo);
+    document.getElementById('btn-redo').addEventListener('click', performRedo);
+
     document.getElementById('inp-preset-picker').addEventListener('change', (e) => {
       const id = e.target.value;
       if (!id) return;
       const found = SCENARIO_PRESETS.find((p) => p.id === id);
       if (!found) return;
+      recordUndoSnapshot();
       state = cloneState(found.patch);
-      showBfCompare = true;
       pickerState = null;
-      setPhaseModalOpen(false);
       syncInputsFromState();
       e.target.value = '';
-      goToStep(3);
+      goToStep(4);
       showToast(t('toast.presetLoaded', { name: found.name }));
     });
 
@@ -1349,11 +1483,11 @@
     });
 
     document.getElementById('btn-reset').addEventListener('click', () => {
+      recordUndoSnapshot();
       state = createInitialUiState();
       selectedMonths = new Set();
-      showBfCompare = false;
+      selectedMonthsB = new Set();
       pickerState = null;
-      setPhaseModalOpen(false);
       syncInputsFromState();
       goToStep(0);
       showToast(t('toast.reset'));
@@ -1379,6 +1513,7 @@
     document.getElementById('bf-choice-grid').addEventListener('click', (e) => {
       const row = e.target.closest('[data-bf-choice]');
       if (!row) return;
+      recordUndoSnapshot();
       const choice = row.dataset.bfChoice;
       state.bfPicked = true;
       state.bfPreset = choice;
@@ -1403,26 +1538,9 @@
     document.getElementById('inp-bf-currency').addEventListener('change', updateCustomBfCost);
     document.getElementById('inp-bf-raw').addEventListener('input', updateCustomBfCost);
 
-    // Step 2: Two-Stage Mode Switch & Phase Modal
-    document.getElementById('bf-compare-segment').addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-compare-mode]');
-      if (!btn) return;
-      showBfCompare = btn.dataset.compareMode === 'on';
-      pickerState = null;
-      render();
-    });
-
-    document.getElementById('btn-phase-settings').addEventListener('click', () => {
-      pickerState = null;
-      renderNotionPicker();
-      setPhaseModalOpen(true);
-    });
-
-    document.getElementById('btn-th-phase').addEventListener('click', () => {
-      pickerState = null;
-      renderNotionPicker();
-      setPhaseModalOpen(true);
-    });
+    // Step 2 & Step 3: Tune Lifecycle shortcuts + Plan B toolbar actions
+    document.getElementById('btn-th-phase').addEventListener('click', jumpToLifecycleSection);
+    document.getElementById('btn-th-b-phase').addEventListener('click', jumpToLifecycleSection);
 
     document.getElementById('btn-auto-drop-pro').addEventListener('click', () => {
       ensureBuyArrays();
@@ -1431,6 +1549,7 @@
         const curB = getColumnBasket('B', m);
         const hasPro = curB.some((it) => it && (it.isGeminiPro || it.dynamicPrice === 'gemini_pro'));
         if (hasPro) {
+          if (droppedCount === 0) recordUndoSnapshot();
           unsyncBuyMonth(m);
           state.buyMonthPlans[m] = state.buyMonthPlans[m].filter(
             (it) => !(it && (it.isGeminiPro || it.dynamicPrice === 'gemini_pro'))
@@ -1442,13 +1561,16 @@
       showToast(droppedCount > 0 ? t('toast.droppedPro', { n: droppedCount }) : t('toast.droppedProNone'));
     });
 
-    document.getElementById('btn-close-phase-modal').addEventListener('click', () => setPhaseModalOpen(false));
-    document.getElementById('btn-done-phase-modal').addEventListener('click', () => setPhaseModalOpen(false));
-    document.getElementById('phase-modal-backdrop').addEventListener('click', (e) => {
-      if (e.target.id === 'phase-modal-backdrop') setPhaseModalOpen(false);
+    document.getElementById('btn-sync-all-b').addEventListener('click', () => {
+      recordUndoSnapshot();
+      ensureBuyArrays();
+      state.buyMonthSynced = Array(12).fill(true);
+      pickerState = null;
+      render();
+      showToast(t('step2b.syncedAll'));
     });
 
-    // Step 2: Single-Column Selection Bar & Templates
+    // Step 2 (Plan A) Selection Bar & Templates
     document.getElementById('btn-unselect-all').addEventListener('click', () => {
       selectedMonths = new Set();
       pickerState = null;
@@ -1462,9 +1584,70 @@
       render();
     });
 
+    // Step 3 (Plan B) Selection Bar
+    document.getElementById('btn-unselect-b-all').addEventListener('click', () => {
+      selectedMonthsB = new Set();
+      pickerState = null;
+      render();
+    });
+
+    document.getElementById('chk-b-select-all').addEventListener('change', (e) => {
+      selectedMonthsB = e.target.checked
+        ? new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+        : new Set();
+      render();
+    });
+
+    document.getElementById('btn-open-b-batch-picker').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const indices = getSelectedIndicesB();
+      if (indices.length === 0) {
+        showToast(t('toast.selectMonthFirst'));
+        return;
+      }
+      pickerState = {
+        column: 'B',
+        targetIndices: indices,
+        focusedItemId: null,
+        anchorRect: e.currentTarget.getBoundingClientRect(),
+        showCustom: false,
+      };
+      renderNotionPicker();
+    });
+
+    document.getElementById('btn-clear-b-selected').addEventListener('click', () => {
+      const indices = getSelectedIndicesB();
+      if (indices.length === 0) {
+        showToast(t('toast.selectMonthFirst'));
+        return;
+      }
+      pickerState = null;
+      mutateColumnMonths('B', indices, (arr) => {
+        arr.length = 0;
+      });
+      showToast(t('step2b.clearedN', { n: indices.length }));
+    });
+
+    document.getElementById('btn-sync-b-selected').addEventListener('click', () => {
+      const indices = getSelectedIndicesB();
+      if (indices.length === 0) {
+        showToast(t('toast.selectMonthFirst'));
+        return;
+      }
+      recordUndoSnapshot();
+      ensureBuyArrays();
+      indices.forEach((mIdx) => {
+        state.buyMonthSynced[mIdx] = true;
+      });
+      pickerState = null;
+      render();
+      showToast(t('step2b.syncedN', { n: indices.length }));
+    });
+
     document.getElementById('inp-plan-template').addEventListener('change', (e) => {
       const key = e.target.value;
       if (!key) return;
+      recordUndoSnapshot();
       const preset = BF_DEAL_PRESETS[state.bfPreset];
       const regionProId = (preset && preset.defaultMonthlyProId) || 'gemini_pro_tr';
       const pair = buildPlanPair(key, regionProId);
@@ -1472,7 +1655,6 @@
       state.buyMonthPlans = pair.buyMonthPlans;
       state.buyMonthSynced = pair.buyMonthSynced;
       state.monthEdited = Array(12).fill(key !== 'region_pro');
-      if (key !== 'empty') showBfCompare = true;
       pickerState = null;
       e.target.value = '';
       render();
@@ -1488,27 +1670,8 @@
       }
       pickerState = {
         column: 'A',
-        mode: 'replace',
         targetIndices: indices,
-        itemIdx: 0,
-        anchorRect: e.currentTarget.getBoundingClientRect(),
-        showCustom: false,
-      };
-      renderNotionPicker();
-    });
-
-    document.getElementById('btn-open-batch-add-picker').addEventListener('click', (e) => {
-      e.stopPropagation();
-      const indices = getSelectedIndices();
-      if (indices.length === 0) {
-        showToast(t('toast.selectMonthFirst'));
-        return;
-      }
-      pickerState = {
-        column: 'A',
-        mode: 'add',
-        targetIndices: indices,
-        itemIdx: null,
+        focusedItemId: null,
         anchorRect: e.currentTarget.getBoundingClientRect(),
         showCustom: false,
       };
@@ -1529,7 +1692,7 @@
       showToast(t('toast.clearedN', { n: indices.length }));
     });
 
-    // Notion Database Brand-Grouped Floating Select Picker Events
+    // Unified Notion Multi-Select Floating Picker Events (Always Applies Consistently to ALL targetIndices!)
     pickerEl.addEventListener('change', (e) => {
       if (e.target.matches('[data-np-cur]')) {
         const wrap = pickerEl.querySelector('[data-np-hike-wrap]');
@@ -1553,6 +1716,28 @@
         return;
       }
 
+      const focusBtn = e.target.closest('[data-np-focus-item]');
+      if (focusBtn && pickerState) {
+        pickerState.focusedItemId = focusBtn.dataset.npFocusItem;
+        renderNotionPicker();
+        return;
+      }
+
+      const rmSelBtn = e.target.closest('[data-np-remove-id]');
+      if (rmSelBtn && pickerState) {
+        const removeId = rmSelBtn.dataset.npRemoveId;
+        const { column, targetIndices } = pickerState;
+        const indices = targetIndices.slice();
+        if (column === 'A') markMonthsEdited(indices);
+        if (pickerState.focusedItemId === removeId) pickerState.focusedItemId = null;
+        mutateColumnMonths(column, indices, (arr) => {
+          for (let i = arr.length - 1; i >= 0; i--) {
+            if (arr[i] && arr[i].id === removeId) arr.splice(i, 1);
+          }
+        });
+        return;
+      }
+
       const famBtn = e.target.closest('[data-pick-family]');
       if (famBtn && pickerState) {
         const famId = famBtn.dataset.pickFamily;
@@ -1566,53 +1751,43 @@
         }
         if (!family) return;
         const variant = pickDefaultVariantForFamily(family);
-        const { column, mode, targetIndices, itemIdx } = pickerState;
+        const { column, targetIndices } = pickerState;
         const indices = targetIndices.slice();
         if (column === 'A') markMonthsEdited(indices);
 
-        const shouldClose = family.id === 'fam_none' || family.id === 'fam_org';
-        let duplicateHit = false;
-
-        if (mode === 'add') {
-          let newSlotIdx = null;
+        if (family.id === 'fam_none') {
+          pickerState = null;
           mutateColumnMonths(column, indices, (arr) => {
-            if (arr.some((it) => it && it.id === variant.catalogId)) {
-              duplicateHit = true;
-              return;
-            }
-            arr.push(makeSubItem(variant.catalogId, 1));
-            if (newSlotIdx === null) newSlotIdx = arr.length - 1;
+            arr.length = 0;
           });
-          if (duplicateHit) {
-            showToast(t('toast.alreadyAdded'));
+          return;
+        }
+
+        // Check if every target month already contains a variant from this family
+        const variantIdSet = new Set(family.variants.map((v) => v.catalogId));
+        let addedAny = false;
+        let existingHitId = null;
+
+        indices.forEach((mIdx) => {
+          const basket = getColumnBasket(column, mIdx);
+          const hit = basket.find((it) => it && variantIdSet.has(it.id));
+          if (hit) {
+            if (!existingHitId) existingHitId = hit.id;
+          } else {
+            addedAny = true;
           }
-          if (shouldClose || duplicateHit) {
-            pickerState = null;
-          } else if (pickerState) {
-            // Switch to replace mode on the newly added item so user can immediately pick region/price!
-            pickerState.mode = 'replace';
-            pickerState.itemIdx = newSlotIdx;
-          }
+        });
+
+        if (!addedAny && existingHitId) {
+          pickerState.focusedItemId = existingHitId;
           renderNotionPicker();
           return;
         }
 
-        if (shouldClose) pickerState = null;
+        pickerState.focusedItemId = variant.catalogId;
         mutateColumnMonths(column, indices, (arr) => {
-          if (variant.catalogId === 'none_idle') {
-            if (indices.length === 1 && itemIdx != null && arr.length > 1) {
-              arr.splice(itemIdx, 1);
-            } else {
-              arr.length = 0;
-            }
-            return;
-          }
-          const nextItem = makeSubItem(variant.catalogId, 1);
-          if (indices.length === 1 && itemIdx != null && itemIdx < arr.length) {
-            arr[itemIdx] = nextItem;
-          } else {
-            arr.length = 0;
-            arr.push(nextItem);
+          if (!arr.some((it) => it && variantIdSet.has(it.id))) {
+            arr.push(makeSubItem(variant.catalogId, 1));
           }
         });
         return;
@@ -1621,21 +1796,19 @@
       const varBtn = e.target.closest('[data-pick-variant]');
       if (varBtn && pickerState) {
         const catId = varBtn.dataset.pickVariant;
-        const { column, targetIndices, itemIdx } = pickerState;
+        const { column, targetIndices } = pickerState;
         const indices = targetIndices.slice();
+        const hitInfo = findFamilyByCatalogId(catId);
+        const familyVariantIds = hitInfo
+          ? new Set(hitInfo.family.variants.map((v) => v.catalogId))
+          : new Set([catId]);
         if (column === 'A') markMonthsEdited(indices);
+        pickerState.focusedItemId = catId;
         mutateColumnMonths(column, indices, (arr) => {
-          if (catId === 'none_idle') {
-            arr.length = 0;
-            return;
-          }
+          const idx = arr.findIndex((it) => it && familyVariantIds.has(it.id));
           const nextItem = makeSubItem(catId, 1);
-          if (indices.length === 1 && itemIdx != null && itemIdx < arr.length) {
-            arr[itemIdx] = nextItem;
-          } else {
-            arr.length = 0;
-            arr.push(nextItem);
-          }
+          if (idx >= 0) arr[idx] = nextItem;
+          else arr.push(nextItem);
         });
         return;
       }
@@ -1647,12 +1820,17 @@
         const currency = curEl ? curEl.value : 'CNY';
         const amount = Math.max(0, Number(amtEl && amtEl.value) || 0);
         const midYearHike = currency === 'TRY' && Boolean(hikeEl && hikeEl.checked);
-        const { column, targetIndices, itemIdx } = pickerState;
+        const { column, targetIndices, focusedItemId } = pickerState;
         const indices = targetIndices.slice();
+        const union = getUnionPillsForTargets(column, indices);
+        const targetItem =
+          (focusedItemId && union.find((it) => it.id === focusedItemId)) ||
+          (union.length > 0 ? union[union.length - 1] : null);
+        if (!targetItem) return;
+
         if (column === 'A') markMonthsEdited(indices);
-        pickerState = null;
         mutateColumnMonths(column, indices, (arr) => {
-          const slot = itemIdx != null && arr[itemIdx] ? arr[itemIdx] : arr[0];
+          const slot = arr.find((it) => it && it.id === targetItem.id);
           if (!slot) return;
           if (slot.dynamicPrice === 'gemini_ultra_5x' && currency === 'CNY') {
             state.currentUltraCny = amount;
@@ -1682,28 +1860,26 @@
         const currency = curEl ? curEl.value : 'CNY';
         const amount = Math.max(0, Number(amtEl && amtEl.value) || 0);
         const customId = `custom_${name.toLowerCase().replace(/\s+/g, '_')}`;
-        const { column, mode, targetIndices, itemIdx } = pickerState;
+        const { column, targetIndices } = pickerState;
         const indices = targetIndices.slice();
         if (column === 'A') markMonthsEdited(indices);
-        pickerState = null;
+        pickerState.showCustom = false;
+        pickerState.focusedItemId = customId;
         mutateColumnMonths(column, indices, (arr) => {
           const nextItem = makeSubItem(null, 1, { id: customId, name, currency, amount });
-          if (mode === 'add') {
-            arr.push(nextItem);
-          } else if (indices.length === 1 && itemIdx != null && itemIdx < arr.length) {
-            arr[itemIdx] = nextItem;
-          } else {
-            arr.length = 0;
-            arr.push(nextItem);
-          }
+          const existingIdx = arr.findIndex((it) => it && it.id === customId);
+          if (existingIdx >= 0) arr[existingIdx] = nextItem;
+          else arr.push(nextItem);
         });
         showToast(t('toast.customApplied', { name }));
       }
     });
 
-    // Single-Column Marquee Drag Selection inside .col-skip (plus margins)
+    // Mouse-Drag Marquee Multi-Select on BOTH Step 2 (Plan A) and Step 3 (Plan B)
     const dbTbody = document.getElementById('db-months-tbody');
+    const dbBTbody = document.getElementById('db-b-months-tbody');
     const step1El = document.getElementById('step-1');
+    const step2El = document.getElementById('step-2');
     const marqueeBox = document.createElement('div');
     marqueeBox.className = 'db-marquee-box';
     document.body.appendChild(marqueeBox);
@@ -1712,17 +1888,20 @@
     let suppressNextClick = false;
 
     document.addEventListener('mousedown', (e) => {
-      if (currentStep !== 1 || e.button !== 0 || phaseModalOpen) return;
-      if (e.target.closest('input, textarea, select, option, a, button, .topbar, .side-nav-zone, .mobile-step-nav, .notion-picker, .step2-hero-bar, .db-selection-bar')) return;
-      const stepRect = step1El.getBoundingClientRect();
+      if ((currentStep !== 1 && currentStep !== 2) || e.button !== 0) return;
+      if (e.target.closest('input, textarea, select, option, a, button, .topbar, .side-nav-zone, .mobile-step-nav, .notion-picker, .step-title-bar, .db-selection-bar')) return;
+      const activeSection = currentStep === 1 ? step1El : step2El;
+      const stepRect = activeSection.getBoundingClientRect();
       if (e.clientY < stepRect.top || e.clientY > stepRect.bottom + 40) return;
 
+      const col = currentStep === 1 ? 'A' : 'B';
       marquee = {
+        column: col,
         startX: e.clientX,
         startY: e.clientY,
         active: false,
         additive: e.ctrlKey || e.metaKey || e.shiftKey,
-        baseSelection: new Set(selectedMonths),
+        baseSelection: new Set(getActiveSelectionSet(col)),
       };
     });
 
@@ -1765,24 +1944,29 @@
       const rectRight = left + width;
       const nextSet = marquee.additive ? new Set(marquee.baseSelection) : new Set();
 
-      dbTbody.querySelectorAll('td.col-skip[data-cell-idx]').forEach((td) => {
+      const targetTbody = marquee.column === 'B' ? dbBTbody : dbTbody;
+      const cellAttr = marquee.column === 'B' ? 'data-b-cell-idx' : 'data-cell-idx';
+      const chkSel = marquee.column === 'B' ? '[data-chk-b-month]' : '[data-chk-month]';
+
+      targetTbody.querySelectorAll(`td.col-skip[${cellAttr}]`).forEach((td) => {
         const tr = td.closest('tr');
         const r = tr.getBoundingClientRect();
         const intersects = !(r.right < left || r.left > rectRight || r.bottom < top || r.top > rectBottom);
-        const idx = Number(td.dataset.cellIdx);
+        const idx = Number(td.getAttribute(cellAttr));
         if (intersects) {
           nextSet.add(idx);
           td.classList.add('is-cell-selected');
-          const box = td.querySelector('[data-chk-month]');
+          const box = td.querySelector(chkSel);
           if (box) box.checked = true;
         } else if (!marquee.additive) {
           td.classList.remove('is-cell-selected');
-          const box = td.querySelector('[data-chk-month]');
+          const box = td.querySelector(chkSel);
           if (box) box.checked = false;
         }
       });
 
-      selectedMonths = nextSet;
+      if (marquee.column === 'B') selectedMonthsB = nextSet;
+      else selectedMonths = nextSet;
     });
 
     window.addEventListener('mouseup', () => {
@@ -1809,51 +1993,72 @@
           e.preventDefault();
           return;
         }
-        if (currentStep !== 1 || phaseModalOpen) return;
-        if (pickerState && !e.target.closest('.notion-picker, [data-open-picker], [data-add-picker], #btn-open-batch-picker, #btn-open-batch-add-picker')) {
+        if (currentStep !== 1 && currentStep !== 2) return;
+        if (pickerState && !e.target.closest('.notion-picker, [data-open-picker], #btn-open-batch-picker, #btn-open-b-batch-picker')) {
           pickerState = null;
           renderNotionPicker();
         }
-        if (selectedMonths.size === 0) return;
-        if (e.target.closest('.notion-db, .db-selection-bar, .topbar, .side-nav-zone, .mobile-step-nav, .notion-picker, .step2-hero-bar')) return;
-        selectedMonths = new Set();
+        const activeSel = currentStep === 1 ? selectedMonths : selectedMonthsB;
+        if (activeSel.size === 0) return;
+        if (e.target.closest('.notion-db, .db-selection-bar, .topbar, .side-nav-zone, .mobile-step-nav, .notion-picker, .step-title-bar')) return;
+        if (currentStep === 1) selectedMonths = new Set();
+        else selectedMonthsB = new Set();
         render();
       },
       true
     );
 
     document.addEventListener('keydown', (e) => {
-      if (e.key !== 'Escape') return;
-      if (phaseModalOpen) {
-        setPhaseModalOpen(false);
-        return;
+      // Global Undo / Redo shortcuts (Ctrl/Cmd + Z, Ctrl/Cmd + Shift + Z, Ctrl/Cmd + Y)
+      const inEditable = Boolean(e.target && e.target.closest('input, textarea, select'));
+      if (!inEditable && (e.ctrlKey || e.metaKey) && !e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          performUndo();
+          return;
+        }
+        if ((key === 'z' && e.shiftKey) || key === 'y') {
+          e.preventDefault();
+          performRedo();
+          return;
+        }
       }
-      if (currentStep !== 1) return;
+
+      if (e.key !== 'Escape') return;
+      if (currentStep !== 1 && currentStep !== 2) return;
       if (pickerState) {
         pickerState = null;
         renderNotionPicker();
-      } else if (selectedMonths.size > 0) {
+      } else if (currentStep === 1 && selectedMonths.size > 0) {
         selectedMonths = new Set();
+        render();
+      } else if (currentStep === 2 && selectedMonthsB.size > 0) {
+        selectedMonthsB = new Set();
         render();
       }
     });
 
-    dbTbody.addEventListener('click', (e) => {
-      const chk = e.target.closest('[data-chk-month]');
+    function handlePlanTableClick(e, column) {
+      const chkAttr = column === 'B' ? '[data-chk-b-month]' : '[data-chk-month]';
+      const chk = e.target.closest(chkAttr);
       if (chk) {
-        const idx = Number(chk.dataset.chkMonth);
-        if (e.shiftKey && lastCheckedIdx !== null) {
-          const start = Math.min(lastCheckedIdx, idx);
-          const end = Math.max(lastCheckedIdx, idx);
+        const idx = Number(column === 'B' ? chk.dataset.chkBMonth : chk.dataset.chkMonth);
+        const selSet = getActiveSelectionSet(column);
+        const prevIdx = column === 'B' ? lastCheckedIdxB : lastCheckedIdx;
+        if (e.shiftKey && prevIdx !== null) {
+          const start = Math.min(prevIdx, idx);
+          const end = Math.max(prevIdx, idx);
           for (let i = start; i <= end; i++) {
-            if (chk.checked) selectedMonths.add(i);
-            else selectedMonths.delete(i);
+            if (chk.checked) selSet.add(i);
+            else selSet.delete(i);
           }
         } else {
-          if (chk.checked) selectedMonths.add(idx);
-          else selectedMonths.delete(idx);
+          if (chk.checked) selSet.add(idx);
+          else selSet.delete(idx);
         }
-        lastCheckedIdx = idx;
+        if (column === 'B') lastCheckedIdxB = idx;
+        else lastCheckedIdx = idx;
         render();
         return;
       }
@@ -1861,13 +2066,14 @@
       if (e.target.closest('[data-open-phase-pop]')) {
         pickerState = null;
         renderNotionPicker();
-        setPhaseModalOpen(true);
+        jumpToLifecycleSection();
         return;
       }
 
       const syncBtn = e.target.closest('[data-sync-b]');
       if (syncBtn) {
         e.stopPropagation();
+        recordUndoSnapshot();
         ensureBuyArrays();
         const mIdx = Number(syncBtn.dataset.syncB);
         state.buyMonthSynced[mIdx] = true;
@@ -1880,71 +2086,69 @@
       const rmBtn = e.target.closest('[data-remove-item]');
       if (rmBtn) {
         e.stopPropagation();
-        const [col, mStr, iStr] = rmBtn.dataset.removeItem.split(':');
-        const mIdx = Number(mStr);
-        const itemIdx = Number(iStr);
+        const rawVal = rmBtn.dataset.removeItem;
+        const firstSep = rawVal.indexOf(':');
+        const secondSep = rawVal.indexOf(':', firstSep + 1);
+        const col = rawVal.slice(0, firstSep);
+        const mIdx = Number(rawVal.slice(firstSep + 1, secondSep));
+        const removeId = rawVal.slice(secondSep + 1);
+        const selSet = getActiveSelectionSet(col);
+        const targets = selSet.size > 1 && selSet.has(mIdx)
+          ? getActiveSelectedIndices(col)
+          : [mIdx];
         pickerState = null;
-        if (col === 'A') markMonthsEdited([mIdx]);
-        mutateColumnMonths(col, [mIdx], (arr) => {
-          if (itemIdx >= 0 && itemIdx < arr.length) arr.splice(itemIdx, 1);
+        if (col === 'A') markMonthsEdited(targets);
+        mutateColumnMonths(col, targets, (arr) => {
+          for (let i = arr.length - 1; i >= 0; i--) {
+            if (arr[i] && arr[i].id === removeId) arr.splice(i, 1);
+          }
         });
-        return;
-      }
-
-      const addBtn = e.target.closest('[data-add-picker]');
-      if (addBtn) {
-        e.stopPropagation();
-        const [col, mStr] = addBtn.dataset.addPicker.split(':');
-        const mIdx = Number(mStr);
-        pickerState = {
-          column: col,
-          mode: 'add',
-          targetIndices: [mIdx],
-          itemIdx: null,
-          anchorRect: addBtn.getBoundingClientRect(),
-          showCustom: false,
-        };
-        renderNotionPicker();
         return;
       }
 
       const pillBtn = e.target.closest('[data-open-picker]');
       if (pillBtn) {
         e.stopPropagation();
-        const [col, mStr, iStr] = pillBtn.dataset.openPicker.split(':');
-        const mIdx = Number(mStr);
-        const itemIdx = Number(iStr);
-        const targets = col === 'A' && selectedMonths.size > 1 && selectedMonths.has(mIdx)
-          ? getSelectedIndices()
+        const rawVal = pillBtn.dataset.openPicker;
+        const firstSep = rawVal.indexOf(':');
+        const secondSep = rawVal.indexOf(':', firstSep + 1);
+        const col = rawVal.slice(0, firstSep);
+        const mIdx = Number(rawVal.slice(firstSep + 1, secondSep));
+        const itemId = rawVal.slice(secondSep + 1) || null;
+        const selSet = getActiveSelectionSet(col);
+        const targets = selSet.size > 1 && selSet.has(mIdx)
+          ? getActiveSelectedIndices(col)
           : [mIdx];
         if (
           pickerState &&
           pickerState.column === col &&
-          pickerState.mode === 'replace' &&
           pickerState.targetIndices.length === targets.length &&
           pickerState.targetIndices[0] === targets[0] &&
-          pickerState.itemIdx === itemIdx
+          pickerState.focusedItemId === itemId
         ) {
           pickerState = null;
         } else {
           pickerState = {
             column: col,
-            mode: 'replace',
             targetIndices: targets,
-            itemIdx,
+            focusedItemId: itemId,
             anchorRect: pillBtn.getBoundingClientRect(),
             showCustom: false,
           };
         }
         renderNotionPicker();
       }
-    });
+    }
+
+    dbTbody.addEventListener('click', (e) => handlePlanTableClick(e, 'A'));
+    dbBTbody.addEventListener('click', (e) => handlePlanTableClick(e, 'B'));
 
     // Step 3: Dynamic Multi-Currency Bidirectional FX Sliders
     document.getElementById('fx-dynamic-panel').addEventListener('input', (e) => {
       const slider = e.target.closest('[data-fx-slider]');
       if (!slider) return;
       const code = slider.dataset.fxSlider;
+      recordUndoSnapshot(`fx-${code}`);
       const val = Number(slider.value);
       if (!state.fxAnnualChangePct || typeof state.fxAnnualChangePct !== 'object') {
         state.fxAnnualChangePct = Object.assign({}, DEFAULT_FX_ANNUAL_PCT);
@@ -1955,16 +2159,19 @@
 
     // Center Peek Modal: Model Lifecycle & Retention Sliders
     document.getElementById('inp-sota-len').addEventListener('input', (e) => {
+      recordUndoSnapshot('sota-len');
       state.effectiveSotaMonths = Number(e.target.value);
       render();
     });
 
     document.getElementById('inp-next-interval').addEventListener('input', (e) => {
+      recordUndoSnapshot('next-interval');
       state.nextFlagshipInterval = Number(e.target.value);
       render();
     });
 
     document.getElementById('inp-retain-prob').addEventListener('input', (e) => {
+      recordUndoSnapshot('retain-prob');
       state.retainProbPct = Number(e.target.value);
       render();
     });
