@@ -101,43 +101,49 @@
       </div>
     </section>
 
-    <!-- STEP 2: Authentic Notion Database Table (Unified Single-Status Column) -->
+    <!-- STEP 2: Authentic Notion Database Table (Side-by-Side Skip vs Buy Comparison) -->
     <section class="step" data-step="1" id="step-1">
       <div class="step-kicker mono">STEP 02 / 05</div>
-      <h1 class="page-title">排布这 12 个月里，黑五 Pro 的使用状态</h1>
-      <p class="page-lead">每个月只有两种情况：<strong>「黑五空闲」</strong>（本月用 Ultra / Claude Max / 团队账号或停用，省 ¥0）或<strong>「黑五取代某订阅」</strong>（替代原本要月付的订阅，省下该月费）；无论买不买黑五都会保留的无关订阅不用填。</p>
+      <h1 class="page-title">不买黑五 vs 买黑五：12 个月逐月对照</h1>
+      <p class="page-lead">在左侧填好<strong>「不买黑五时的原方案」</strong>（如某月用 Ultra/团队账号、某月按月买 Pro、或停用），右侧会自动对照展示<strong>「买黑五之后」</strong>每个月黑五 Pro 是生效取代还是空闲。</p>
 
       <!-- Fixed-height Toolbar Slot (Zero Layout Shift when Selection Bar appears) -->
       <div class="db-toolbar-slot">
         <div class="db-header-line" id="db-header-line">
           <div class="db-header-left">
-            <span class="db-view-title">12 个月状态表</span>
-            <span class="db-view-hint">鼠标拖动框选行、Shift+点击或勾选左侧复选框均可批量修改；点空白处或按 Esc 取消勾选</span>
+            <span class="db-view-title">12 个月对照表</span>
+            <span class="db-view-hint">拖选行或勾选左侧可批量修改；点空白处或按 Esc 取消勾选</span>
           </div>
-          <select class="ghost-select" id="inp-plan-template" aria-label="整年模板">
-            <option value="">整年模板...</option>
-            <option value="default">12-3月 Ultra 空闲 / 4-11月取代土区 Pro</option>
-            <option value="offseason_only">1-3月 Ultra 空闲 / 4-8月取代 Pro / 9-11月停用</option>
-            <option value="all_pro">全年 12 个月取代土区 Pro</option>
-            <option value="replace_gpt">12-3月 Ultra 空闲 / 4-11月取代 ChatGPT Plus</option>
-            <option value="empty">清空全年（全部停用）</option>
-          </select>
+          <div class="db-header-right">
+            <button type="button" class="compare-toggle-btn is-on" id="btn-toggle-bf-compare" aria-pressed="true" title="切换展开或收起「买黑五」对比列">
+              <span class="compare-dot" aria-hidden="true"></span>
+              <span>对比：买黑五 Pro</span>
+            </button>
+            <select class="ghost-select" id="inp-plan-template" aria-label="整年模板">
+              <option value="">整年模板...</option>
+              <option value="default">12-3月 Ultra 空闲 / 4-11月取代土区 Pro</option>
+              <option value="offseason_only">1-3月 Ultra 空闲 / 4-8月取代 Pro / 9-11月停用</option>
+              <option value="all_pro">全年 12 个月取代土区 Pro</option>
+              <option value="replace_gpt">12-3月 Ultra 空闲 / 4-11月取代 ChatGPT Plus</option>
+              <option value="empty">清空全年（全部停用）</option>
+            </select>
+          </div>
         </div>
 
         <!-- Contextual Notion Selection Bar (Overlays header in-place, zero table jump) -->
         <div class="db-selection-bar" id="db-selection-bar" style="display:none;">
           <span class="db-count-badge mono" id="editor-selected-title">已选 0 个月</span>
           <span class="toolbar-divider" aria-hidden="true"></span>
-          <select class="flat-select db-catalog-select" id="inp-batch-status" aria-label="批量设置本月状态"></select>
+          <select class="flat-select db-catalog-select" id="inp-batch-status" aria-label="批量设置不买黑五时的原方案"></select>
           <button type="button" class="primary-btn btn-xs" id="btn-apply-batch">批量应用</button>
           <button type="button" class="text-btn text-btn-muted" id="btn-clear-selected-months">设为停用</button>
           <button type="button" class="text-btn text-btn-muted" id="btn-unselect-all" style="margin-left:auto;" title="取消勾选 (Esc)">×</button>
         </div>
       </div>
 
-      <!-- Authentic Notion Database Table (Clean 4-Column Single-Select Model) -->
+      <!-- Authentic Notion Database Table (Skip vs Buy Live Side-by-Side) -->
       <div class="notion-db-wrap">
-        <table class="notion-db">
+        <table class="notion-db" id="db-months-table">
           <thead>
             <tr>
               <th class="col-check">
@@ -146,11 +152,14 @@
               <th class="col-month">
                 <span class="th-inner"><span class="th-icon">Aa</span>月份</span>
               </th>
-              <th class="col-status">
-                <span class="th-inner"><span class="th-icon">◉</span>本月状态（黑五空闲 / 取代某订阅）</span>
+              <th class="col-skip">
+                <span class="th-inner"><span class="th-icon">◉</span>不买黑五（原方案 · 可点击修改）</span>
+              </th>
+              <th class="col-buy" id="th-bf-compare">
+                <span class="th-inner"><span class="th-icon">◉</span>买黑五后（全年含黑五 Pro）</span>
               </th>
               <th class="col-save num">
-                <span class="th-inner th-right"><span class="th-icon">#</span>本月抵扣</span>
+                <span class="th-inner th-right"><span class="th-icon">#</span><span id="th-save-label">本月差额</span></span>
               </th>
             </tr>
           </thead>

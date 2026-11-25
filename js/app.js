@@ -36,6 +36,7 @@
   let selectedMonths = new Set();
   let lastCheckedIdx = null;
   let inlineEditor = null; // { monthIdx, itemId? }
+  let showBfCompare = true; // Side-by-side "买黑五后" comparison column toggle
 
   function loadState() {
     try {
@@ -227,6 +228,14 @@
     chkAll.checked = indices.length === 12;
     chkAll.indeterminate = indices.length > 0 && indices.length < 12;
 
+    const tableEl = document.getElementById('db-months-table');
+    const toggleBtn = document.getElementById('btn-toggle-bf-compare');
+    const saveThLabel = document.getElementById('th-save-label');
+    tableEl.classList.toggle('is-compare-hidden', !showBfCompare);
+    toggleBtn.classList.toggle('is-on', showBfCompare);
+    toggleBtn.setAttribute('aria-pressed', showBfCompare ? 'true' : 'false');
+    saveThLabel.textContent = showBfCompare ? '本月差额' : '原方案月费';
+
     const tbody = document.getElementById('db-months-tbody');
     tbody.innerHTML = res.monthlyRows
       .map((row) => {
@@ -237,44 +246,76 @@
         const isBfActive = row.monthSavedByBf > 0;
         const isEditingRow = inlineEditor && inlineEditor.monthIdx === row.index;
 
-        let statusCellHtml;
-        if (idleItem && row.ultraFallbackToPro) {
-          statusCellHtml = `
-            <div class="row-tokens">
-              <span class="sub-token tone-blue" style="${isEditingRow ? 'outline:1.5px solid #37352f;' : ''}">
-                <button type="button" class="tok-main-btn" data-open-status="${row.index}" data-item-id="${escapeHtml(idleItem.id)}" title="点击切换本月状态"><span class="status-tag-prefix">土区断续 · </span>已转为黑五 Pro 顶替 ▾</button>
-              </span>
-            </div>`;
-        } else if (idleItem) {
-          statusCellHtml = `
+        // Left Column: "不买黑五（原方案）"
+        let skipCellHtml;
+        if (idleItem) {
+          const fallbackNote = row.ultraFallbackToPro ? ' (断续)' : '';
+          skipCellHtml = `
             <div class="row-tokens">
               <span class="sub-token tone-yellow" style="${isEditingRow ? 'outline:1.5px solid #37352f;' : ''}">
-                <button type="button" class="tok-main-btn" data-open-status="${row.index}" data-item-id="${escapeHtml(idleItem.id)}" title="点击切换为其他空闲 Plan 或被取代订阅"><span class="status-tag-prefix">黑五空闲 · </span>${escapeHtml(idleItem.short)} ▾</button>
+                <button type="button" class="tok-main-btn" data-open-status="${row.index}" data-item-id="${escapeHtml(idleItem.id)}" title="点击切换本月原方案">${escapeHtml(idleItem.short)}${fallbackNote} ▾</button>
                 <button type="button" class="tok-del-btn" data-row-del="${row.index}" data-item-id="${escapeHtml(idleItem.id)}" title="改为停用">×</button>
               </span>
             </div>`;
         } else if (replaceableItem) {
           const toneCls = `tone-${replaceableItem.tone || 'blue'}`;
           const hikeBadge = replaceableItem.midYearHike ? ' · 6月调价' : '';
-          statusCellHtml = `
+          skipCellHtml = `
             <div class="row-tokens">
               <span class="sub-token ${toneCls}" style="${isEditingRow ? 'outline:1.5px solid #37352f;' : ''}">
-                <button type="button" class="tok-main-btn" data-open-status="${row.index}" data-item-id="${escapeHtml(replaceableItem.id)}" title="点击切换方案、币种、月费或 6 月调价"><span class="status-tag-prefix">黑五取代 · </span>${escapeHtml(replaceableItem.short)}${hikeBadge} ▾</button>
+                <button type="button" class="tok-main-btn" data-open-status="${row.index}" data-item-id="${escapeHtml(replaceableItem.id)}" title="点击切换方案、币种、月费或 6 月调价">${escapeHtml(replaceableItem.short)}${hikeBadge} ▾</button>
                 <button type="button" class="tok-del-btn" data-row-del="${row.index}" data-item-id="${escapeHtml(replaceableItem.id)}" title="改为停用">×</button>
               </span>
             </div>`;
         } else {
-          statusCellHtml = `
+          skipCellHtml = `
             <div class="row-tokens">
-              <button type="button" class="row-add-btn" data-open-status="${row.index}" style="${isEditingRow ? 'background:var(--active);color:var(--ink);' : ''}">本月停用（黑五空闲） · 点击选择 ▾</button>
+              <button type="button" class="row-add-btn" data-open-status="${row.index}" style="${isEditingRow ? 'background:var(--active);color:var(--ink);' : ''}">本月停用 · 点击选择 ▾</button>
             </div>`;
         }
 
-        const saveText = isBfActive
-          ? `<span class="mono save-val-active">省 ${fmtYen(row.monthSavedByBf)}/月</span>`
-          : idleItem
-            ? '<span class="mono save-val-idle">空闲 · ¥0</span>'
-            : '<span class="mono save-val-idle">停用 · ¥0</span>';
+        // Right Column: "买黑五后（全年自带黑五 Pro）"
+        let buyCellHtml;
+        if (idleItem && row.ultraFallbackToPro) {
+          buyCellHtml = `
+            <div class="bf-compare-cell">
+              <span class="bf-pill is-active">黑五 Pro · 顶替 1 槽</span>
+              <span class="bf-replaced-strike">原双号 Pro</span>
+            </div>`;
+        } else if (idleItem) {
+          buyCellHtml = `
+            <div class="bf-compare-cell">
+              <span class="bf-keep-plan">${escapeHtml(idleItem.short)}</span>
+              <span class="bf-pill is-idle">黑五 Pro · 空闲</span>
+            </div>`;
+        } else if (replaceableItem) {
+          buyCellHtml = `
+            <div class="bf-compare-cell">
+              <span class="bf-pill is-active">黑五 Pro · 取代</span>
+              <span class="bf-replaced-strike">${escapeHtml(replaceableItem.short)}</span>
+            </div>`;
+        } else {
+          buyCellHtml = `
+            <div class="bf-compare-cell">
+              <span class="bf-pill is-idle">黑五 Pro · 空闲</span>
+            </div>`;
+        }
+
+        // Far-Right Column: Diff (when compare ON) or Original Monthly Cost (when compare OFF)
+        let saveText;
+        if (showBfCompare) {
+          saveText = isBfActive
+            ? `<span class="mono save-val-active">省 ${fmtYen(row.monthSavedByBf)}/月</span>`
+            : idleItem
+              ? '<span class="mono save-val-idle">空闲 · ¥0</span>'
+              : '<span class="mono save-val-idle">停用 · ¥0</span>';
+        } else {
+          saveText = isBfActive
+            ? `<span class="mono">${fmtYen(row.monthSavedByBf)}/月</span>`
+            : idleItem
+              ? '<span class="mono save-val-idle">其他 Plan</span>'
+              : '<span class="mono save-val-idle">¥0</span>';
+        }
 
         const mainRow = `
           <tr class="db-row ${isSel ? 'is-selected' : ''}" data-row-idx="${row.index}">
@@ -285,7 +326,8 @@
               <span class="db-month-main">${row.month.label}</span>
               <span class="db-month-phase">${row.phase.label}</span>
             </td>
-            <td class="col-status">${statusCellHtml}</td>
+            <td class="col-skip">${skipCellHtml}</td>
+            <td class="col-buy">${buyCellHtml}</td>
             <td class="col-save num mono">${saveText}</td>
           </tr>`;
 
@@ -300,9 +342,9 @@
 
         const editorRow = `
           <tr class="db-inline-add-row">
-            <td colspan="4">
+            <td colspan="${showBfCompare ? 5 : 4}">
               <div class="inline-add-bar">
-                <span class="unit">${row.month.short}状态：</span>
+                <span class="unit">${row.month.short}原方案：</span>
                 <select class="flat-select" id="inline-status-select" style="min-width:265px;">${unifiedStatusOptionsHtml(selectedId, target)}</select>
                 <span id="inline-price-group" style="display:${showPriceFields ? 'inline-flex' : 'none'};align-items:center;gap:8px;flex-wrap:wrap;">
                   <select class="flat-select" id="inline-edit-currency" style="width:100px;">${currencyOptionsHtml(curCode)}</select>
@@ -326,7 +368,8 @@
       <tr>
         <td></td>
         <td class="mono" style="font-weight:600;">排布统计</td>
-        <td>黑五取代生效 <strong>${res.proCoveredMonths}</strong> 月 · 黑五空闲 <strong>${res.totalIdleMonths}</strong> 月（Plan 覆盖 ${res.ultraOverlapMonths} 月 / 停用 ${res.idleNoneMonths} 月）</td>
+        <td>原需月付 <strong>${res.proCoveredMonths}</strong> 月 · 其他 Plan <strong>${res.ultraOverlapMonths}</strong> 月 · 停用 <strong>${res.idleNoneMonths}</strong> 月</td>
+        <td class="col-buy">黑五 Pro 生效 <strong>${res.proCoveredMonths}</strong> 月 · 空闲 <strong>${res.totalIdleMonths}</strong> 月</td>
         <td class="num unit">第 5 步汇总计价</td>
       </tr>`;
   }
@@ -642,6 +685,11 @@
     document.getElementById('inp-bf-raw').addEventListener('input', updateCustomBfCost);
 
     // Step 2: Table Selection & Contextual Batch Actions
+    document.getElementById('btn-toggle-bf-compare').addEventListener('click', () => {
+      showBfCompare = !showBfCompare;
+      render();
+    });
+
     document.getElementById('btn-unselect-all').addEventListener('click', () => {
       selectedMonths = new Set();
       render();
