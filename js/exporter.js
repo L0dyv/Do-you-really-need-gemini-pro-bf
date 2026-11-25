@@ -153,16 +153,15 @@
     const expectedBuyCost = res.totalSkipCost - res.expectedNetSavings;
     const evPillBg = evRounded > 0 ? '#dbeddb' : evRounded < 0 ? '#ffe2dd' : '#e3e2e0';
     const evPillFg = evRounded > 0 ? '#1c3829' : evRounded < 0 ? '#5d1715' : '#32302c';
-    const stdTitle = isEn ? 'Standard · Your Outlook' : '标准情况 · 按你的预期';
+    const stdTitle = isEn ? 'Standard · Probability-Weighted' : '标准情况 · 按留存把握加权';
     const stdSub = isEn
-      ? `After Mo ${res.sotaCutoff}: ${wD}% drop (${M.fmtMoney(res.downsideNet, true)}) · ${wU}% full year (${M.fmtMoney(res.upsideNet, true)})`
-      : `前 ${res.sotaCutoff} 月后 ${wD}% 弃用主力 (${M.fmtMoney(res.downsideNet, true)}) · ${wU}% 用满全年 (${M.fmtMoney(res.upsideNet, true)})`;
+      ? `${wD}% × ${M.fmtMoney(res.downsideNet, true)}  +  ${wU}% × ${M.fmtMoney(res.upsideNet, true)} (SOTA Mo 1–${res.sotaCutoff})`
+      : `${wD}% × ${M.fmtMoney(res.downsideNet, true)}  +  ${wU}% × ${M.fmtMoney(res.upsideNet, true)}（SOTA 前 ${res.sotaCutoff} 月）`;
     const stdRowSvg = `
-      <rect x="${padX}" y="${stdRowY}" width="${contentW}" height="${stdRowH}" fill="#f2f7fd"/>
-      <rect x="${padX}" y="${stdRowY}" width="2" height="${stdRowH}" fill="#2383e2" fill-opacity="0.65"/>
-      <line x1="${padX}" y1="${stdRowY}" x2="${W - padX}" y2="${stdRowY}" stroke="#e9e9e7" stroke-width="1"/>
-      <text x="${padX + 12}" y="${stdRowY + 19}" fill="#37352f" font-size="13" font-weight="600" font-family="${fontSans}">${esc(stdTitle)}</text>
-      <text x="${padX + 12}" y="${stdRowY + 35}" fill="#787774" font-size="10.5" font-family="${fontSans}">${esc(stdSub)}</text>
+      <rect x="${padX}" y="${stdRowY}" width="${contentW}" height="${stdRowH}" fill="#fafaf9"/>
+      <line x1="${padX}" y1="${stdRowY}" x2="${W - padX}" y2="${stdRowY}" stroke="#37352f" stroke-width="1.2"/>
+      <text x="${padX + 8}" y="${stdRowY + 19}" fill="#37352f" font-size="13" font-weight="600" font-family="${fontSans}">${esc(stdTitle)}</text>
+      <text x="${padX + 8}" y="${stdRowY + 35}" fill="#787774" font-size="10.5" font-family="${fontMono}">${esc(stdSub)}</text>
       <text x="${W - padX - 216}" y="${stdRowY + 26}" text-anchor="end" fill="#37352f" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(expectedBuyCost))}</text>
       <text x="${W - padX - 112}" y="${stdRowY + 26}" text-anchor="end" fill="#37352f" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(res.totalSkipCost))}</text>
       <rect x="${W - padX - 84}" y="${stdRowY + 11}" width="80" height="22" rx="3" fill="${evPillBg}"/>
@@ -175,15 +174,13 @@
       .map((sc, i) => {
         const y = subStartY + i * tblRowH;
         const rounded = Math.round(M.conv(sc.diff));
-        const pillBg = rounded > 0 ? '#dbeddb' : rounded < 0 ? '#ffe2dd' : '#e3e2e0';
-        const pillFg = rounded > 0 ? '#1c3829' : rounded < 0 ? '#5d1715' : '#32302c';
+        const valFg = rounded > 0 ? '#1c5c34' : rounded < 0 ? '#9e2a2b' : '#787774';
         return `
           <line x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}" stroke="#e9e9e7" stroke-width="1"/>
-          <text x="${padX + 12}" y="${y + 19}" fill="#787774" font-size="11.5" font-weight="500" font-family="${fontSans}">${esc(sc.title)} <tspan fill="#9b9a97" font-size="10.5" font-weight="400">· ${esc(sc.periodNote || '')}</tspan></text>
+          <text x="${padX + 8}" y="${y + 19}" fill="#787774" font-size="11.5" font-weight="500" font-family="${fontSans}">${esc(sc.title)} <tspan fill="#9b9a97" font-size="10.5" font-weight="400">· ${esc(sc.periodNote || '')}</tspan></text>
           <text x="${W - padX - 216}" y="${y + 19}" text-anchor="end" fill="#787774" font-size="11.5" font-family="${fontMono}">${esc(M.fmtNum(sc.buyTotal))}</text>
           <text x="${W - padX - 112}" y="${y + 19}" text-anchor="end" fill="#787774" font-size="11.5" font-family="${fontMono}">${esc(M.fmtNum(sc.skipTotal))}</text>
-          <rect x="${W - padX - 78}" y="${y + 5}" width="74" height="19" rx="3" fill="${pillBg}"/>
-          <text x="${W - padX - 10}" y="${y + 18}" text-anchor="end" fill="${pillFg}" font-size="11.5" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(sc.diff, true))}</text>
+          <text x="${W - padX - 10}" y="${y + 19}" text-anchor="end" fill="${valFg}" font-size="11.5" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(sc.diff, true))}</text>
         `;
       })
       .join('');

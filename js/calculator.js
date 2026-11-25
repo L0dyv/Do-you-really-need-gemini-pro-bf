@@ -269,7 +269,7 @@
       {
         id: 'immediate_stop',
         cutoff: 0,
-        title: isEn ? '0 mo primary' : '0 个月主力',
+        title: isEn ? '0 mo' : '0 个月',
         periodNote: isEn ? 'Immediate drop' : '买完弃用',
         tag: isEn ? 'Floor' : '底线',
         tone: 'red',
@@ -280,8 +280,8 @@
       {
         id: 'sota_cutoff',
         cutoff: sotaCutoff,
-        title: isEn ? `First ${sotaCutoff} mo primary` : `前 ${sotaCutoff} 个月主力`,
-        periodNote: isEn ? `SOTA end · ${wD}%` : `主力期止 · 权重 ${wD}%`,
+        title: isEn ? `First ${sotaCutoff} mo` : `前 ${sotaCutoff} 个月`,
+        periodNote: isEn ? `SOTA end · ${wD}%` : `SOTA 止 · ${wD}%`,
         tag: isEn ? `${wD}%` : `${wD}%`,
         tone: 'amber',
         buyTotal: sK.buyTotal,
@@ -291,8 +291,8 @@
       {
         id: 'next_gen_review',
         cutoff: nextGenCutoff,
-        title: isEn ? `First ${nextGenCutoff} mo primary` : `前 ${nextGenCutoff} 个月主力`,
-        periodNote: isEn ? 'Until next SOTA' : '下代 SOTA 前',
+        title: isEn ? `First ${nextGenCutoff} mo` : `前 ${nextGenCutoff} 个月`,
+        periodNote: isEn ? 'Pre-next SOTA' : '下代 SOTA 前',
         tag: isEn ? 'Review' : '复评',
         tone: 'blue',
         buyTotal: sNext.buyTotal,
@@ -302,8 +302,8 @@
       {
         id: 'full_plan',
         cutoff: 12,
-        title: isEn ? 'All 12 mo primary' : '全年 12 个月主力',
-        periodNote: isEn ? `Full Plan B · ${wU}%` : `完整执行 · 权重 ${wU}%`,
+        title: isEn ? 'All 12 mo' : '全年 12 个月',
+        periodNote: isEn ? `Full plan · ${wU}%` : `完整执行 · ${wU}%`,
         tag: isEn ? `${wU}%` : `${wU}%`,
         tone: 'green',
         isBaseline: true,
