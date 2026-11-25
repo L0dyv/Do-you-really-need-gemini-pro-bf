@@ -380,6 +380,27 @@
 
     <!-- STEP 5: Final Decision Ledger -->
     <section class="step step-narrow" data-step="4" id="step-4">
+      <!-- Apple/Google-inspired Minimalist Calculation Transition Stage -->
+      <div class="calc-stage" id="calc-stage" style="display:none;" aria-live="polite">
+        <div class="calc-spinner" aria-hidden="true">
+          <svg viewBox="0 0 44 44" width="44" height="44">
+            <circle class="calc-ring-track" cx="22" cy="22" r="18" fill="none" stroke-width="2" />
+            <circle class="calc-ring-arc" cx="22" cy="22" r="18" fill="none" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div class="calc-stage-title">正在测算你的黑五决策账本</div>
+        <div class="calc-stage-sub mono" id="calc-stage-sub">正在汇总 12 个月边际排布...</div>
+        <div class="calc-progress-track">
+          <div class="calc-progress-fill" id="calc-progress-fill"></div>
+        </div>
+        <div class="calc-stage-pills mono">
+          <span class="calc-pill" id="calc-pill-0">12 个月排布</span>
+          <span class="calc-pill" id="calc-pill-1">汇率与空闲摊销</span>
+          <span class="calc-pill" id="calc-pill-2">模型周期 EV</span>
+        </div>
+      </div>
+
+      <div class="step5-result" id="step5-result">
       <div class="step-kicker mono">STEP 05 / 05 · SUMMARY</div>
       <div class="verdict-head">
         <span class="tag" id="verdict-badge">计算中</span>
@@ -497,6 +518,7 @@
             </div>
           </details>
         </div>
+      </div>
       </div>
     </section>
 

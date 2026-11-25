@@ -38,6 +38,8 @@
   let pricePopoverState = null; // { monthIdx, itemId, rect }
   let phasePopoverRect = null; // DOMRect when open, null when closed
   let showBfCompare = true; // Side-by-side "买黑五后" comparison column toggle
+  let calcTimers = [];
+  let isCalculatingStep5 = false;
 
   const pricePopoverEl = document.createElement('div');
   pricePopoverEl.className = 'price-popover';
@@ -192,11 +194,102 @@
     showToast._timer = setTimeout(() => el.classList.remove('is-visible'), 2000);
   }
 
-  function goToStep(stepIdx) {
-    currentStep = Math.max(0, Math.min(STEPS.length - 1, stepIdx));
-    maxVisitedStep = Math.max(maxVisitedStep, currentStep);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  function clearCalcTimers() {
+    calcTimers.forEach((id) => clearTimeout(id));
+    calcTimers = [];
+  }
+
+  function runStep5CalculationSequence() {
+    clearCalcTimers();
+    const reduceMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const stageEl = document.getElementById('calc-stage');
+    const resultEl = document.getElementById('step5-result');
+    const exportEl = document.getElementById('export-group');
+
+    if (reduceMotion) {
+      isCalculatingStep5 = false;
+      stageEl.style.display = 'none';
+      resultEl.style.display = 'block';
+      exportEl.style.display = 'flex';
+      render();
+      return;
+    }
+
+    isCalculatingStep5 = true;
+    stageEl.style.display = 'flex';
+    resultEl.style.display = 'none';
+    resultEl.classList.remove('is-revealing');
+    exportEl.style.display = 'none';
+
+    const subEl = document.getElementById('calc-stage-sub');
+    const fillEl = document.getElementById('calc-progress-fill');
+    const p0 = document.getElementById('calc-pill-0');
+    const p1 = document.getElementById('calc-pill-1');
+    const p2 = document.getElementById('calc-pill-2');
+
+    // Reset stage visual state
+    [p0, p1, p2].forEach((p) => {
+      p.className = 'calc-pill';
+    });
+    fillEl.style.width = '14%';
+    subEl.textContent = '正在汇总 12 个月不买 vs 买黑五边际排布...';
+    p0.classList.add('is-active');
+
     render();
+
+    calcTimers.push(
+      setTimeout(() => {
+        p0.className = 'calc-pill is-done';
+        p1.className = 'calc-pill is-active';
+        fillEl.style.width = '56%';
+        subEl.textContent = '正在折算外币汇率走势与空闲期摊销...';
+      }, 280)
+    );
+
+    calcTimers.push(
+      setTimeout(() => {
+        p1.className = 'calc-pill is-done';
+        p2.className = 'calc-pill is-active';
+        fillEl.style.width = '90%';
+        subEl.textContent = '正在按模型周期率测算期望净收益 (EV)...';
+      }, 600)
+    );
+
+    calcTimers.push(
+      setTimeout(() => {
+        p2.className = 'calc-pill is-done';
+        fillEl.style.width = '100%';
+        isCalculatingStep5 = false;
+        stageEl.style.display = 'none';
+        resultEl.style.display = 'block';
+        render();
+        // Trigger crisp staggered reveal + SVG curve draw
+        void resultEl.offsetWidth;
+        resultEl.classList.add('is-revealing');
+        exportEl.style.display = 'flex';
+      }, 940)
+    );
+  }
+
+  function goToStep(stepIdx) {
+    const nextStep = Math.max(0, Math.min(STEPS.length - 1, stepIdx));
+    const enteringStep5 = nextStep === 4 && currentStep !== 4;
+    currentStep = nextStep;
+    maxVisitedStep = Math.max(maxVisitedStep, currentStep);
+    pricePopoverState = null;
+    phasePopoverRect = null;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (enteringStep5) {
+      runStep5CalculationSequence();
+    } else {
+      clearCalcTimers();
+      isCalculatingStep5 = false;
+      document.getElementById('calc-stage').style.display = 'none';
+      document.getElementById('step5-result').style.display = 'block';
+      render();
+    }
   }
 
   function getSelectedIndices() {
@@ -513,7 +606,7 @@
         ${gridLines.join('')}
         ${nextGenMarkerSvg}
         <polyline points="${skipPts}" fill="none" stroke="#9b9a97" stroke-width="2" stroke-dasharray="5 4"/>
-        <polyline points="${buyPts}" fill="none" stroke="#37352f" stroke-width="2.2"/>
+        <polyline class="chart-line-draw" points="${buyPts}" fill="none" stroke="#37352f" stroke-width="2.2"/>
         ${xLabels}
         ${crossoverSvg}
         <text x="${(lastX - 6).toFixed(1)}" y="${buyY.toFixed(1)}" text-anchor="end" fill="#37352f" font-size="12" font-weight="600" font-family="JetBrains Mono, monospace">买:${fmtYen(lastRow.cumBuy)}</text>
@@ -543,7 +636,8 @@
     document.getElementById('side-next-tip').textContent = currentStep === 3 ? '查看结论' : '下一步';
     mobPrev.style.visibility = currentStep === 0 ? 'hidden' : 'visible';
     mobNext.style.visibility = hideNext ? 'hidden' : 'visible';
-    document.getElementById('export-group').style.display = currentStep === 4 ? 'flex' : 'none';
+    document.getElementById('export-group').style.display =
+      currentStep === 4 && !isCalculatingStep5 ? 'flex' : 'none';
 
     // STEP 1
     document.querySelectorAll('[data-bf-choice]').forEach((row) => {

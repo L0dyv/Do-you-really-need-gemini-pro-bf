@@ -1434,6 +1434,159 @@ input[type="range"]::-moz-range-thumb {
   color: var(--ink-3);
 }
 
+/* Step 5 Calculation Reveal Stage (Apple/Google-inspired Minimalist Motion) */
+.calc-stage {
+  min-height: 54vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 14px;
+  padding: 48px 16px;
+  animation: fadeIn 0.2s ease;
+}
+
+.calc-spinner {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+}
+
+.calc-ring-track {
+  stroke: var(--border);
+}
+
+.calc-ring-arc {
+  stroke: var(--ink);
+  stroke-dasharray: 82 114;
+  stroke-dashoffset: 0;
+  transform-origin: center;
+  animation: calcSpin 1.15s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite, calcDash 1.4s ease-in-out infinite;
+}
+
+@keyframes calcSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes calcDash {
+  0% { stroke-dasharray: 12 114; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 72 114; stroke-dashoffset: -24; }
+  100% { stroke-dasharray: 12 114; stroke-dashoffset: -112; }
+}
+
+.calc-stage-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+
+.calc-stage-sub {
+  font-size: 13.5px;
+  color: var(--ink-2);
+  min-height: 22px;
+}
+
+.calc-progress-track {
+  width: 260px;
+  max-width: 80vw;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  margin: 4px 0 6px;
+}
+
+.calc-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: var(--ink);
+  transition: width 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.calc-stage-pills {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.calc-pill {
+  font-size: 12px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--ink-3);
+  background: var(--bg);
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.calc-pill.is-active {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.calc-pill.is-done {
+  border-color: transparent;
+  background: var(--tag-green-bg);
+  color: var(--tag-green-fg);
+}
+
+.step5-result.is-revealing .verdict-head,
+.step5-result.is-revealing .page-lead,
+.step5-result.is-revealing .summary-props,
+.step5-result.is-revealing .callout,
+.step5-result.is-revealing .doc-block {
+  animation: resultCascade 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.step5-result.is-revealing .summary-props { animation-delay: 0.06s; }
+.step5-result.is-revealing .callout { animation-delay: 0.11s; }
+.step5-result.is-revealing .doc-block:nth-of-type(1) { animation-delay: 0.15s; }
+.step5-result.is-revealing .doc-block:nth-of-type(2) { animation-delay: 0.21s; }
+.step5-result.is-revealing .doc-block:nth-of-type(3) { animation-delay: 0.26s; }
+
+@keyframes resultCascade {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chart-line-draw {
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: drawLine 0.72s cubic-bezier(0.22, 1, 0.36, 1) 0.16s forwards;
+}
+
+@keyframes drawLine {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calc-ring-arc,
+  .step5-result.is-revealing .verdict-head,
+  .step5-result.is-revealing .page-lead,
+  .step5-result.is-revealing .summary-props,
+  .step5-result.is-revealing .callout,
+  .step5-result.is-revealing .doc-block,
+  .chart-line-draw {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}
+
 /* Step 5 Sections */
 .summary-props strong {
   font-weight: 600;
