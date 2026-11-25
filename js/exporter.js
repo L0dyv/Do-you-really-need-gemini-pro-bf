@@ -103,20 +103,32 @@
           .map((c) => `${c.currency} ${c.annualPct > 0 ? '+' : ''}${Math.round(c.annualPct)}%`)
           .join(' · ')
       : (isEn ? 'No FX monthly' : '无外币月付');
+    const breakEvenLineStr =
+      res.breakEvenProbStatus === 'already_even'
+        ? (isEn ? 'Locked in SOTA span' : '主力期内已回本')
+        : res.breakEvenProbStatus === 'impossible'
+          ? (isEn ? 'Unreachable (full plan < 0)' : '全年仍未回本')
+          : res.breakEvenProbPct != null
+            ? (isEn ? `Line ${res.breakEvenProbPct.toFixed(1)}%` : `盈亏线 ${res.breakEvenProbPct.toFixed(1)}%`)
+            : '—';
+    const crossoverStr =
+      res.crossoverMonthIndex !== null
+        ? (isEn ? enMonths[res.crossoverMonthIndex] : res.monthlyRows[res.crossoverMonthIndex].month.label)
+        : (isEn ? 'Not within 12 mo' : '12 个月内未回本');
     const props = isEn
       ? [
           ['BF Annual Cost', `${fmtYen(res.bfCost)} / yr (¥${res.bfMonthlyAvg.toFixed(1)}/mo · FX: ${fxSummary})`],
           ['BF Idle Period', idleText],
-          ['Break-Even Span', `${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) + ' mo' : 'Cannot break even'} (avg ¥${Math.round(res.avgProPrice)}/mo)`],
-          ['Expected Value (EV)', `${fmtYen(res.expectedNetSavings, true)} (Your ${state.retainProbPct}% vs Line ${res.breakEvenProbPct.toFixed(1)}%)`],
+          ['Cumulative Break-Even', `${crossoverStr} (equiv. ${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) + ' mo' : 'N/A'})`],
+          ['Expected Value (EV)', `${fmtYen(res.expectedNetSavings, true)} (Your ${state.retainProbPct}% · ${breakEvenLineStr})`],
           ['Upside / Downside', `${fmtYen(res.upsideNet, true)} / ${fmtYen(res.downsideNet, true)}`],
         ]
       : [
           ['黑五包年成本', `${fmtYen(res.bfCost)} / 年（¥${res.bfMonthlyAvg.toFixed(1)}/月 · 汇率假设：${fxSummary}）`],
           ['黑五空闲期', idleText],
-          ['实际回本周期', `${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) + ' 个月' : '无法回本'}（月均平替价值 ¥${Math.round(res.avgProPrice)}/月）`],
-          ['期望净收益 (EV)', `${fmtYen(res.expectedNetSavings, true)}（你的把握 ${state.retainProbPct}% vs 盈亏线 ${res.breakEvenProbPct.toFixed(1)}%）`],
-          ['最大赢 / 最大亏', `${fmtYen(res.upsideNet, true)} / ${fmtYen(res.downsideNet, true)}`],
+          ['累计回本节点', `${crossoverStr}（折合用量 ${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) + ' 个月' : '无法回本'}）`],
+          ['期望净节省 (EV)', `${fmtYen(res.expectedNetSavings, true)}（你的把握 ${state.retainProbPct}% · ${breakEvenLineStr}）`],
+          ['上行 U / 下行 D', `${fmtYen(res.upsideNet, true)} / ${fmtYen(res.downsideNet, true)}`],
         ];
     const propsSvg = props
       .map(([k, v], i) => {
@@ -136,12 +148,18 @@
     const chartRight = W - padX - 10;
     const chartW = chartRight - chartLeft;
     const rows = res.monthlyRows;
-    const maxY = Math.ceil(Math.max(600, ...rows.map((r) => Math.max(r.cumBuy, r.cumSkip))) / 500) * 500;
-    const xAt = (i) => chartLeft + (i / (rows.length - 1)) * chartW;
+    const maxY = Math.ceil(Math.max(600, res.bfCost, ...rows.map((r) => Math.max(r.cumBuy, r.cumSkip))) / 500) * 500;
+    const xAt = (i) => chartLeft + (i / rows.length) * chartW;
     const yAt = (val) => chartTop + chartH - (val / maxY) * chartH;
 
-    const buyPts = rows.map((r, i) => `${xAt(i).toFixed(1)},${yAt(r.cumBuy).toFixed(1)}`).join(' ');
-    const skipPts = rows.map((r, i) => `${xAt(i).toFixed(1)},${yAt(r.cumSkip).toFixed(1)}`).join(' ');
+    const buyPts = [
+      `${xAt(0).toFixed(1)},${yAt(res.bfCost).toFixed(1)}`,
+      ...rows.map((r, i) => `${xAt(i + 1).toFixed(1)},${yAt(r.cumBuy).toFixed(1)}`),
+    ].join(' ');
+    const skipPts = [
+      `${xAt(0).toFixed(1)},${yAt(0).toFixed(1)}`,
+      ...rows.map((r, i) => `${xAt(i + 1).toFixed(1)},${yAt(r.cumSkip).toFixed(1)}`),
+    ].join(' ');
 
     const chartGrid = [0, 0.5, 1]
       .map((ratio) => {
@@ -158,15 +176,16 @@
     const nextGenSvg =
       nextGenIdx >= 0
         ? `
-          <line x1="${xAt(nextGenIdx).toFixed(1)}" y1="${chartTop}" x2="${xAt(nextGenIdx).toFixed(1)}" y2="${chartTop + chartH}" stroke="#787774" stroke-dasharray="2 3" stroke-width="1"/>
-          <circle cx="${xAt(nextGenIdx).toFixed(1)}" cy="${chartTop + chartH}" r="3.5" fill="#1c3829"/>
-          <text x="${Math.min(chartRight - 140, Math.max(chartLeft + 4, xAt(nextGenIdx) - 55)).toFixed(1)}" y="${chartTop - 6}" fill="#1c3829" font-size="11" font-weight="600" font-family="${fontSans}">● 下一代成为 SOTA 的模型 (${esc(rows[nextGenIdx].month.short)})</text>
+          <line x1="${xAt(nextGenIdx + 1).toFixed(1)}" y1="${chartTop}" x2="${xAt(nextGenIdx + 1).toFixed(1)}" y2="${chartTop + chartH}" stroke="#787774" stroke-dasharray="2 3" stroke-width="1"/>
+          <circle cx="${xAt(nextGenIdx + 1).toFixed(1)}" cy="${chartTop + chartH}" r="3.5" fill="#1c3829"/>
+          <text x="${Math.min(chartRight - 140, Math.max(chartLeft + 4, xAt(nextGenIdx + 1) - 55)).toFixed(1)}" y="${chartTop - 6}" fill="#1c3829" font-size="11" font-weight="600" font-family="${fontSans}">${isEn ? `Next-Gen SOTA (${esc(enMonths[nextGenIdx])})` : `下一代成为 SOTA 的模型 (${esc(rows[nextGenIdx].month.short)})`}</text>
         `
         : '';
 
-    const chartXLabels = rows
-      .map((r, i) => `<text x="${xAt(i).toFixed(1)}" y="${chartTop + chartH + 17}" text-anchor="middle" fill="#787774" font-size="10.5" font-family="${fontSans}">${esc(r.month.short)}</text>`)
-      .join('');
+    const chartXLabels = [
+      `<text x="${xAt(0).toFixed(1)}" y="${chartTop + chartH + 17}" text-anchor="middle" fill="#787774" font-size="10.5" font-family="${fontSans}">${isEn ? 'Now' : '今日'}</text>`,
+      ...rows.map((r, i) => `<text x="${xAt(i + 1).toFixed(1)}" y="${chartTop + chartH + 17}" text-anchor="middle" fill="#787774" font-size="10.5" font-family="${fontSans}">${esc(isEn ? enMonths[i] : r.month.short)}</text>`),
+    ].join('');
 
     // Scenarios compact summary (4 rows)
     const tblY = 674;

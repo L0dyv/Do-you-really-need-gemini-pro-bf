@@ -29,8 +29,8 @@
 
   /**
    * Build normalized { TRY, JPY, HKD, TWD, USD } annual change % map from state.
-   * Positive % = foreign currency appreciates vs CNY (monthly bill becomes more expensive).
-   * Negative % = foreign currency depreciates vs CNY (monthly bill becomes cheaper).
+   * Positive % = foreign currency appreciates vs CNY (monthly bills cost more CNY).
+   * Negative % = foreign currency depreciates vs CNY (monthly bills cost less CNY).
    */
   function resolveFxAnnualMap(stateOrFx) {
     const out = Object.assign({}, DEFAULT_FX_ANNUAL_PCT);
@@ -48,7 +48,6 @@
       });
       return out;
     }
-    // Direct map passed (e.g. { JPY: 10, USD: -5 })
     const hasCurrencyKey = Object.keys(out).some((code) => stateOrFx[code] != null);
     if (hasCurrencyKey) {
       Object.keys(out).forEach((code) => {
@@ -58,7 +57,6 @@
       });
       return out;
     }
-    // Legacy state fallback with only tryAnnualDepRate
     if (stateOrFx.tryAnnualDepRate != null) {
       out.TRY = legacyTryDepToAnnualPct(stateOrFx.tryAnnualDepRate);
     }
@@ -68,7 +66,7 @@
   /**
    * Unified monthly FX formula:
    *   FX(c, t) = FX(c, 0) * (1 + r)^(t / 12)
-   * where FX(c, 0) is CNY per 1 unit of currency c, and t = 0 for today's upfront purchase.
+   * where t = 0 for today's upfront Black Friday purchase (locked at spot rate).
    */
   function getCnyPerUnit(currency, offsetMonths, fxArg) {
     const code = currency || 'CNY';
@@ -83,16 +81,11 @@
     return base * Math.pow(1 + r, t / 12);
   }
 
-  // Backward-compatible helper returning TRY per 1 CNY at offsetMonths
   function getTryRateAtOffset(offsetMonths, fxArg) {
     const cnyPerTry = getCnyPerUnit('TRY', offsetMonths, fxArg);
     return cnyPerTry > 0 ? 1 / cnyPerTry : FX_RATES.TRY_PER_CNY;
   }
 
-  /**
-   * Convert any currency amount (TRY / JPY / HKD / TWD / USD / CNY) to CNY at month offset.
-   * Note: offsetMonths === 0 (today's Black Friday purchase) is always locked at spot FX(c, 0).
-   */
   function convertToCny(amount, currency, offsetMonths, fxArg) {
     const val = Math.max(0, Number(amount) || 0);
     return val * getCnyPerUnit(currency || 'CNY', offsetMonths || 0, fxArg);
@@ -102,8 +95,7 @@
     const preset = state && BF_DEAL_PRESETS[state.bfPreset];
     const catalogId = (preset && preset.defaultMonthlyProId)
       || (state && state.monthlyProRegion === 'jp' ? 'gemini_pro_jp' : 'gemini_pro_tr');
-    const found = SUB_CATALOG.find((c) => c.id === catalogId) || SUB_CATALOG.find((c) => c.id === 'gemini_pro_tr');
-    return found;
+    return SUB_CATALOG.find((c) => c.id === catalogId) || SUB_CATALOG.find((c) => c.id === 'gemini_pro_tr');
   }
 
   function getMonthlyProCny(monthIndex, state) {
@@ -127,95 +119,49 @@
     return convertToCny(baseTry, 'TRY', offset, fxMap);
   }
 
-  function isTurkeyUltraAvailable(monthIndex, state) {
-    if (state.ultraRenewalMode === 'always') return true;
-    if (state.ultraRenewalMode === 'immediate_fail') return false;
-    return monthIndex < Number(state.ultraFailMonthIndex);
-  }
-
   /**
-   * Resolve legacy Turkey Ultra item for a given month into its actual underlying
-   * currency & amount (either legacy TRY, JP Ultra JPY, US Ultra USD, or Double Pro).
+   * Unified SOTA cutoff K (0..12 months from Step 2 start) and next-gen window start.
+   * Ensures model lifecycle phases, downside branch D, scenarios, and EV all share ONE cutoff!
    */
-  function resolveLegacyUltraCharge(monthIndex, state) {
-    const fxMap = resolveFxAnnualMap(state);
-    const offset = MONTHS[monthIndex].offsetFromNow;
-    if (isTurkeyUltraAvailable(monthIndex, state)) {
-      const impliedTry = (Math.max(0, Number(state.currentUltraCny) || 0)) * FX_RATES.TRY_PER_CNY;
-      return {
-        mode: 'legacy_try',
-        currency: 'TRY',
-        amount: impliedTry,
-        unitCny: convertToCny(impliedTry, 'TRY', offset, fxMap),
-        baseCny: convertToCny(impliedTry, 'TRY', 0, fxMap),
-        isDoublePro: false,
-      };
-    }
-    if (state.fallbackUltraStrategy === 'us_ultra') {
-      return {
-        mode: 'us_ultra',
-        currency: 'USD',
-        amount: 99.99,
-        unitCny: convertToCny(99.99, 'USD', offset, fxMap),
-        baseCny: convertToCny(99.99, 'USD', 0, fxMap),
-        isDoublePro: false,
-      };
-    }
-    if (state.fallbackUltraStrategy === 'jp_ultra') {
-      return {
-        mode: 'jp_ultra',
-        currency: 'JPY',
-        amount: 14500,
-        unitCny: convertToCny(14500, 'JPY', offset, fxMap),
-        baseCny: convertToCny(14500, 'JPY', 0, fxMap),
-        isDoublePro: false,
-      };
-    }
-    const proSpec = getRegionMonthlyProSpec(state);
-    const proUnit = convertToCny(proSpec.amount, proSpec.currency, offset, fxMap);
-    return {
-      mode: 'double_pro',
-      currency: proSpec.currency,
-      amount: proSpec.amount * 2,
-      singleProCny: proUnit,
-      unitCny: proUnit * 2,
-      baseCny: convertToCny(proSpec.amount * 2, proSpec.currency, 0, fxMap),
-      isDoublePro: true,
-    };
-  }
-
-  function getUltraCostForMonth(monthIndex, state) {
-    const resolved = resolveLegacyUltraCharge(monthIndex, state);
-    return resolved.isDoublePro ? null : resolved.unitCny;
+  function getLifecycleCutoffs(state) {
+    const launched = Math.max(0, Number(state.monthsSinceLaunch) || 0);
+    const sotaLen = Math.max(1, Number(state.effectiveSotaMonths) || 7);
+    const nextInterval = Math.max(2, Number(state.nextFlagshipInterval) || 10);
+    const sotaCutoff = Math.min(12, Math.max(0, Math.round(sotaLen - launched)));
+    const nextGenCutoff = Math.min(12, Math.max(0, Math.round(nextInterval - launched - 1)));
+    return { launched, sotaLen, nextInterval, sotaCutoff, nextGenCutoff };
   }
 
   function getModelPhase(monthIndex, state) {
-    const elapsed = Number(state.monthsSinceLaunch) + monthIndex + 1;
-    const sotaLen = Math.max(1, Number(state.effectiveSotaMonths));
-    const nextInterval = Math.max(2, Number(state.nextFlagshipInterval));
+    const { launched, sotaCutoff, nextInterval } = getLifecycleCutoffs(state);
+    const elapsed = launched + monthIndex + 1;
+    const monthNum = monthIndex + 1;
 
     if (elapsed >= nextInterval) {
       return { key: 'next_gen', label: '新旗舰窗口', tone: 'green' };
     }
-    if (elapsed <= 3) {
+    // Constrain honeymoon strictly within sotaCutoff so setting SOTA=1 never shows Month 2-3 as honeymoon
+    if (monthNum <= Math.min(3, sotaCutoff)) {
       return { key: 'honeymoon', label: '蜜月领先期', tone: 'dark' };
     }
-    if (elapsed <= sotaLen) {
+    if (monthNum <= sotaCutoff) {
       return { key: 'steady', label: '第一梯队稳态', tone: 'blue' };
     }
     return { key: 'risk', label: '空窗/掉队风险', tone: 'amber' };
   }
 
+  /**
+   * Pure single-source-of-truth item pricing directly from Step 2 table (no hidden Step 3 overrides!).
+   */
   function getItemUnitPrice(item, monthIndex, state) {
     const offset = MONTHS[monthIndex].offsetFromNow;
     const fxMap = resolveFxAnnualMap(state);
     if (item.dynamicPrice === 'gemini_ultra_5x') {
-      const resolved = resolveLegacyUltraCharge(monthIndex, state);
-      return resolved.unitCny;
+      const impliedTry = (Math.max(0, Number(state.currentUltraCny) || 265)) * FX_RATES.TRY_PER_CNY;
+      return convertToCny(impliedTry, 'TRY', offset, fxMap);
     }
     const currency = item.currency || 'CNY';
     const rawAmount = Math.max(0, Number(item.amount != null ? item.amount : item.priceCny) || 0);
-    // Mid-year one-time catch-up hike (only for TRY items, and only when TRY depreciated)
     if (currency === 'TRY' && item.midYearHike && monthIndex >= 6) {
       const baseFx = getCnyPerUnit('TRY', 0, fxMap);
       const juneFx = getCnyPerUnit('TRY', MONTHS[6].offsetFromNow, fxMap);
@@ -225,133 +171,212 @@
     return convertToCny(rawAmount, currency, offset, fxMap);
   }
 
-  function resolveMonthPlans(state) {
+  function resolveMonthPlanPair(state) {
+    let plansA;
     if (Array.isArray(state.monthPlans) && state.monthPlans.length === 12) {
-      return state.monthPlans;
+      plansA = state.monthPlans;
+    } else {
+      const legacy = Array.isArray(state.months) ? state.months : [];
+      const { makeSubItem } = data;
+      plansA = MONTHS.map((_, i) => {
+        const m = legacy[i] || 'none';
+        if (m === 'ultra') return [makeSubItem('ultra_idle', 1)];
+        if (m === 'pro1') return [makeSubItem('gemini_pro_tr', 1)];
+        if (m === 'pro2') return [makeSubItem('gemini_pro_tr', 2)];
+        return [];
+      });
     }
-    const legacy = Array.isArray(state.months) ? state.months : [];
-    const { makeSubItem } = data;
-    return MONTHS.map((_, i) => {
-      const m = legacy[i] || 'none';
-      if (m === 'ultra') return [makeSubItem('ultra_idle', 1)];
-      if (m === 'pro1') return [makeSubItem('gemini_pro_tr', 1)];
-      if (m === 'pro2') return [makeSubItem('gemini_pro_tr', 2)];
-      return [];
-    });
+
+    const hasExplicitB =
+      Array.isArray(state.buyMonthPlans) &&
+      state.buyMonthPlans.length === 12 &&
+      Array.isArray(state.buyMonthSynced) &&
+      state.buyMonthSynced.length === 12;
+
+    if (hasExplicitB) {
+      const plansB = MONTHS.map((_, i) =>
+        state.buyMonthSynced[i]
+          ? (Array.isArray(plansA[i]) ? plansA[i] : [])
+          : (Array.isArray(state.buyMonthPlans[i]) ? state.buyMonthPlans[i] : [])
+      );
+      return {
+        plansA,
+        plansB,
+        synced: state.buyMonthSynced.map(Boolean),
+      };
+    }
+
+    // Backward-compatible derivation for legacy states or unit tests that only set monthPlans
+    const derived = data.deriveDefaultBuyPlans(plansA);
+    return {
+      plansA,
+      plansB: derived.buyMonthPlans,
+      synced: derived.buyMonthSynced,
+    };
   }
 
-  function buildComparisonScenarios(state, baseRows, bfCost, musicFee, needsLegacyUltraRenewal, lang) {
-    const isEn = lang === 'en-US';
-    const m0to3Buy = baseRows.slice(0, 4).reduce((s, r) => s + r.buyMonthFlow, 0);
-    const m0to3Skip = baseRows.slice(0, 4).reduce((s, r) => s + r.skipMonthFlow, 0);
-    const m4to11Other = baseRows.slice(4).reduce((s, r) => s + r.otherSubsCost, 0);
-
-    const s1Buy = bfCost + m0to3Buy + m4to11Other + musicFee * 8;
-    const s1Skip = m0to3Skip + m4to11Other + musicFee * 8;
-
-    const aprAugPro = baseRows.slice(4, 9).reduce((s, r) => s + r.proUnit, 0);
-    const s2Buy = bfCost + m0to3Buy + m4to11Other + musicFee * 8;
-    const s2Skip = m0to3Skip + aprAugPro + m4to11Other + musicFee * 8;
-
-    const s4Buy = baseRows[11].cumBuy;
-    const s4Skip = baseRows[11].cumSkip;
-
-    let thirdScenario;
-    if (needsLegacyUltraRenewal) {
-      const janMarPro = baseRows.slice(1, 4).reduce((s, r) => s + r.proUnit, 0);
-      const janMarOther = baseRows.slice(1, 4).reduce((s, r) => s + r.otherSubsCost, 0);
-      const decBuy = baseRows[0].buyMonthFlow;
-      const decSkip = baseRows[0].skipMonthFlow;
-      const s3Buy = bfCost + decBuy + janMarPro + janMarOther + musicFee * 3 + m4to11Other + musicFee * 8;
-      const s3Skip = decSkip + janMarPro * 2 + janMarOther + musicFee * 3 + aprAugPro + m4to11Other + musicFee * 8;
-      thirdScenario = {
-        id: 'tr_fail_double_pro',
-        title: isEn
-          ? 'Legacy TR Fallback: Dual Pro in Jan–Mar, single Pro in Apr–Aug'
-          : '土区断续兜底剧本：1~3月改双 Pro 顶住，4~8月用单 Pro',
-        tag: isEn ? 'Hedge' : '保险价值',
-        tone: 'blue',
-        buyTotal: s3Buy,
-        skipTotal: s3Skip,
-        diff: s3Skip - s3Buy,
-      };
-    } else {
-      const sotaEnd = Math.min(12, Math.max(1, Math.round(Number(state.effectiveSotaMonths) || 7)));
-      const sotaBuy = bfCost + baseRows.slice(0, sotaEnd).reduce((s, r) => s + r.buyMonthFlow, 0);
-      const sotaSkip = baseRows.slice(0, sotaEnd).reduce((s, r) => s + r.skipMonthFlow, 0);
-      thirdScenario = {
-        id: 'sota_only',
-        title: isEn
-          ? `SOTA Span Only: Active for first ${sotaEnd} months, then dropped`
-          : `稳态期剧本：仅在主力 SOTA 期（前 ${sotaEnd} 个月）使用，之后停用`,
-        tag: isEn ? 'Lifecycle' : '周期测算',
-        tone: 'blue',
-        buyTotal: sotaBuy,
-        skipTotal: sotaSkip,
-        diff: sotaSkip - sotaBuy,
-      };
+  /**
+   * Unified 12-month simulation engine.
+   * For any cutoff in [0..12]:
+   *   - Up to month `cutoff` (inclusive, 1-indexed): Black Friday Pro replaces marked replaceable items.
+   *   - After month `cutoff`: Black Friday Pro stops replacing subscriptions (both columns pay the same baseline).
+   * Guarantees:
+   *   - simulate(12) === full base ledger (U)
+   *   - simulate(K)  === SOTA cutoff downside branch (D)
+   *   - simulate(0)  === pure upfront sunk-cost floor (-bfCost)
+   */
+  function simulateCutoff(baseRows, bfCost, cutoffMonths) {
+    const limit = Math.min(12, Math.max(0, Math.round(cutoffMonths)));
+    let buyTotal = bfCost;
+    let skipTotal = 0;
+    for (let i = 0; i < baseRows.length; i++) {
+      const r = baseRows[i];
+      skipTotal += r.skipMonthFlow;
+      if (i < limit) {
+        buyTotal += r.buyMonthFlow;
+      } else {
+        // After cutoff, BF Pro is no longer used to replace baseline subscriptions
+        buyTotal += r.skipMonthFlow;
+      }
     }
+    return {
+      cutoff: limit,
+      buyTotal,
+      skipTotal,
+      diff: skipTotal - buyTotal,
+    };
+  }
+
+  function buildComparisonScenarios(baseRows, bfCost, cutoffs, lang) {
+    const isEn = lang === 'en-US';
+    const { sotaCutoff, nextGenCutoff } = cutoffs;
+
+    const s0 = simulateCutoff(baseRows, bfCost, 0);
+    const sK = simulateCutoff(baseRows, bfCost, sotaCutoff);
+    const sNext = simulateCutoff(baseRows, bfCost, nextGenCutoff);
+    const sFull = simulateCutoff(baseRows, bfCost, 12);
+
+    const sotaEndLabel = sotaCutoff > 0
+      ? (isEn ? `Mo 1–${sotaCutoff}` : `前 ${sotaCutoff} 个月`)
+      : (isEn ? '0 months' : '0 个月');
+    const nextEndLabel = nextGenCutoff > 0
+      ? (isEn ? `Mo 1–${nextGenCutoff}` : `前 ${nextGenCutoff} 个月`)
+      : (isEn ? '0 months' : '0 个月');
 
     return [
       {
-        id: 'worst',
-        title: isEn
-          ? 'Worst Case: Gemini lags after Apr, completely dropped'
-          : '最差剧本：4月后 Gemini 掉队，彻底停用 Gemini',
-        tag: isEn ? 'Downside' : '风控底线',
+        id: 'immediate_stop',
+        title: isEn ? 'Immediate Drop: Unused from Month 1' : '最差底线：买完即闲置（全程未替代）',
+        periodNote: isEn ? '0 active months (upfront sunk cost)' : '0 个月替代生效（纯预付沉没成本）',
+        tag: isEn ? 'Floor' : '风控底线',
         tone: 'red',
-        buyTotal: s1Buy,
-        skipTotal: s1Skip,
-        diff: s1Skip - s1Buy,
+        buyTotal: s0.buyTotal,
+        skipTotal: s0.skipTotal,
+        diff: s0.diff,
       },
       {
-        id: 'offseason5',
+        id: 'sota_cutoff',
         title: isEn
-          ? 'Mid Case: Use Pro for 5 months (Apr–Aug), switch in Sep'
-          : '淡季剧本：4~8月用满 5 个月 Pro，9月切走',
-        tag: isEn ? 'Neutral' : '中性测试',
+          ? `SOTA Span Cutoff: Active ${sotaEndLabel}, then dropped`
+          : `主力期结束停用：仅使用 ${sotaEndLabel}（EV 下行分支 D）`,
+        periodNote: isEn ? `Active ${sotaEndLabel} · Weight (1 - p)` : `生效至第 ${sotaCutoff} 月 · 对应下行分支 D`,
+        tag: isEn ? 'Downside D' : '下行分支 D',
         tone: 'amber',
-        buyTotal: s2Buy,
-        skipTotal: s2Skip,
-        diff: s2Skip - s2Buy,
+        buyTotal: sK.buyTotal,
+        skipTotal: sK.skipTotal,
+        diff: sK.diff,
       },
-      thirdScenario,
+      {
+        id: 'next_gen_review',
+        title: isEn
+          ? `Hold Until Next-Gen Window: Active ${nextEndLabel}`
+          : `延用至下代旗舰复评：使用 ${nextEndLabel}`,
+        periodNote: isEn ? `Before next-gen SOTA arrival (${nextEndLabel})` : `下代 SOTA 登场前复评（第 ${nextGenCutoff} 月止）`,
+        tag: isEn ? 'Review' : '复评节点',
+        tone: 'blue',
+        buyTotal: sNext.buyTotal,
+        skipTotal: sNext.skipTotal,
+        diff: sNext.diff,
+      },
       {
         id: 'full_plan',
-        title: isEn
-          ? 'Full Execution: Current 12-month plan as configured'
-          : '当前 12 个月订阅组合完整执行',
-        tag: isEn ? 'Your Plan' : '你的计划',
+        title: isEn ? 'Current 12-Month Plan · Baseline' : '当前 12 个月排布完整执行 · 基准',
+        periodNote: isEn ? 'Full 12 months as configured (EV Upside U)' : '按第 2 步表格全量执行（EV 上行分支 U）',
+        tag: isEn ? 'Baseline U' : '基准 U',
         tone: 'green',
-        buyTotal: s4Buy,
-        skipTotal: s4Skip,
-        diff: s4Skip - s4Buy,
+        isBaseline: true,
+        buyTotal: sFull.buyTotal,
+        skipTotal: sFull.skipTotal,
+        diff: sFull.diff,
       },
     ];
   }
 
-  function calculateLedger(state, lang) {
-    const isEn = lang === 'en-US';
+  /**
+   * Build a compact 3x3 sensitivity matrix: Retention Prob (p - 10, p, p + 10)
+   * x Primary Active Foreign Currency FX (-5pp, 0, +5pp).
+   */
+  function buildSensitivityMatrix(state, activeFxCurrencies) {
+    const baseP = Math.min(100, Math.max(0, Math.round(Number(state.retainProbPct) || 0)));
+    const pCols = [
+      Math.max(0, baseP - 10),
+      baseP,
+      Math.min(100, baseP + 10),
+    ];
+    const primaryFx = activeFxCurrencies && activeFxCurrencies.length > 0 ? activeFxCurrencies[0] : null;
+    if (!primaryFx) {
+      return {
+        primaryCurrency: null,
+        pCols,
+        rows: [],
+      };
+    }
+    const code = primaryFx.currency;
+    const basePct = Math.round(primaryFx.annualPct);
+    const fxOffsets = [-5, 0, 5];
+    const rows = fxOffsets.map((delta) => {
+      const fxPct = Math.max(-90, basePct + delta);
+      const cells = pCols.map((pVal) => {
+        const patched = Object.assign({}, state, {
+          retainProbPct: pVal,
+          fxAnnualChangePct: Object.assign({}, resolveFxAnnualMap(state), { [code]: fxPct }),
+        });
+        const sub = computeCoreLedger(patched);
+        return {
+          pVal,
+          fxPct,
+          ev: sub.expectedNetSavings,
+          isCenter: delta === 0 && pVal === baseP,
+        };
+      });
+      return { delta, fxPct, cells };
+    });
+    return {
+      primaryCurrency: code,
+      pCols,
+      rows,
+    };
+  }
+
+  function computeCoreLedger(state) {
     const fxMap = resolveFxAnnualMap(state);
-    // Today's lump-sum Black Friday purchase is ALWAYS locked at Day-0 spot rate (never affected by future FX sliders)
+    // Today's upfront Black Friday cost (t = 0) is strictly locked at spot FX
     const bfCost = Math.max(0, Number(state.bfCostCny) || 0);
-    const musicFee = Math.max(0, Number(state.musicMonthlyCny) || 0);
-    const colabCredit = Math.max(0, Number(state.colabProMonthlyCny) || 0);
-    const plans = resolveMonthPlans(state);
+    const { plansA, plansB, synced } = resolveMonthPlanPair(state);
+    const cutoffs = getLifecycleCutoffs(state);
 
     const monthlyRows = [];
     let cumBuy = bfCost;
     let cumSkip = 0;
 
     let proCoveredMonths = 0;
-    let ultraOverlapMonths = 0;
-    let idleNoneMonths = 0;
+    let keptOtherPlanMonths = 0;
+    let emptyMonths = 0;
     let totalProValueSaved = 0;
     let totalOtherSubsAnnual = 0;
     let crossoverMonthIndex = null;
-    let needsLegacyUltraRenewal = false;
+    let hasLegacyTurkeyUltra = false;
 
-    // Track foreign currencies actually charged across the 12 months
     const fxUsageMap = {};
     function recordFxUsage(currency, monthIndex, baseCnyAmount) {
       if (!currency || currency === 'CNY' || !(baseCnyAmount > 0)) return;
@@ -362,169 +387,83 @@
       fxUsageMap[currency].baseAnnualCny += baseCnyAmount;
     }
 
+    function resolveBasket(rawItems, monthIndex) {
+      const list = Array.isArray(rawItems) ? rawItems : [];
+      let total = 0;
+      const resolved = list
+        .filter((item) => item && item.id !== 'none_idle')
+        .map((item) => {
+          const qty = Math.max(1, Number(item.qty) || 1);
+          const isLegacyUltra = item.dynamicPrice === 'gemini_ultra_5x' || item.id === 'ultra_idle';
+          if (isLegacyUltra) hasLegacyTurkeyUltra = true;
+          const unit = getItemUnitPrice(item, monthIndex, state);
+          const effCurrency = item.dynamicPrice === 'gemini_ultra_5x' ? 'TRY' : (item.currency || 'CNY');
+          const baseUnit = item.dynamicPrice === 'gemini_ultra_5x'
+            ? Math.max(0, Number(state.currentUltraCny) || 265)
+            : convertToCny(item.amount != null ? item.amount : item.priceCny || 0, effCurrency, 0, fxMap);
+          recordFxUsage(effCurrency, monthIndex, baseUnit * qty);
+          total += unit * qty;
+          return Object.assign({}, item, {
+            qty,
+            unitCny: unit,
+            subtotalCny: unit * qty,
+          });
+        });
+      return { resolved, total };
+    }
+
     for (let i = 0; i < MONTHS.length; i++) {
-      const items = Array.isArray(plans[i]) ? plans[i] : [];
       const proUnit = getMonthlyProCny(i, state);
       const phase = getModelPhase(i, state);
       const tryRate = getTryRateAtOffset(MONTHS[i].offsetFromNow, fxMap);
-      const trAvailable = isTurkeyUltraAvailable(i, state);
 
-      let geminiProSlots = 0;
-      let replaceableSlots = 0;
-      let bestReplaceableCny = 0;
-      let bestReplaceableName = '';
-      let geminiProReplaceableCny = 0;
-      let hasUltraActive = false;
-      let ultraFallbackToPro = false;
-      let geminiUltraCost = 0;
-      let geminiProTotalCost = 0;
-      let otherSubsCost = 0;
-      let hasMusicIncluded = false;
+      const basketA = resolveBasket(plansA[i], i);
+      const basketB = resolveBasket(plansB[i], i);
 
-      const resolvedItems = items.map((item) => {
-        const qty = Math.max(1, Number(item.qty) || 1);
-        const isPro = Boolean(item.isGeminiPro || item.dynamicPrice === 'gemini_pro');
-        const isUltra5xDyn = item.dynamicPrice === 'gemini_ultra_5x';
-        const isIdlePlanItem = Boolean(item.isIdlePlan || item.isGeminiUltra || isUltra5xDyn);
-        const canReplace = item.replaceableByBf != null ? Boolean(item.replaceableByBf) : isPro;
+      const skipMonthFlow = basketA.total; // A_t (Without BF)
+      const buyMonthFlow = basketB.total;  // B_t (Additional spend With BF)
+      const monthDiff = skipMonthFlow - buyMonthFlow; // A_t - B_t
 
-        if (item.id === 'none_idle') {
-          return Object.assign({}, item, { qty: 1, replaceableByBf: false, unitCny: 0, subtotalCny: 0 });
-        }
+      const isSynced = Boolean(synced[i]);
+      const hasAnyItems = basketA.resolved.length > 0 || basketB.resolved.length > 0;
+      const hasKeptPlan = hasAnyItems && monthDiff <= 0.01;
 
-        if (isPro) {
-          const unit = getItemUnitPrice(item, i, state);
-          const cur = item.currency || 'TRY';
-          const baseCny = convertToCny(item.amount != null ? item.amount : 0, cur, 0, fxMap) * qty;
-          recordFxUsage(cur, i, baseCny);
-          geminiProSlots += qty;
-          geminiProTotalCost += unit * qty;
-          if (canReplace) {
-            replaceableSlots += qty;
-            if (geminiProReplaceableCny === 0) geminiProReplaceableCny = unit;
-            if (unit > bestReplaceableCny) {
-              bestReplaceableCny = unit;
-              bestReplaceableName = item.short || item.name;
-            }
-          }
-          return Object.assign({}, item, { qty, replaceableByBf: canReplace, unitCny: unit, subtotalCny: unit * qty });
-        }
-
-        if (isUltra5xDyn) {
-          needsLegacyUltraRenewal = true;
-          const resolvedUltra = resolveLegacyUltraCharge(i, state);
-          recordFxUsage(resolvedUltra.currency, i, resolvedUltra.baseCny * qty);
-
-          if (resolvedUltra.isDoublePro) {
-            const singlePro = resolvedUltra.singleProCny;
-            geminiProSlots += 2 * qty;
-            replaceableSlots += 2 * qty;
-            geminiProTotalCost += singlePro * 2 * qty;
-            if (geminiProReplaceableCny === 0) geminiProReplaceableCny = singlePro;
-            if (singlePro > bestReplaceableCny) {
-              bestReplaceableCny = singlePro;
-              bestReplaceableName = '双Pro兜底';
-            }
-            ultraFallbackToPro = true;
-            return Object.assign({}, item, {
-              qty,
-              replaceableByBf: true,
-              unitCny: singlePro * 2,
-              subtotalCny: singlePro * 2 * qty,
-              fallbackNote: '断续切双Pro',
-            });
-          }
-
-          geminiUltraCost += resolvedUltra.unitCny * qty;
-          hasUltraActive = true;
-          hasMusicIncluded = true;
-          return Object.assign({}, item, {
-            qty,
-            replaceableByBf: false,
-            unitCny: resolvedUltra.unitCny,
-            subtotalCny: resolvedUltra.unitCny * qty,
-            effectiveCurrency: resolvedUltra.currency,
-          });
-        }
-
-        const unit = getItemUnitPrice(item, i, state);
-        const cur = item.currency || 'CNY';
-        const baseCny = convertToCny(item.amount != null ? item.amount : item.priceCny || 0, cur, 0, fxMap) * qty;
-        recordFxUsage(cur, i, baseCny);
-
-        if (item.includesMusic) hasMusicIncluded = true;
-        if (isIdlePlanItem) {
-          geminiUltraCost += unit * qty;
-          hasUltraActive = true;
-        } else {
-          otherSubsCost += unit * qty;
-          if (canReplace) {
-            replaceableSlots += qty;
-            if (unit > bestReplaceableCny) {
-              bestReplaceableCny = unit;
-              bestReplaceableName = item.short || item.name;
-            }
-          }
-        }
-        return Object.assign({}, item, { qty, replaceableByBf: canReplace, unitCny: unit, subtotalCny: unit * qty });
-      });
-
-      const monthMusic = hasMusicIncluded ? 0 : musicFee;
-      const bfSavedThisMonth =
-        replaceableSlots >= 1
-          ? (geminiProReplaceableCny > 0 ? geminiProReplaceableCny : bestReplaceableCny)
-          : 0;
-      const bfReplacedTarget =
-        replaceableSlots >= 1
-          ? (geminiProReplaceableCny > 0 ? 'Gemini Pro' : bestReplaceableName)
-          : '';
-
-      const skipMonthFlow =
-        geminiUltraCost + geminiProTotalCost + otherSubsCost + monthMusic;
-      const extraColabCredit = geminiProSlots === 0 && !hasUltraActive ? colabCredit : 0;
-      const buyMonthFlow = Math.max(0, skipMonthFlow - bfSavedThisMonth - extraColabCredit);
-
-      if (bfSavedThisMonth > 0) {
+      if (monthDiff > 0.01) {
         proCoveredMonths += 1;
-        totalProValueSaved += bfSavedThisMonth;
-      } else if (hasUltraActive) {
-        ultraOverlapMonths += 1;
+      } else if (hasAnyItems) {
+        keptOtherPlanMonths += 1;
       } else {
-        idleNoneMonths += 1;
+        emptyMonths += 1;
       }
+      totalProValueSaved += monthDiff;
 
-      totalOtherSubsAnnual += otherSubsCost;
       cumBuy += buyMonthFlow;
       cumSkip += skipMonthFlow;
 
-      if (crossoverMonthIndex === null && cumBuy <= cumSkip) {
+      if (crossoverMonthIndex === null && cumSkip >= cumBuy) {
         crossoverMonthIndex = i;
       }
 
       monthlyRows.push({
         index: i,
         month: MONTHS[i],
-        items: resolvedItems,
-        geminiProSlots,
-        replaceableSlots,
-        bfReplacedTarget,
-        hasUltraActive,
-        ultraFallbackToPro,
-        otherSubsCost,
-        monthMusic,
+        items: basketA.resolved,
+        buyItems: basketB.resolved,
+        buySynced: isSynced,
+        replaceableSlots: monthDiff > 0.01 ? 1 : 0,
+        hasUltraActive: hasKeptPlan,
+        hasKeptPlan,
         tryRate,
-        proUnit: bfSavedThisMonth > 0 ? bfSavedThisMonth : proUnit,
+        proUnit: monthDiff > 0.01 ? monthDiff : proUnit,
         phase,
-        trAvailable,
         buyMonthFlow,
         skipMonthFlow,
         cumBuy,
         cumSkip,
-        monthSavedByBf: skipMonthFlow - buyMonthFlow,
+        monthSavedByBf: monthDiff,
       });
     }
 
-    // Build ordered list of active foreign currencies (selected region's currency first, then highest baseAnnualCny)
     const preferredCurrency = (BF_DEAL_PRESETS[state.bfPreset] && BF_DEAL_PRESETS[state.bfPreset].currency) || state.bfCurrency;
     const activeFxCurrencies = Object.values(fxUsageMap)
       .map((entry) => ({
@@ -539,132 +478,184 @@
         return b.baseAnnualCny - a.baseAnnualCny;
       });
 
+    const positiveMonthsSum = monthlyRows.reduce((s, r) => s + (r.monthSavedByBf > 0 ? r.monthSavedByBf : 0), 0);
     const avgProPrice =
       proCoveredMonths > 0
-        ? totalProValueSaved / proCoveredMonths
-        : monthlyRows.slice(4).reduce((s, r) => s + r.proUnit, 0) / 8;
+        ? positiveMonthsSum / proCoveredMonths
+        : monthlyRows.reduce((s, r) => s + r.proUnit, 0) / 12;
 
-    const breakEvenMonths = avgProPrice > 0 ? bfCost / avgProPrice : Infinity;
-    const fullPlanNetSavings = cumSkip - cumBuy;
+    const equivalentUsageMonths = avgProPrice > 0 ? bfCost / avgProPrice : Infinity;
 
-    const earlyProSavings = monthlyRows
-      .slice(0, 4)
-      .reduce((sum, r) => sum + r.monthSavedByBf, 0);
-    const lateProSavings = monthlyRows
-      .slice(4)
-      .reduce((sum, r) => sum + r.monthSavedByBf, 0);
-
-    const downsideNet = earlyProSavings - bfCost;
-    const upsideNet = fullPlanNetSavings;
+    // Unified SOTA cutoff D / U / EV math for Dual-Basket Total Cost comparison!
+    const simDown = simulateCutoff(monthlyRows, bfCost, cutoffs.sotaCutoff);
+    const simUp = simulateCutoff(monthlyRows, bfCost, 12);
+    const downsideNet = simDown.diff; // D = sum_{t<=K}(A_t - B_t) - F
+    const upsideNet = simUp.diff;     // U = sum_{t=1..12}(A_t - B_t) - F
 
     const p = Math.min(1, Math.max(0, Number(state.retainProbPct) / 100));
-    const expectedNetSavings = p * upsideNet + (1 - p) * downsideNet;
+    const expectedNetSavings = downsideNet + p * (upsideNet - downsideNet);
 
+    // Clean endpoint classification + inequality direction ('gte' when U > D, 'lte' when U < D)
     let breakEvenProbPct;
-    if (lateProSavings <= 0) {
-      breakEvenProbPct = earlyProSavings >= bfCost ? 0 : 100;
+    let breakEvenProbStatus; // 'already_even' | 'impossible' | 'deterministic' | 'threshold'
+    let breakEvenProbDirection; // 'gte' | 'lte' | 'none'
+    if (Math.abs(upsideNet - downsideNet) < 0.01) {
+      breakEvenProbStatus = 'deterministic';
+      breakEvenProbPct = upsideNet >= 0 ? 0 : null;
+      breakEvenProbDirection = 'none';
+    } else if (downsideNet >= 0 && upsideNet >= 0) {
+      breakEvenProbStatus = 'already_even';
+      breakEvenProbPct = 0;
+      breakEvenProbDirection = 'none';
+    } else if (downsideNet < 0 && upsideNet < 0) {
+      breakEvenProbStatus = 'impossible';
+      breakEvenProbPct = null;
+      breakEvenProbDirection = 'none';
     } else {
-      const raw = ((bfCost - earlyProSavings) / lateProSavings) * 100;
-      breakEvenProbPct = Math.min(100, Math.max(0, raw));
-    }
-
-    const scenarios = buildComparisonScenarios(state, monthlyRows, bfCost, musicFee, needsLegacyUltraRenewal, lang);
-
-    let verdict;
-    if (upsideNet <= 0) {
-      verdict = isEn
-        ? {
-            level: 'skip',
-            badge: 'Skip Deal',
-            tone: 'red',
-            headline: 'Even with full-year retention, this plan loses money',
-            detail: `Only ${proCoveredMonths} months actively replace a monthly sub (¥${Math.round(totalProValueSaved)} saved), below the ¥${Math.round(bfCost)} annual price. Pay monthly instead.`,
-          }
-        : {
-            level: 'skip',
-            badge: '建议跳过',
-            tone: 'red',
-            headline: '按当前 12 个月订阅组合，就算全年不换模型也会亏钱',
-            detail: `你的组合中仅 ${proCoveredMonths} 个月实际用到黑五 Pro 槽位（可抵月费 ¥${Math.round(totalProValueSaved)}），低于黑五成本 ¥${Math.round(bfCost)}。直接按月买更划算。`,
-          };
-    } else if (expectedNetSavings >= 40 && p * 100 >= breakEvenProbPct + 5) {
-      verdict = isEn
-        ? {
-            level: 'buy',
-            badge: 'Worth Buying',
-            tone: 'green',
-            headline: `Positive EV: Your confidence (${state.retainProbPct}%) beats break-even (${breakEvenProbPct.toFixed(1)}%)`,
-            detail: `Breaks even in ~${breakEvenMonths.toFixed(1)} months, saving ¥${Math.round(upsideNet)} on full execution with +¥${Math.round(expectedNetSavings)} expected net value after obsolescence risk.`,
-          }
-        : {
-            level: 'buy',
-            badge: '值得入手',
-            tone: 'green',
-            headline: `正期望交易：当前把握（${state.retainProbPct}%）高于盈亏线（${breakEvenProbPct.toFixed(1)}%）`,
-            detail: `预计 ${breakEvenMonths.toFixed(1)} 个月回本，按计划执行净省 ¥${Math.round(upsideNet)}，计入模型掉队风险后的期望净收益为 +¥${Math.round(expectedNetSavings)}。`,
-          };
-    } else if (expectedNetSavings >= -40) {
-      verdict = isEn
-        ? {
-            level: 'neutral',
-            badge: 'Borderline · Wait',
-            tone: 'amber',
-            headline: `Near break-even: Expected value is ${expectedNetSavings >= 0 ? '+' : ''}¥${Math.round(expectedNetSavings)}`,
-            detail: `Needs at least ${breakEvenProbPct.toFixed(1)}% confidence in late-year retention. Paying monthly keeps cash flexible without locking ¥${Math.round(bfCost)} upfront.`,
-          }
-        : {
-            level: 'neutral',
-            badge: '接近打平 · 谨慎观望',
-            tone: 'amber',
-            headline: `赔率接近五五开：期望净值 ${expectedNetSavings >= 0 ? '+' : ''}¥${Math.round(expectedNetSavings)}`,
-            detail: `需要至少 ${breakEvenProbPct.toFixed(1)}% 的把握相信中后期继续使用 Gemini 才算正期望。若不想背负 ¥${Math.round(bfCost)} 沉没成本，按月随用随买更灵活。`,
-          };
-    } else {
-      verdict = isEn
-        ? {
-            level: 'skip',
-            badge: 'Negative EV · Skip',
-            tone: 'red',
-            headline: `Downside outweighs upside: EV is -¥${Math.abs(Math.round(expectedNetSavings))}`,
-            detail: `Break-even requires ${breakEvenProbPct.toFixed(1)}% retention confidence vs your ${state.retainProbPct}% estimate. Upside is ¥${Math.round(upsideNet)}, while switching early loses ¥${Math.abs(Math.round(downsideNet))}.`,
-          }
-        : {
-            level: 'skip',
-            badge: '赔率倒挂 · 建议跳过',
-            tone: 'red',
-            headline: `风险大于收益：期望净值 -¥${Math.abs(Math.round(expectedNetSavings))}`,
-            detail: `盈亏平衡需要 ${breakEvenProbPct.toFixed(1)}% 以上把握，高于你当前的 ${state.retainProbPct}% 预期；最多省 ¥${Math.round(upsideNet)}，但一旦中后期模型掉队将净亏 ¥${Math.abs(Math.round(downsideNet))}。`,
-          };
+      breakEvenProbStatus = 'threshold';
+      breakEvenProbPct = Math.min(100, Math.max(0, (-downsideNet / (upsideNet - downsideNet)) * 100));
+      breakEvenProbDirection = upsideNet > downsideNet ? 'gte' : 'lte';
     }
 
     return {
       bfCost,
       bfMonthlyAvg: bfCost / 12,
       avgProPrice,
-      breakEvenMonths,
+      breakEvenMonths: equivalentUsageMonths,
+      equivalentUsageMonths,
       proCoveredMonths,
-      ultraOverlapMonths,
-      idleNoneMonths,
-      totalIdleMonths: ultraOverlapMonths + idleNoneMonths,
-      ultraIdleCostCny: (bfCost * ultraOverlapMonths) / 12,
-      totalIdleCostCny: (bfCost * (ultraOverlapMonths + idleNoneMonths)) / 12,
+      ultraOverlapMonths: keptOtherPlanMonths,
+      keptOtherPlanMonths,
+      idleNoneMonths: emptyMonths,
+      totalIdleMonths: keptOtherPlanMonths + emptyMonths,
+      ultraIdleCostCny: (bfCost * keptOtherPlanMonths) / 12,
+      totalIdleCostCny: (bfCost * (keptOtherPlanMonths + emptyMonths)) / 12,
       totalProValueSaved,
       totalOtherSubsAnnual,
       totalBuyCost: cumBuy,
       totalSkipCost: cumSkip,
-      fullPlanNetSavings,
+      fullPlanNetSavings: upsideNet,
       upsideNet,
       downsideNet,
       expectedNetSavings,
+      evReturnPct: bfCost > 0 ? (expectedNetSavings / bfCost) * 100 : 0,
       breakEvenProbPct,
+      breakEvenProbStatus,
+      breakEvenProbDirection,
+      sotaCutoff: cutoffs.sotaCutoff,
+      nextGenCutoff: cutoffs.nextGenCutoff,
       crossoverMonthIndex,
-      needsLegacyUltraRenewal,
+      hasLegacyTurkeyUltra,
+      needsLegacyUltraRenewal: false,
       activeFxCurrencies,
       fxAnnualMap: fxMap,
       monthlyRows,
-      scenarios,
-      verdict,
     };
+  }
+
+  function calculateLedger(state, lang) {
+    const isEn = lang === 'en-US';
+    const core = computeCoreLedger(state);
+    const cutoffs = getLifecycleCutoffs(state);
+    const scenarios = buildComparisonScenarios(core.monthlyRows, core.bfCost, cutoffs, lang);
+    const sensitivity = buildSensitivityMatrix(state, core.activeFxCurrencies);
+
+    const pPct = Number(state.retainProbPct) || 0;
+    const { upsideNet, downsideNet, expectedNetSavings, breakEvenProbPct, breakEvenProbStatus, proCoveredMonths, totalProValueSaved, bfCost, equivalentUsageMonths } = core;
+
+    let verdict;
+    if (upsideNet < 0 && downsideNet < 0) {
+      verdict = isEn
+        ? {
+            level: 'skip',
+            badge: 'Skip Deal',
+            tone: 'red',
+            headline: 'Total spend is lower without Black Friday across all paths',
+            detail: `Plan B reduces monthly bills by ¥${Math.round(totalProValueSaved)} across ${proCoveredMonths} months, below the ¥${Math.round(bfCost)} upfront annual fee.`,
+          }
+        : {
+            level: 'skip',
+            badge: '建议跳过',
+            tone: 'red',
+            headline: '按当前双方案排布，不买黑五总花费更低',
+            detail: `方案 B 全年共减少月付支出 ¥${Math.round(totalProValueSaved)}（涉及 ${proCoveredMonths} 个月），低于今日黑五预付 ¥${Math.round(bfCost)}。`,
+          };
+    } else if (downsideNet >= 0 && upsideNet >= 0 && expectedNetSavings >= 40) {
+      verdict = isEn
+        ? {
+            level: 'buy',
+            badge: 'Worth Buying',
+            tone: 'green',
+            headline: `Already breaks even within SOTA span (+¥${Math.round(downsideNet)} downside floor)`,
+            detail: `Even if you revert to Plan A after Month ${core.sotaCutoff}, you stay net positive; full Plan B saves ¥${Math.round(upsideNet)} with EV +¥${Math.round(expectedNetSavings)}.`,
+          }
+        : {
+            level: 'buy',
+            badge: '值得入手',
+            tone: 'green',
+            headline: `主力期内即可锁定回本（下行底线已达 +¥${Math.round(downsideNet)}）`,
+            detail: `即便第 ${core.sotaCutoff} 个月后回退回方案 A 依然不亏；全年执行方案 B 净省 ¥${Math.round(upsideNet)}，期望净节省 +¥${Math.round(expectedNetSavings)}。`,
+          };
+    } else if (expectedNetSavings >= 40) {
+      const lineStr = breakEvenProbPct != null ? `${breakEvenProbPct.toFixed(1)}%` : '0%';
+      const cmpZh = core.breakEvenProbDirection === 'lte' ? '低于上限' : '高于盈亏线';
+      const cmpEn = core.breakEvenProbDirection === 'lte' ? 'stays under' : 'clears';
+      verdict = isEn
+        ? {
+            level: 'buy',
+            badge: 'Worth Buying',
+            tone: 'green',
+            headline: `Positive EV: Confidence (${pPct}%) ${cmpEn} break-even (${lineStr})`,
+            detail: `Plan A totals ¥${Math.round(core.totalSkipCost)} vs Plan B ¥${Math.round(core.totalBuyCost)} (incl. upfront); EV is +¥${Math.round(expectedNetSavings)}.`,
+          }
+        : {
+            level: 'buy',
+            badge: '值得入手',
+            tone: 'green',
+            headline: `正期望交易：留存把握（${pPct}%）${cmpZh}（${lineStr}）`,
+            detail: `方案 A 全年总计 ¥${Math.round(core.totalSkipCost)}，方案 B 含预付总计 ¥${Math.round(core.totalBuyCost)}；计入留存权重后期望净节省 +¥${Math.round(expectedNetSavings)}。`,
+          };
+    } else if (expectedNetSavings >= -40) {
+      const lineStr = breakEvenProbPct != null ? `${breakEvenProbPct.toFixed(1)}%` : '—';
+      verdict = isEn
+        ? {
+            level: 'neutral',
+            badge: 'Borderline · Wait',
+            tone: 'amber',
+            headline: `Near break-even: Expected net value is ${expectedNetSavings >= 0 ? '+' : '-'}¥${Math.abs(Math.round(expectedNetSavings))}`,
+            detail: `Break-even sits at ${lineStr} retention confidence. Staying on Plan A avoids locking ¥${Math.round(bfCost)} upfront.`,
+          }
+        : {
+            level: 'neutral',
+            badge: '接近打平 · 谨慎观望',
+            tone: 'amber',
+            headline: `赔率接近五五开：期望净节省 ${expectedNetSavings >= 0 ? '+' : '-'}¥${Math.abs(Math.round(expectedNetSavings))}`,
+            detail: `盈亏平衡线为 ${lineStr}；不想提前锁定 ¥${Math.round(bfCost)} 预付成本的话，保留方案 A 按月随用随买更灵活。`,
+          };
+    } else {
+      const lineStr = breakEvenProbPct != null ? `${breakEvenProbPct.toFixed(1)}%` : '100%';
+      verdict = isEn
+        ? {
+            level: 'skip',
+            badge: 'Negative EV · Skip',
+            tone: 'red',
+            headline: `Downside outweighs upside: EV is -¥${Math.abs(Math.round(expectedNetSavings))}`,
+            detail: `Break-even sits at ${lineStr} vs your ${pPct}%. Full Plan B yields ${upsideNet >= 0 ? '+' : '-'}¥${Math.abs(Math.round(upsideNet))}, while stopping after Month ${core.sotaCutoff} yields ${downsideNet >= 0 ? '+' : '-'}¥${Math.abs(Math.round(downsideNet))}.`,
+          }
+        : {
+            level: 'skip',
+            badge: '赔率倒挂 · 建议跳过',
+            tone: 'red',
+            headline: `风险大于收益：期望净节省 -¥${Math.abs(Math.round(expectedNetSavings))}`,
+            detail: `盈亏线为 ${lineStr}（当前把握 ${pPct}%）；全年执行方案 B 为 ${upsideNet >= 0 ? '+' : '-'}¥${Math.abs(Math.round(upsideNet))}，第 ${core.sotaCutoff} 月后回退为 ${downsideNet >= 0 ? '+' : '-'}¥${Math.abs(Math.round(downsideNet))}。`,
+          };
+    }
+
+    return Object.assign(core, {
+      scenarios,
+      sensitivity,
+      verdict,
+    });
   }
 
   return {
@@ -674,11 +665,10 @@
     getTryRateAtOffset,
     convertToCny,
     getMonthlyProCny,
-    isTurkeyUltraAvailable,
-    resolveLegacyUltraCharge,
-    getUltraCostForMonth,
+    getLifecycleCutoffs,
     getModelPhase,
     getItemUnitPrice,
+    simulateCutoff,
     calculateLedger,
   };
 });

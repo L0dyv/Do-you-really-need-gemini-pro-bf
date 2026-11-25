@@ -1342,9 +1342,59 @@
     return plans;
   }
 
+  function deriveDefaultBuyPlans(monthPlans) {
+    const buyMonthPlans = [];
+    const buyMonthSynced = [];
+    for (let i = 0; i < 12; i++) {
+      const items = Array.isArray(monthPlans && monthPlans[i]) ? monthPlans[i] : [];
+      let dropIdx = items.findIndex((it) => it && (it.isGeminiPro || it.dynamicPrice === 'gemini_pro') && it.replaceableByBf !== false);
+      if (dropIdx === -1) {
+        let bestAmt = -1;
+        items.forEach((it, idx) => {
+          if (it && it.replaceableByBf) {
+            const val = Number(it.amount) || 0;
+            if (val > bestAmt) {
+              bestAmt = val;
+              dropIdx = idx;
+            }
+          }
+        });
+      }
+      if (dropIdx >= 0) {
+        buyMonthPlans.push(items.filter((_, idx) => idx !== dropIdx).map((it) => Object.assign({}, it)));
+        buyMonthSynced.push(false);
+      } else {
+        buyMonthPlans.push(items.map((it) => Object.assign({}, it)));
+        buyMonthSynced.push(true);
+      }
+    }
+    return { buyMonthPlans, buyMonthSynced };
+  }
+
+  function buildPlanPair(templateKey, regionProId) {
+    const monthPlans = buildMonthPlan(templateKey, regionProId);
+    if (templateKey === 'empty') {
+      return {
+        monthPlans,
+        buyMonthPlans: Array.from({ length: 12 }, () => []),
+        buyMonthSynced: Array(12).fill(true),
+      };
+    }
+    const derived = deriveDefaultBuyPlans(monthPlans);
+    return {
+      monthPlans,
+      buyMonthPlans: derived.buyMonthPlans,
+      buyMonthSynced: derived.buyMonthSynced,
+    };
+  }
+
+  const DEFAULT_PAIR = buildPlanPair('default');
+
   const DEFAULT_STATE = {
-    schemaVersion: 2,
-    monthPlans: buildMonthPlan('default'),
+    schemaVersion: 3,
+    monthPlans: DEFAULT_PAIR.monthPlans,
+    buyMonthPlans: DEFAULT_PAIR.buyMonthPlans,
+    buyMonthSynced: DEFAULT_PAIR.buyMonthSynced,
     monthEdited: Array(12).fill(false),
     bfPicked: false,
     bfPreset: 'tr_ios',
@@ -1352,83 +1402,78 @@
     bfRawAmount: 3600,
     bfCostCny: BF_DEAL_PRESETS.tr_ios.cnyCost,
     currentUltraCny: 265,
-    ultraRenewalMode: 'always',
-    ultraFailMonthIndex: 2,
-    fallbackUltraStrategy: 'jp_ultra',
     monthlyProRegion: 'tr',
     monthlyProBaseTry: 870,
     monthlyProBaseJpy: 2900,
     fxAnnualChangePct: Object.assign({}, DEFAULT_FX_ANNUAL_PCT),
     tryAnnualDepRate: 22,
     googleMidYearHike: false,
-    musicMonthlyCny: 0,
-    colabProMonthlyCny: 0,
     monthsSinceLaunch: 0,
     effectiveSotaMonths: 7,
     nextFlagshipInterval: 10,
     retainProbPct: 65,
   };
 
+  function makePresetPatch(templateKey, regionProId, extra) {
+    const pair = buildPlanPair(templateKey, regionProId);
+    return Object.assign({}, DEFAULT_STATE, pair, extra || {});
+  }
+
   const SCENARIO_PRESETS = [
     {
       id: 'tr_bf_baseline',
-      name: '土区黑五 3,600 TRY（Ultra 空闲 + 淡季 Pro）',
-      desc: '12-3月土区旧价 Ultra 空闲，4-11月取代土区 Pro',
-      patch: Object.assign({}, DEFAULT_STATE, {
+      name: '土区黑五 3,600 TRY（前4月 Ultra + 后8月 Pro）',
+      desc: '12-3月保留土区旧价 Ultra，4-11月省下土区 Pro',
+      patch: makePresetPatch('default', 'gemini_pro_tr', {
         bfPicked: true,
-        monthPlans: buildMonthPlan('default', 'gemini_pro_tr'),
         monthEdited: Array(12).fill(true),
       }),
     },
     {
       id: 'jp_bf_compare',
-      name: '日区黑五 14,500 JPY（全年取代日区 Pro）',
-      desc: '无土区 Ultra 依赖，全年 12 个月取代日区月付 Pro',
-      patch: Object.assign({}, DEFAULT_STATE, {
+      name: '日区黑五 14,500 JPY（全年省下日区 Pro）',
+      desc: '全年 12 个月直接用黑五替代日区月付 Pro',
+      patch: makePresetPatch('all_pro', 'gemini_pro_jp', {
         bfPicked: true,
         bfPreset: 'jp_web',
         bfCurrency: 'JPY',
         bfRawAmount: 14500,
         bfCostCny: BF_DEAL_PRESETS.jp_web.cnyCost,
-        monthPlans: buildMonthPlan('all_pro', 'gemini_pro_jp'),
         monthEdited: Array(12).fill(false),
       }),
     },
     {
       id: 'hk_bf_year',
-      name: '港区黑五 794 HKD（全年取代港区 Pro）',
+      name: '港区黑五 794 HKD（全年省下港区 Pro）',
       desc: '港区半价年付对照港区 158 HKD 月付',
-      patch: Object.assign({}, DEFAULT_STATE, {
+      patch: makePresetPatch('all_pro', 'gemini_pro_hk', {
         bfPicked: true,
         bfPreset: 'hk_web',
         bfCurrency: 'HKD',
         bfRawAmount: 794,
         bfCostCny: BF_DEAL_PRESETS.hk_web.cnyCost,
-        monthPlans: buildMonthPlan('all_pro', 'gemini_pro_hk'),
         monthEdited: Array(12).fill(false),
       }),
     },
     {
       id: 'us_bf_year',
-      name: '美区黑五 $99.99（全年取代美区 Pro）',
+      name: '美区黑五 $99.99（全年省下美区 Pro）',
       desc: '美区半价年付对照美区 $19.99 月付',
-      patch: Object.assign({}, DEFAULT_STATE, {
+      patch: makePresetPatch('all_pro', 'gemini_pro_us', {
         bfPicked: true,
         bfPreset: 'us_web',
         bfCurrency: 'USD',
         bfRawAmount: 99.99,
         bfCostCny: BF_DEAL_PRESETS.us_web.cnyCost,
-        monthPlans: buildMonthPlan('all_pro', 'gemini_pro_us'),
         monthEdited: Array(12).fill(false),
       }),
     },
     {
       id: 'apr_obsolete',
-      name: '仅用淡季 5 个月（保守视角）',
-      desc: '1-3月 Ultra 空闲，4-8月 Pro，留存把握 45%',
-      patch: Object.assign({}, DEFAULT_STATE, {
+      name: '仅省淡季 5 个月（保守视角）',
+      desc: '1-3月保留 Ultra，4-8月省下 Pro，留存把握 45%',
+      patch: makePresetPatch('offseason_only', 'gemini_pro_tr', {
         bfPicked: true,
-        monthPlans: buildMonthPlan('offseason_only', 'gemini_pro_tr'),
         monthEdited: Array(12).fill(true),
         retainProbPct: 45,
       }),
@@ -1514,5 +1559,7 @@
     TRY_FX_HISTORY,
     makeSubItem,
     buildMonthPlan,
+    deriveDefaultBuyPlans,
+    buildPlanPair,
   };
 });
