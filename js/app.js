@@ -1365,6 +1365,7 @@
     document.getElementById('help-next-when').textContent =
       t('modal.nextHelp', { n: state.nextFlagshipInterval, when: nextWhenText });
 
+    const nextRangeText = res.nextGenStartMonth >= 12 ? '12' : `${res.nextGenStartMonth}–12`;
     let extraHelpTxt;
     if (res.expectedActiveMonths >= 12 && res.nextGenInTerm && res.willingEndMonth < 12) {
       extraHelpTxt = t('modal.retainHelpFullNext', { nextStart: res.nextGenStartMonth });
@@ -1375,6 +1376,7 @@
       if (res.nextGenInTerm && res.nextGenActiveMonths > 0) {
         extraHelpTxt = extraHelpTxt.replace(/[。.]$/, '') + t('modal.retainHelpNextSuffix', {
           nextStart: res.nextGenStartMonth,
+          nextRange: nextRangeText,
           nextM: res.nextGenActiveMonths,
           total: res.expectedActiveMonths,
         });
@@ -1390,6 +1392,7 @@
       if (res.nextGenInTerm && res.nextGenActiveMonths > 0) {
         extraHelpTxt = extraHelpTxt.replace(/[。.]$/, '') + t('modal.retainHelpNextSuffix', {
           nextStart: res.nextGenStartMonth,
+          nextRange: nextRangeText,
           nextM: res.nextGenActiveMonths,
           total: res.expectedActiveMonths,
         });

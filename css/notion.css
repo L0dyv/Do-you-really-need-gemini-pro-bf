@@ -1916,6 +1916,11 @@ body.is-marquee-dragging {
   line-height: 1.55;
 }
 
+.lifecycle-help-note {
+  padding: 4px 4px 10px;
+  min-height: 58px;
+}
+
 .flat-input,
 .flat-select {
   height: 36px;
@@ -2056,7 +2061,7 @@ input[type="range"]::-moz-range-thumb {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: var(--tag-green-fg);
+  background: #0f7b6c;
   border-radius: 0 2px 2px 0;
   transition: left 0.15s ease, width 0.15s ease;
 }
@@ -2104,9 +2109,9 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .lc-dot-green {
-  background: var(--tag-green-fg);
+  background: #0f7b6c;
   border: 2px solid #ffffff;
-  box-shadow: 0 0 0 1px var(--tag-green-fg);
+  box-shadow: 0 0 0 1px #0f7b6c;
 }
 
 .lc-month {
@@ -2124,7 +2129,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .lc-month-green {
-  color: var(--tag-green-fg);
+  color: #0f7b6c;
 }
 
 .lc-label {
@@ -2142,7 +2147,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .lc-label-green {
-  color: var(--tag-green-fg);
+  color: #0f7b6c;
   font-weight: 500;
 }
 
