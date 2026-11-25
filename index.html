@@ -63,7 +63,7 @@
   <main class="page">
     <!-- STEP 1: Black Friday Deal -->
     <section class="step step-narrow is-active" data-step="0" id="step-0">
-      <div class="step-kicker mono">STEP 01 / 05</div>
+      <div class="step-kicker mono">STEP 01 / 03</div>
       <h1 class="page-title" data-i18n="step1.title">选择黑五包年方案</h1>
       <p class="page-lead" data-i18n="step1.lead">确定本次需要提前支付的包年成本，支持土/日/港/台/美五区预设或自定义原币金额。</p>
 
@@ -161,7 +161,16 @@
 
     <!-- STEP 2: Plan A (Without Black Friday) -->
     <section class="step" data-step="1" id="step-1">
-      <div class="step-kicker mono">STEP 02 / 05</div>
+      <div class="kicker-row">
+        <div class="step-kicker mono">STEP 02 / 03</div>
+        <nav class="substep-crumb" aria-label="选订阅子步骤">
+          <button type="button" class="substep-btn is-current" data-go-step="1" data-i18n="nav.subA">不买黑五</button>
+          <span class="substep-sep" aria-hidden="true">›</span>
+          <button type="button" class="substep-btn" data-go-step="2" data-i18n="nav.subB">买黑五后</button>
+          <span class="substep-sep" aria-hidden="true">›</span>
+          <button type="button" class="substep-btn" data-go-step="3" data-i18n="nav.subCycle">模型周期</button>
+        </nav>
+      </div>
       <div class="step-title-bar">
         <h1 class="page-title" style="margin-bottom:0;" data-i18n="step2.titleA">如果不买黑五，你会怎么订？</h1>
       </div>
@@ -213,7 +222,16 @@
 
     <!-- STEP 3: Plan B (With Black Friday Pro Locked Every Month + Drag Multi-Select) -->
     <section class="step" data-step="2" id="step-2">
-      <div class="step-kicker mono">STEP 03 / 05</div>
+      <div class="kicker-row">
+        <div class="step-kicker mono">STEP 02 / 03</div>
+        <nav class="substep-crumb" aria-label="选订阅子步骤">
+          <button type="button" class="substep-btn" data-go-step="1" data-i18n="nav.subA">不买黑五</button>
+          <span class="substep-sep" aria-hidden="true">›</span>
+          <button type="button" class="substep-btn is-current" data-go-step="2" data-i18n="nav.subB">买黑五后</button>
+          <span class="substep-sep" aria-hidden="true">›</span>
+          <button type="button" class="substep-btn" data-go-step="3" data-i18n="nav.subCycle">模型周期</button>
+        </nav>
+      </div>
       <div class="step-title-bar">
         <h1 class="page-title" style="margin-bottom:0;" data-i18n="step2b.titleB">如果买了黑五 Pro，你还会怎么订？</h1>
         <div class="step2-hero-actions">
@@ -272,7 +290,16 @@
 
     <!-- STEP 4: Dedicated Model SOTA Lifecycle & Retention Confidence -->
     <section class="step step-narrow" data-step="3" id="step-3">
-      <div class="step-kicker mono">STEP 04 / 05</div>
+      <div class="kicker-row">
+        <div class="step-kicker mono">STEP 02 / 03</div>
+        <nav class="substep-crumb" aria-label="选订阅子步骤">
+          <button type="button" class="substep-btn" data-go-step="1" data-i18n="nav.subA">不买黑五</button>
+          <span class="substep-sep" aria-hidden="true">›</span>
+          <button type="button" class="substep-btn" data-go-step="2" data-i18n="nav.subB">买黑五后</button>
+          <span class="substep-sep" aria-hidden="true">›</span>
+          <button type="button" class="substep-btn is-current" data-go-step="3" data-i18n="nav.subCycle">模型周期</button>
+        </nav>
+      </div>
       <h1 class="page-title" data-i18n="modal.title">设定模型周期与留存把握</h1>
       <p class="page-lead" data-i18n="modal.lead">参考历史实证：Gemini 2.5 Pro（2025.03.25）一直撑到 Claude Opus 4.5（2025.11.24）上线，实战约 8 个月；3.1 Pro 到 Gemini 4 间隔约 9 个月。</p>
 
@@ -372,7 +399,7 @@
       </div>
 
       <div class="step5-result" id="step5-result">
-      <div class="step-kicker mono">STEP 05 / 05 · DECISION MEMO</div>
+      <div class="step-kicker mono">STEP 03 / 03 · DECISION MEMO</div>
       <div class="memo-header">
         <div class="memo-title-row">
           <div class="memo-title-left">

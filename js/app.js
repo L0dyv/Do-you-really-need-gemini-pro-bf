@@ -67,6 +67,7 @@
 
   let state = loadState();
   let currentStep = 0;
+  let lastConfigStep = 1;
   let maxVisitedStep = 0;
   let displayCurrency = getLang() === 'en-US' ? 'USD' : 'CNY';
   let activeScenarioId = null; // null = default EV mode; or one of the 4 scenario IDs
@@ -691,6 +692,7 @@
     const nextStep = Math.max(0, Math.min(STEPS.length - 1, stepIdx));
     const enteringFinal = nextStep === 4 && currentStep !== 4;
     currentStep = nextStep;
+    if (currentStep >= 1 && currentStep <= 3) lastConfigStep = currentStep;
     maxVisitedStep = Math.max(maxVisitedStep, currentStep);
     pickerState = null;
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -814,11 +816,35 @@
   }
 
   function renderStepTabs() {
-    document.getElementById('step-nav-list').innerHTML = STEPS.map((s, idx) => {
-      const unlocked = isStepUnlocked(idx);
-      const cls = idx === currentStep ? 'is-current' : idx <= maxVisitedStep && unlocked ? 'is-done' : '';
-      return `<button type="button" class="step-tab ${cls}" data-go-step="${idx}" ${unlocked ? '' : 'disabled'}>${escapeHtml(t(s.key))}</button>`;
-    }).join('');
+    const tabs = [
+      {
+        key: 'nav.tabRegion',
+        target: 0,
+        isCurrent: currentStep === 0,
+        isDone: currentStep > 0 && isStepUnlocked(0),
+        unlocked: isStepUnlocked(0),
+      },
+      {
+        key: 'nav.tabSubs',
+        target: currentStep === 0 ? 1 : lastConfigStep,
+        isCurrent: currentStep >= 1 && currentStep <= 3,
+        isDone: maxVisitedStep >= 1 && currentStep === 4 && isStepUnlocked(1),
+        unlocked: isStepUnlocked(1),
+      },
+      {
+        key: 'nav.tabVerdict',
+        target: 4,
+        isCurrent: currentStep === 4,
+        isDone: false,
+        unlocked: isStepUnlocked(4),
+      },
+    ];
+    document.getElementById('step-nav-list').innerHTML = tabs
+      .map((tab) => {
+        const cls = tab.isCurrent ? 'is-current' : tab.isDone ? 'is-done' : '';
+        return `<button type="button" class="step-tab ${cls}" data-go-step="${tab.target}" ${tab.unlocked ? '' : 'disabled'}>${escapeHtml(t(tab.key))}</button>`;
+      })
+      .join('');
   }
 
   const PHASE_CUE_SVG =
@@ -1573,6 +1599,16 @@
       const idx = Number(btn.dataset.goStep);
       if (!isStepUnlocked(idx)) return;
       goToStep(idx);
+    });
+
+    document.querySelectorAll('.substep-crumb').forEach((nav) => {
+      nav.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-go-step]');
+        if (!btn) return;
+        const idx = Number(btn.dataset.goStep);
+        if (!isStepUnlocked(idx)) return;
+        goToStep(idx);
+      });
     });
 
     document.getElementById('btn-step4-calc').addEventListener('click', () => {
