@@ -169,12 +169,12 @@
       const maxExtra = Math.max(0, 12 - sotaLen);
       let migratedExtra;
       if (parsed.postSotaExtraMonths != null && Number.isFinite(Number(parsed.postSotaExtraMonths))) {
-        migratedExtra = Math.min(maxExtra, Math.max(0, Math.round(Number(parsed.postSotaExtraMonths))));
+        migratedExtra = Math.min(12, Math.max(0, Math.round(Number(parsed.postSotaExtraMonths))));
       } else if (parsed.retainProbPct != null && Number.isFinite(Number(parsed.retainProbPct))) {
         const legacyP = Math.min(100, Math.max(0, Number(parsed.retainProbPct))) / 100;
-        migratedExtra = Math.min(maxExtra, Math.max(0, Math.round(legacyP * maxExtra)));
+        migratedExtra = Math.min(12, Math.max(0, Math.round(legacyP * maxExtra)));
       } else {
-        migratedExtra = Math.min(maxExtra, DEFAULT_STATE.postSotaExtraMonths);
+        migratedExtra = DEFAULT_STATE.postSotaExtraMonths;
       }
       return Object.assign(createInitialUiState(), parsed, {
         fxAnnualChangePct: Object.assign({}, DEFAULT_FX_ANNUAL_PCT),
@@ -822,11 +822,10 @@
     document.getElementById('inp-bf-raw').value = state.bfRawAmount != null ? state.bfRawAmount : state.bfCostCny;
     document.getElementById('inp-sota-len').value = state.effectiveSotaMonths;
     document.getElementById('inp-next-interval').value = state.nextFlagshipInterval;
-    const maxExtra = Math.max(0, 12 - (Number(state.effectiveSotaMonths) || 7));
     const extraEl = document.getElementById('inp-post-sota-extra');
-    extraEl.max = String(maxExtra);
-    extraEl.value = String(Math.min(maxExtra, Math.max(0, Number(state.postSotaExtraMonths) || 0)));
-    extraEl.disabled = maxExtra === 0;
+    extraEl.max = '12';
+    extraEl.value = String(Math.min(12, Math.max(0, Number(state.postSotaExtraMonths) || 0)));
+    extraEl.disabled = false;
   }
 
   function isStepUnlocked(idx) {
@@ -1333,29 +1332,26 @@
     const nextWhenText = formatFutureMonth(2026, 11, state.nextFlagshipInterval);
     const totalUntilText = formatFutureMonth(2026, 11, res.expectedActiveMonths);
     const extraSlider = document.getElementById('inp-post-sota-extra');
-    extraSlider.max = String(res.maxPostSotaExtra);
-    extraSlider.value = String(res.postSotaExtraMonths);
-    extraSlider.disabled = res.maxPostSotaExtra === 0;
+    extraSlider.max = '12';
+    extraSlider.value = String(res.rawPostSotaExtra);
+    extraSlider.disabled = false;
 
     document.getElementById('lbl-sota-len').textContent = t('modal.monthsVal', { n: state.effectiveSotaMonths });
     document.getElementById('lbl-next-interval').textContent = t('modal.monthsVal', { n: state.nextFlagshipInterval });
-    document.getElementById('lbl-post-sota-extra').textContent =
-      res.maxPostSotaExtra === 0
-        ? t('modal.extraMonthsFull')
-        : t('modal.extraMonthsVal', { n: res.postSotaExtraMonths });
+    document.getElementById('lbl-post-sota-extra').textContent = t('modal.extraMonthsVal', { n: res.rawPostSotaExtra });
     document.getElementById('help-sota-until').textContent =
       t('modal.sotaHelp', { n: state.effectiveSotaMonths, until: sotaUntilText });
     document.getElementById('help-next-when').textContent =
       t('modal.nextHelp', { n: state.nextFlagshipInterval, when: nextWhenText });
     document.getElementById('help-post-sota-extra').textContent =
       res.expectedActiveMonths >= 12
-        ? t('modal.retainHelpFull', { k: res.sotaCutoff, extra: res.postSotaExtraMonths })
-        : res.postSotaExtraMonths === 0
+        ? t('modal.retainHelpFull', { k: res.sotaCutoff, rawExtra: res.rawPostSotaExtra })
+        : res.rawPostSotaExtra === 0
           ? t('modal.retainHelpZero', { k: res.sotaCutoff, until: sotaUntilText })
           : t('modal.retainHelpDyn', {
               k: res.sotaCutoff,
               until: sotaUntilText,
-              extra: res.postSotaExtraMonths,
+              extra: res.rawPostSotaExtra,
               total: res.expectedActiveMonths,
               totalUntil: totalUntilText,
             });
@@ -2407,10 +2403,6 @@
     document.getElementById('inp-sota-len').addEventListener('input', (e) => {
       recordUndoSnapshot('sota-len');
       state.effectiveSotaMonths = Number(e.target.value);
-      const maxExtra = Math.max(0, 12 - state.effectiveSotaMonths);
-      if ((Number(state.postSotaExtraMonths) || 0) > maxExtra) {
-        state.postSotaExtraMonths = maxExtra;
-      }
       render();
     });
 

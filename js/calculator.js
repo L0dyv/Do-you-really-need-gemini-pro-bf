@@ -130,16 +130,17 @@
     const sotaCutoff = Math.min(12, Math.max(0, Math.round(sotaLen - launched)));
     const nextGenCutoff = Math.min(12, Math.max(0, Math.round(nextInterval - launched - 1)));
     const maxPostSotaExtra = Math.max(0, 12 - sotaCutoff);
-    let postSotaExtraMonths;
+    let rawPostSotaExtra;
     if (state.postSotaExtraMonths != null && Number.isFinite(Number(state.postSotaExtraMonths))) {
-      postSotaExtraMonths = Math.min(maxPostSotaExtra, Math.max(0, Math.round(Number(state.postSotaExtraMonths))));
+      rawPostSotaExtra = Math.min(12, Math.max(0, Math.round(Number(state.postSotaExtraMonths))));
     } else if (state.retainProbPct != null && Number.isFinite(Number(state.retainProbPct))) {
       const legacyP = Math.min(100, Math.max(0, Number(state.retainProbPct))) / 100;
-      postSotaExtraMonths = Math.min(maxPostSotaExtra, Math.max(0, Math.round(legacyP * maxPostSotaExtra)));
+      rawPostSotaExtra = Math.min(12, Math.max(0, Math.round(legacyP * maxPostSotaExtra)));
     } else {
-      postSotaExtraMonths = Math.min(maxPostSotaExtra, 3);
+      rawPostSotaExtra = 3;
     }
-    const expectedActiveMonths = Math.min(12, sotaCutoff + postSotaExtraMonths);
+    const expectedActiveMonths = Math.min(12, sotaCutoff + rawPostSotaExtra);
+    const postSotaExtraMonths = Math.max(0, expectedActiveMonths - sotaCutoff);
     return {
       launched,
       sotaLen,
@@ -147,6 +148,7 @@
       sotaCutoff,
       nextGenCutoff,
       maxPostSotaExtra,
+      rawPostSotaExtra,
       postSotaExtraMonths,
       expectedActiveMonths,
     };
@@ -564,6 +566,7 @@
       breakEvenStatus,
       monthMargin,
       sotaCutoff: cutoffs.sotaCutoff,
+      rawPostSotaExtra: cutoffs.rawPostSotaExtra,
       postSotaExtraMonths: cutoffs.postSotaExtraMonths,
       maxPostSotaExtra: cutoffs.maxPostSotaExtra,
       expectedActiveMonths: cutoffs.expectedActiveMonths,
