@@ -1777,11 +1777,15 @@
         const planAHtml = r.items.length
           ? r.items.map((it) => `<span class="ref-mini-pill tag-${it.tone || 'gray'}" style="opacity:0.9;">${escapeHtml(formatItemPillLabel(it))}</span>`).join(' ')
           : '<span class="ref-empty-dash">—</span>';
+        const bfShort = lang === 'en-US' ? 'BF Pro' : '黑五 Pro';
         let planBHtml;
         if (r.reverted) {
-          planBHtml = `<span class="ref-mini-pill tag-amber" style="opacity:0.9;">${escapeHtml(t('step4.scenDroppedTag'))}</span>`;
+          const fallbackItems = (r.items || []).filter((it) => !it.replaceableByBf);
+          const extraHtml = fallbackItems.length
+            ? fallbackItems.map((it) => `<span class="ref-mini-pill tag-${it.tone || 'gray'}" style="opacity:0.9;">${escapeHtml(formatItemPillLabel(it))}</span>`).join(' ')
+            : '';
+          planBHtml = `<span class="ref-mini-pill tag-gemini" style="opacity:0.5;font-weight:600;">${escapeHtml(bfShort)}</span>${extraHtml ? ` <span class="bf-row-plus">+</span> ${extraHtml}` : ''} <span class="ref-mini-pill tag-gray" style="opacity:0.75;">${escapeHtml(t('step4.scenDroppedTag'))}</span>`;
         } else {
-          const bfShort = lang === 'en-US' ? 'BF Pro' : '黑五 Pro';
           const extraHtml = r.buyItems && r.buyItems.length
             ? r.buyItems.map((it) => `<span class="ref-mini-pill tag-${it.tone || 'gray'}" style="opacity:0.9;">${escapeHtml(formatItemPillLabel(it))}</span>`).join(' ')
             : '';

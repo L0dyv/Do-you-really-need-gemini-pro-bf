@@ -377,18 +377,40 @@
       const qty = Math.max(1, Number(it.qty) || 1);
       return qty > 1 ? `${esc(rawShort)} ×${qty}` : esc(rawShort);
     };
+    const activeMask = Array.isArray(res.expectedActiveMask) && res.expectedActiveMask.length === 12
+      ? res.expectedActiveMask
+      : res.monthlyRows.map(() => true);
+    let htmlCumBuy = res.bfCost;
+    let htmlCumSkip = 0;
     const monthRowsHtml = res.monthlyRows
       .map((r, idx) => {
+        const isActive = Boolean(activeMask[idx]);
         const mLabel = isEn ? EN_MONTHS_LONG[idx] : r.month.label;
         const planA = r.items.length
           ? r.items.map(fmtShortQty).join(' + ')
           : '—';
         const bfTag = isEn ? 'BF Pro' : '黑五 Pro';
-        const planB = r.buyItems && r.buyItems.length
-          ? `${bfTag} + ${r.buyItems.map(fmtShortQty).join(' + ')}`
-          : bfTag;
-        const diffCls = r.monthSavedByBf > 0.5 ? 'pos' : r.monthSavedByBf < -0.5 ? 'neg' : '';
-        return `<tr><td>${esc(mLabel)}</td><td>${planA}</td><td>${planB}</td><td class="num ${diffCls}">${M.fmtMoney(r.monthSavedByBf, true)}</td><td class="num">${M.fmtMoney(r.cumBuy)}</td><td class="num">${M.fmtMoney(r.cumSkip)}</td></tr>`;
+        let planB;
+        let diffVal;
+        if (isActive) {
+          htmlCumBuy += r.buyMonthFlow;
+          htmlCumSkip += r.skipMonthFlow;
+          diffVal = r.monthSavedByBf;
+          planB = r.buyItems && r.buyItems.length
+            ? `${bfTag} + ${r.buyItems.map(fmtShortQty).join(' + ')}`
+            : bfTag;
+        } else {
+          htmlCumBuy += r.skipMonthFlow;
+          htmlCumSkip += r.skipMonthFlow;
+          diffVal = 0;
+          const fallbackItems = (r.items || []).filter((it) => !it.replaceableByBf);
+          const gapNote = isEn ? '(Gap · Idle)' : '（空窗闲置）';
+          planB = fallbackItems.length
+            ? `${bfTag} + ${fallbackItems.map(fmtShortQty).join(' + ')} ${gapNote}`
+            : `${bfTag} ${gapNote}`;
+        }
+        const diffCls = diffVal > 0.5 ? 'pos' : diffVal < -0.5 ? 'neg' : '';
+        return `<tr><td>${esc(mLabel)}</td><td>${planA}</td><td>${planB}</td><td class="num ${diffCls}">${M.fmtMoney(diffVal, true)}</td><td class="num">${M.fmtMoney(htmlCumBuy)}</td><td class="num">${M.fmtMoney(htmlCumSkip)}</td></tr>`;
       })
       .join('');
 
