@@ -142,7 +142,7 @@
     }
     // Constrain honeymoon strictly within sotaCutoff so setting SOTA=1 never shows Month 2-3 as honeymoon
     if (monthNum <= Math.min(3, sotaCutoff)) {
-      return { key: 'honeymoon', label: '蜜月领先期', tone: 'dark' };
+      return { key: 'honeymoon', label: 'SOTA 领先期', tone: 'dark' };
     }
     if (monthNum <= sotaCutoff) {
       return { key: 'steady', label: '第一梯队稳态', tone: 'blue' };

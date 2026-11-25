@@ -156,7 +156,7 @@
       'modal.nodeStart': '黑五起算 (12月1日)',
       'modal.nodeSota': 'SOTA 截止 ({when})',
       'modal.nodeNext': '下代 SOTA ({when})',
-      'modal.legendHoneymoon': '蜜月领先期（1–3月）',
+      'modal.legendHoneymoon': 'SOTA 领先期（1–3月）',
       'modal.legendSteady': '第一梯队稳态',
       'modal.legendRisk': '空窗/掉队风险',
       'modal.legendNext': '新旗舰窗口',
@@ -470,7 +470,7 @@
       'modal.nodeStart': 'Cycle Start (Dec 1)',
       'modal.nodeSota': 'SOTA ends ({when})',
       'modal.nodeNext': 'Next-Gen SOTA ({when})',
-      'modal.legendHoneymoon': 'Honeymoon (Mo 1–3)',
+      'modal.legendHoneymoon': 'SOTA Lead (Mo 1–3)',
       'modal.legendSteady': 'Tier-1 Steady',
       'modal.legendRisk': 'Gap / Lag Risk',
       'modal.legendNext': 'Next-Gen Window',
@@ -645,7 +645,7 @@
   ];
 
   const PHASE_LABELS_EN = {
-    honeymoon: 'Honeymoon SOTA',
+    honeymoon: 'SOTA Lead',
     steady: 'Tier-1 Steady',
     risk: 'Gap / Lag Risk',
     next_gen: 'Next-Gen SOTA',
