@@ -57,7 +57,7 @@
               <span class="choice-name">土区 App Store 黑五 Pro</span>
               <span class="choice-price mono">3,600 TRY ≈ ¥477 / 年</span>
             </div>
-            <div class="choice-note">折合 ¥39.7/月 · 独立 Apple ID 内购</div>
+            <div class="choice-note">折合 ¥39.7/月 · 独立 Apple ID 内购 · 同区月付 870 TRY</div>
           </div>
         </button>
 
@@ -66,9 +66,42 @@
           <div class="choice-content">
             <div class="choice-line">
               <span class="choice-name">日区官方黑五 Pro</span>
-              <span class="choice-price mono">14,500 JPY ≈ ¥608 / 年</span>
+              <span class="choice-price mono">14,500 JPY ≈ ¥609 / 年</span>
             </div>
-            <div class="choice-note">折合 ¥50.7/月 · 首年半价，次年按 29,000 JPY 续费</div>
+            <div class="choice-note">折合 ¥50.8/月 · 首年半价 · 同区月付 2,900 JPY</div>
+          </div>
+        </button>
+
+        <button type="button" class="choice-row" data-bf-choice="tw_web">
+          <span class="choice-radio" aria-hidden="true"></span>
+          <div class="choice-content">
+            <div class="choice-line">
+              <span class="choice-name">台区官方黑五 Pro</span>
+              <span class="choice-price mono">约 3,250 TWD ≈ ¥658 / 年</span>
+            </div>
+            <div class="choice-note">折合 ¥54.8/月 · 原年费 6,500 TWD 半价 · 同区月付 650 TWD</div>
+          </div>
+        </button>
+
+        <button type="button" class="choice-row" data-bf-choice="us_web">
+          <span class="choice-radio" aria-hidden="true"></span>
+          <div class="choice-content">
+            <div class="choice-line">
+              <span class="choice-name">美区官方黑五 Pro</span>
+              <span class="choice-price mono">$99.99 ≈ ¥667 / 年</span>
+            </div>
+            <div class="choice-note">折合 ¥55.6/月 · 原年费 $199.99 半价 · 同区月付 $19.99</div>
+          </div>
+        </button>
+
+        <button type="button" class="choice-row" data-bf-choice="hk_web">
+          <span class="choice-radio" aria-hidden="true"></span>
+          <div class="choice-content">
+            <div class="choice-line">
+              <span class="choice-name">港区官方黑五 Pro</span>
+              <span class="choice-price mono">约 794 HKD ≈ ¥675 / 年</span>
+            </div>
+            <div class="choice-note">折合 ¥56.3/月 · 原年费 ~1,588 HKD 半价 · 同区月付 158 HKD</div>
           </div>
         </button>
 
@@ -79,23 +112,25 @@
               <span class="choice-name">自定义币种与年费</span>
               <span class="choice-price mono" id="lbl-custom-preview">自定义</span>
             </div>
-            <div class="choice-note">手动填写任意币种的实际包年金额</div>
+            <div class="choice-note">手动填写任意人民币实付额或外币包年金额</div>
           </div>
         </button>
       </div>
 
-      <div class="prop-group" id="panel-bf-custom" style="margin-top: 20px;">
+      <div class="prop-group" id="panel-bf-custom" style="margin-top: 14px;">
         <div class="prop-row">
-          <label class="prop-key" for="inp-bf-raw">实付包年金额</label>
+          <label class="prop-key" for="inp-bf-raw">今日实付包年金额</label>
           <div class="prop-val">
-            <select class="flat-select" id="inp-bf-currency" style="width:120px;">
+            <select class="flat-select" id="inp-bf-currency" style="width:128px;">
+              <option value="CNY">CNY 人民币</option>
               <option value="TRY">TRY 里拉</option>
               <option value="JPY">JPY 日元</option>
+              <option value="HKD">HKD 港币</option>
+              <option value="TWD">TWD 新台币</option>
               <option value="USD">USD 美元</option>
-              <option value="CNY">CNY 人民币</option>
             </select>
-            <input class="flat-input mono" id="inp-bf-raw" type="number" min="0" max="500000" step="1" style="width:124px;" />
-            <span class="unit mono" id="lbl-bf-converted">≈ ¥477 / 年</span>
+            <input class="flat-input mono" id="inp-bf-raw" type="number" min="0" max="500000" step="any" style="width:124px;" />
+            <span class="unit mono" id="lbl-bf-converted">≈ ¥500 / 年</span>
           </div>
         </div>
       </div>
@@ -135,11 +170,11 @@
 
           <select class="ghost-select" id="inp-plan-template" aria-label="整年模板">
             <option value="">整年模板...</option>
-            <option value="default">12-3月 Ultra 空闲 / 4-11月取代土区 Pro</option>
+            <option value="region_pro">按当前地区填充全年 12 月 Pro</option>
+            <option value="default">12-3月土区旧价 Ultra 空闲 / 4-11月取代 Pro</option>
             <option value="offseason_only">1-3月 Ultra 空闲 / 4-8月取代 Pro / 9-11月停用</option>
-            <option value="all_pro">全年 12 个月取代土区 Pro</option>
             <option value="replace_gpt">12-3月 Ultra 空闲 / 4-11月取代 ChatGPT Plus</option>
-            <option value="empty">清空全年（全部停用）</option>
+            <option value="empty">清空全年（全部不买）</option>
           </select>
         </div>
       </div>
@@ -197,9 +232,11 @@
           <option value="idle">自定义致空闲 Plan</option>
         </select>
         <input class="flat-input" id="inp-custom-name" type="text" placeholder="输入名称（先勾选上方月份）" style="flex:1;min-width:160px;" />
-        <select class="flat-select" id="inp-custom-currency" style="width:104px;">
+        <select class="flat-select" id="inp-custom-currency" style="width:112px;">
           <option value="TRY">TRY ₺</option>
-          <option value="JPY">JPY ¥</option>
+          <option value="JPY">JPY JP¥</option>
+          <option value="HKD">HKD HK$</option>
+          <option value="TWD">TWD NT$</option>
           <option value="USD">USD $</option>
           <option value="CNY">CNY ¥</option>
         </select>
@@ -208,77 +245,59 @@
       </div>
     </section>
 
-    <!-- STEP 3: Renewal, FX & Bundled Perks -->
+    <!-- STEP 3: Dynamic FX, Legacy Ultra Renewal & Bundled Perks -->
     <section class="step step-narrow" data-step="2" id="step-2">
       <div class="step-kicker mono">STEP 03 / 05</div>
-      <h1 class="page-title">核对续费、汇率与附带权益</h1>
-      <p class="page-lead">设置里拉贬值预期与主号 Ultra 续费情况；附带权益默认均按 ¥0 折抵，防止高估实际用不上的赠品。</p>
+      <h1 class="page-title">核对汇率走势、续费与附带权益</h1>
+      <p class="page-lead">今日黑五包年按当前即期汇率一次性锁定；下方仅展示你在第 2 步中实际涉及的外币月付汇率与续费设置。</p>
 
-      <div class="section-label">主号 Ultra 续费情况</div>
-      <div class="prop-group">
-        <div class="prop-row">
-          <label class="prop-key" for="inp-ultra-cny">现有 Ultra 5x 月费</label>
-          <div class="prop-val">
-            <input class="flat-input mono" id="inp-ultra-cny" type="number" min="100" max="1500" step="5" style="width:104px;" />
-            <span class="unit">元 / 月</span>
+      <div id="section-legacy-ultra">
+        <div class="section-label">土区旧价 Ultra 续费情况（因第 2 步已安排该项）</div>
+        <div class="prop-group" style="margin-bottom: 30px;">
+          <div class="prop-row">
+            <label class="prop-key" for="inp-ultra-cny">现有 Ultra 5x 月费</label>
+            <div class="prop-val">
+              <input class="flat-input mono" id="inp-ultra-cny" type="number" min="100" max="1500" step="5" style="width:104px;" />
+              <span class="unit">元 / 月</span>
+            </div>
           </div>
-        </div>
 
-        <div class="prop-row">
-          <span class="prop-key">续费稳定性</span>
-          <div class="prop-val">
-            <div class="pill-switch" id="renewal-segment">
-              <button type="button" class="pill-opt" data-renewal="always">全程可续</button>
-              <button type="button" class="pill-opt" data-renewal="fail_at">中途断续</button>
-              <button type="button" class="pill-opt" data-renewal="immediate_fail">首月即断</button>
+          <div class="prop-row">
+            <span class="prop-key">续费稳定性</span>
+            <div class="prop-val">
+              <div class="pill-switch" id="renewal-segment">
+                <button type="button" class="pill-opt" data-renewal="always">全程可续</button>
+                <button type="button" class="pill-opt" data-renewal="fail_at">中途断续</button>
+                <button type="button" class="pill-opt" data-renewal="immediate_fail">首月即断</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="prop-row" id="wrap-fail-month" style="display:none;">
+            <span class="prop-key">预计断续月份</span>
+            <div class="prop-val prop-val-slider">
+              <input type="range" id="inp-fail-month" min="1" max="11" step="1" />
+              <span class="mono val-badge" id="lbl-fail-month">2027年2月</span>
+            </div>
+          </div>
+
+          <div class="prop-row" id="wrap-fallback-strategy" style="display:none;">
+            <label class="prop-key" for="inp-fallback-strategy">断续后旺季兜底</label>
+            <div class="prop-val">
+              <select class="flat-select" id="inp-fallback-strategy">
+                <option value="jp_ultra">改开日区 Ultra 5x（14,500 JPY ≈ ¥609/月）</option>
+                <option value="us_ultra">改开美区 Ultra 5x（$99.99 ≈ ¥667/月）</option>
+                <option value="double_pro">放弃 Ultra，改用双号 Pro（黑五可抵 1 槽）</option>
+              </select>
             </div>
           </div>
         </div>
-
-        <div class="prop-row" id="wrap-fail-month" style="display:none;">
-          <span class="prop-key">预计断续月份</span>
-          <div class="prop-val prop-val-slider">
-            <input type="range" id="inp-fail-month" min="1" max="11" step="1" />
-            <span class="mono val-badge" id="lbl-fail-month">2027年2月</span>
-          </div>
-        </div>
-
-        <div class="prop-row" id="wrap-fallback-strategy" style="display:none;">
-          <label class="prop-key" for="inp-fallback-strategy">断续后旺季兜底</label>
-          <div class="prop-val">
-            <select class="flat-select" id="inp-fallback-strategy">
-              <option value="jp_ultra">改开日区 Ultra 5x（14,500 JPY ≈ ¥608/月）</option>
-              <option value="us_ultra">改开美区 Ultra 5x（$99.99 ≈ ¥667/月）</option>
-              <option value="double_pro">放弃 Ultra，改用多号 Pro（黑五可抵 1 槽）</option>
-            </select>
-          </div>
-        </div>
       </div>
 
-      <div class="section-label" style="margin-top: 36px;">外币汇率走势（作用于表格中所有对应币种订阅）</div>
-      <div class="prop-group">
-        <div class="prop-row">
-          <span class="prop-key">当前基准汇率</span>
-          <div class="prop-val mono">
-            <span>1 CNY ≈ 7.55 TRY</span>
-            <span class="unit">·</span>
-            <span>1 CNY ≈ 23.81 JPY</span>
-            <span class="unit">·</span>
-            <span>1 USD ≈ 6.67 CNY</span>
-          </div>
-        </div>
+      <div class="section-label">未来 12 个月外币汇率走势（仅作用于第 2 步中的外币月付）</div>
+      <div class="prop-group" id="fx-dynamic-panel"></div>
 
-        <div class="prop-row">
-          <span class="prop-key">里拉年化贬值率</span>
-          <div class="prop-val prop-val-slider">
-            <input type="range" id="inp-try-dep" min="0" max="35" step="1" />
-            <span class="mono val-badge" id="lbl-try-dep">22%</span>
-          </div>
-        </div>
-        <p class="muted-note" id="help-try-preview" style="padding: 6px 4px 10px;"></p>
-      </div>
-
-      <div class="section-label" style="margin-top: 36px;">附带权益折抵（默认均按 ¥0）</div>
+      <div class="section-label" style="margin-top: 30px;">附带权益折抵（默认均按 ¥0）</div>
       <div class="prop-group">
         <div class="prop-row">
           <span class="prop-key">YouTube Music</span>

@@ -89,8 +89,13 @@
       res.totalIdleMonths > 0
         ? `${res.totalIdleMonths} 个月（致空闲 Plan ${res.ultraOverlapMonths} 月 · 摊销约 ${fmtYen(res.totalIdleCostCny)}）`
         : '0 个月（全年生效）';
+    const fxSummary = (res.activeFxCurrencies || []).length > 0
+      ? res.activeFxCurrencies
+          .map((c) => `${c.currency} ${c.annualPct > 0 ? '+' : ''}${Math.round(c.annualPct)}%`)
+          .join(' · ')
+      : '无外币月付';
     const props = [
-      ['黑五包年成本', `${fmtYen(res.bfCost)} / 年（折合 ¥${res.bfMonthlyAvg.toFixed(1)}/月）`],
+      ['黑五包年成本', `${fmtYen(res.bfCost)} / 年（¥${res.bfMonthlyAvg.toFixed(1)}/月 · 汇率假设：${fxSummary}）`],
       ['黑五空闲期', idleText],
       ['实际回本周期', `${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) + ' 个月' : '无法回本'}（月均平替价值 ¥${Math.round(res.avgProPrice)}/月）`],
       ['期望净收益 (EV)', `${fmtYen(res.expectedNetSavings, true)}（你的把握 ${state.retainProbPct}% vs 盈亏线 ${res.breakEvenProbPct.toFixed(1)}%）`],

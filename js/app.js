@@ -2,7 +2,9 @@
   const {
     BF_DEAL_PRESETS,
     CURRENCIES,
+    DEFAULT_FX_ANNUAL_PCT,
     DEFAULT_STATE,
+    FX_CURRENCY_META,
     HISTORICAL_TIMELINE,
     IDLE_PLAN_CATALOG,
     MONTHS,
@@ -13,10 +15,15 @@
     makeSubItem,
   } = window.SubLedgerData;
 
-  const { calculateLedger, convertToCny, getTryRateAtOffset } = window.SubLedgerCalc;
+  const {
+    calculateLedger,
+    convertToCny,
+    getCnyPerUnit,
+    legacyTryDepToAnnualPct,
+  } = window.SubLedgerCalc;
   const { buildSummarySvg, buildStandaloneHtml, svgToHighResPngBlob } = window.SubLedgerExporter;
 
-  const STORAGE_KEY = 'ai_sub_ledger_state_v9';
+  const STORAGE_KEY = 'ai_sub_ledger_state_v10';
 
   const STEPS = [
     { idx: 0, label: '1. 方案', nextLabel: '下一步：排布 12 个月原方案 →' },
@@ -136,10 +143,18 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return cloneState(DEFAULT_STATE);
       const parsed = JSON.parse(raw);
+      const mergedFx = Object.assign({}, DEFAULT_FX_ANNUAL_PCT, parsed.fxAnnualChangePct || {});
+      if (!parsed.fxAnnualChangePct && parsed.tryAnnualDepRate != null) {
+        mergedFx.TRY = Math.round(legacyTryDepToAnnualPct(parsed.tryAnnualDepRate));
+      }
       return Object.assign(cloneState(DEFAULT_STATE), parsed, {
+        fxAnnualChangePct: mergedFx,
         monthPlans: Array.isArray(parsed.monthPlans) && parsed.monthPlans.length === 12
           ? parsed.monthPlans
           : cloneState(DEFAULT_STATE.monthPlans),
+        monthEdited: Array.isArray(parsed.monthEdited) && parsed.monthEdited.length === 12
+          ? parsed.monthEdited
+          : Array(12).fill(false),
       });
     } catch {
       return cloneState(DEFAULT_STATE);
@@ -167,8 +182,135 @@
     const text = Number.isInteger(num) ? num.toLocaleString('en-US') : num.toFixed(2);
     if (currency === 'TRY') return `${text} TRY`;
     if (currency === 'JPY') return `${text} JPY`;
+    if (currency === 'HKD') return `${text} HKD`;
+    if (currency === 'TWD') return `${text} TWD`;
     if (currency === 'USD') return `$${text}`;
     return `¥${text}`;
+  }
+
+  function fmtFxDelta(pct) {
+    const n = Math.round(Number(pct) || 0);
+    if (n > 0) return { text: `升值 +${n}%`, cls: 'fx-dir-up' };
+    if (n < 0) return { text: `贬值 ${n}%`, cls: 'fx-dir-down' };
+    return { text: '持平 0%', cls: 'fx-dir-flat' };
+  }
+
+  function buildFxPreviewText(code, pct) {
+    const meta = FX_CURRENCY_META[code];
+    if (!meta) return '';
+    const map = Object.assign({}, state.fxAnnualChangePct, { [code]: pct });
+    const nowCny = Math.round(meta.sampleAmount * getCnyPerUnit(code, 0, map));
+    const endCny = Math.round(meta.sampleAmount * getCnyPerUnit(code, 12, map));
+    const dir = pct > 0 ? `升值 ${pct}%` : pct < 0 ? `贬值 ${Math.abs(pct)}%` : '持平';
+    return `${meta.name}${dir}：${meta.sampleLabel}将从今日约 ¥${nowCny} 变为第 12 个月的约 ¥${endCny}。${meta.note}`;
+  }
+
+  function renderDynamicFxPanel(res) {
+    const panel = document.getElementById('fx-dynamic-panel');
+    const active = res.activeFxCurrencies || [];
+    const key = active.map((c) => c.currency).join(',');
+
+    if (active.length === 0) {
+      if (panel.dataset.fxKey !== '__empty__') {
+        panel.dataset.fxKey = '__empty__';
+        panel.innerHTML = `
+          <div class="prop-row">
+            <span class="prop-key">当前外币月付</span>
+            <div class="prop-val">
+              <span class="unit">第 2 步方案中暂未涉及外币月付（今日黑五包年已按当前即期汇率锁定，不受未来汇率波动影响）。</span>
+            </div>
+          </div>`;
+      }
+      return;
+    }
+
+    // Only rebuild DOM structure when the set/order of active foreign currencies changes (keeps slider drag 60fps smooth!)
+    if (panel.dataset.fxKey !== key) {
+      panel.dataset.fxKey = key;
+      panel.innerHTML = active
+        .map((entry, idx) => {
+          const code = entry.currency;
+          const meta = FX_CURRENCY_META[code];
+          if (!meta) return '';
+          const pct = state.fxAnnualChangePct && state.fxAnnualChangePct[code] != null
+            ? Number(state.fxAnnualChangePct[code])
+            : meta.defaultAnnualPct;
+          const d = fmtFxDelta(pct);
+          const preview = buildFxPreviewText(code, pct);
+
+          if (idx === 0) {
+            return `
+              <div class="fx-card-block" data-fx-block="${code}">
+                <div class="prop-row">
+                  <span class="prop-key">${escapeHtml(meta.name)}基准汇率</span>
+                  <div class="prop-val mono">
+                    <span>${escapeHtml(meta.displayBase)}</span>
+                    <span class="unit" data-fx-months="${code}">· 影响第 2 步中 ${entry.monthsCount} 个月</span>
+                  </div>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-key">${escapeHtml(meta.name)}年化涨跌幅</span>
+                  <div class="prop-val prop-val-slider">
+                    <input type="range" data-fx-slider="${code}" min="${meta.minPct}" max="${meta.maxPct}" step="1" value="${pct}" />
+                    <span class="mono val-badge ${d.cls}" data-fx-badge="${code}">${d.text}</span>
+                  </div>
+                </div>
+                <p class="muted-note" data-fx-preview="${code}" style="padding: 2px 6px 6px;">${escapeHtml(preview)}</p>
+              </div>`;
+          }
+
+          return `
+            <details class="fx-extra-toggle" data-fx-block="${code}">
+              <summary>
+                <span><strong>${escapeHtml(meta.name)} (${code})</strong> <span class="unit" data-fx-months="${code}">· 涉及 ${entry.monthsCount} 个月 · ${escapeHtml(meta.displayBase)}</span></span>
+                <span class="mono ${d.cls}" data-fx-badge="${code}" style="font-weight:600;">${d.text}</span>
+              </summary>
+              <div class="fx-extra-body">
+                <div class="prop-row" style="border-bottom:none;min-height:40px;padding:4px 0;">
+                  <span class="prop-key">${escapeHtml(meta.name)}年化涨跌幅</span>
+                  <div class="prop-val prop-val-slider">
+                    <input type="range" data-fx-slider="${code}" min="${meta.minPct}" max="${meta.maxPct}" step="1" value="${pct}" />
+                    <span class="mono val-badge ${d.cls}" data-fx-badge2="${code}">${d.text}</span>
+                  </div>
+                </div>
+                <p class="muted-note" data-fx-preview="${code}" style="padding: 2px 0 4px;">${escapeHtml(preview)}</p>
+              </div>
+            </details>`;
+        })
+        .join('');
+      return;
+    }
+
+    // In-place live updates for smooth continuous slider dragging
+    active.forEach((entry) => {
+      const code = entry.currency;
+      const meta = FX_CURRENCY_META[code];
+      if (!meta) return;
+      const pct = state.fxAnnualChangePct && state.fxAnnualChangePct[code] != null
+        ? Number(state.fxAnnualChangePct[code])
+        : meta.defaultAnnualPct;
+      const d = fmtFxDelta(pct);
+      const preview = buildFxPreviewText(code, pct);
+
+      const slider = panel.querySelector(`[data-fx-slider="${code}"]`);
+      if (slider && Number(slider.value) !== pct) slider.value = pct;
+
+      panel.querySelectorAll(`[data-fx-badge="${code}"], [data-fx-badge2="${code}"]`).forEach((el) => {
+        el.textContent = d.text;
+        el.classList.remove('fx-dir-up', 'fx-dir-down', 'fx-dir-flat');
+        el.classList.add(d.cls);
+      });
+
+      const monthsEl = panel.querySelector(`[data-fx-months="${code}"]`);
+      if (monthsEl) {
+        monthsEl.textContent = monthsEl.closest('summary')
+          ? `· 涉及 ${entry.monthsCount} 个月 · ${meta.displayBase}`
+          : `· 影响第 2 步中 ${entry.monthsCount} 个月`;
+      }
+
+      const prevEl = panel.querySelector(`[data-fx-preview="${code}"]`);
+      if (prevEl) prevEl.textContent = preview;
+    });
   }
 
   function formatFutureMonth(baseYear, baseMonth, addMonths) {
@@ -387,12 +529,11 @@
   }
 
   function syncInputsFromState() {
-    document.getElementById('inp-bf-currency').value = state.bfCurrency || 'TRY';
+    document.getElementById('inp-bf-currency').value = state.bfCurrency || 'CNY';
     document.getElementById('inp-bf-raw').value = state.bfRawAmount != null ? state.bfRawAmount : state.bfCostCny;
     document.getElementById('inp-ultra-cny').value = state.currentUltraCny;
     document.getElementById('inp-fail-month').value = state.ultraFailMonthIndex;
     document.getElementById('inp-fallback-strategy').value = state.fallbackUltraStrategy;
-    document.getElementById('inp-try-dep').value = state.tryAnnualDepRate;
     document.getElementById('inp-music-cny').value = state.musicMonthlyCny;
     document.getElementById('inp-colab-cny').value = state.colabProMonthlyCny || 0;
     document.getElementById('inp-sota-len').value = state.effectiveSotaMonths;
@@ -674,7 +815,8 @@
       ),
     ];
 
-    // STEP 3
+    // STEP 3: Auto-hide Legacy Ultra Renewal unless Step 2 actually uses it + Dynamic Bidirectional FX Panel
+    document.getElementById('section-legacy-ultra').style.display = res.needsLegacyUltraRenewal ? 'block' : 'none';
     document.querySelectorAll('[data-renewal]').forEach((btn) => {
       btn.classList.toggle('is-active', btn.dataset.renewal === state.ultraRenewalMode);
     });
@@ -682,12 +824,7 @@
     document.getElementById('wrap-fallback-strategy').style.display = state.ultraRenewalMode !== 'always' ? 'grid' : 'none';
     document.getElementById('lbl-fail-month').textContent = MONTHS[state.ultraFailMonthIndex]?.label || '';
 
-    document.getElementById('lbl-try-dep').textContent = `${state.tryAnnualDepRate}%`;
-
-    const aprRate = getTryRateAtOffset(5, state.tryAnnualDepRate);
-    const novRate = getTryRateAtOffset(12, state.tryAnnualDepRate);
-    document.getElementById('help-try-preview').textContent =
-      `按此贬值速率：2027年4月 1元≈${aprRate.toFixed(2)} TRY，11月 1元≈${novRate.toFixed(2)} TRY。若需模拟某个 TRY 订阅在 6 月调价追汇率，可在第 2 步点击该订阅标签单独勾选。`;
+    renderDynamicFxPanel(res);
 
     // STEP 4
     const sotaUntilText = formatFutureMonth(2026, 11, state.effectiveSotaMonths);
@@ -838,7 +975,7 @@
       if (currentStep < STEPS.length - 1) goToStep(currentStep + 1);
     });
 
-    // Step 1
+    // Step 1: 5 Regions + Custom (untouched Step 2 months auto-sync to selected region's monthly Pro)
     document.getElementById('bf-choice-grid').addEventListener('click', (e) => {
       const row = e.target.closest('[data-bf-choice]');
       if (!row) return;
@@ -852,6 +989,19 @@
         state.bfCostCny = p.cnyCost;
         document.getElementById('inp-bf-currency').value = p.currency;
         document.getElementById('inp-bf-raw').value = p.amount;
+        if (p.defaultMonthlyProId) {
+          if (!Array.isArray(state.monthEdited) || state.monthEdited.length !== 12) {
+            state.monthEdited = Array(12).fill(false);
+          }
+          for (let i = 0; i < 12; i++) {
+            if (!state.monthEdited[i]) {
+              state.monthPlans[i] = [makeSubItem(p.defaultMonthlyProId, 1)];
+            }
+          }
+        }
+      } else if (choice === 'custom') {
+        document.getElementById('inp-bf-currency').value = state.bfCurrency || 'CNY';
+        document.getElementById('inp-bf-raw').value = state.bfRawAmount != null ? state.bfRawAmount : state.bfCostCny;
       }
       render();
     });
@@ -949,12 +1099,24 @@
     document.getElementById('inp-plan-template').addEventListener('change', (e) => {
       const key = e.target.value;
       if (!key) return;
-      state.monthPlans = buildMonthPlan(key);
+      const preset = BF_DEAL_PRESETS[state.bfPreset];
+      const regionProId = (preset && preset.defaultMonthlyProId) || 'gemini_pro_tr';
+      state.monthPlans = buildMonthPlan(key, regionProId);
+      state.monthEdited = Array(12).fill(key !== 'region_pro');
       pricePopoverState = null;
       e.target.value = '';
       render();
       showToast('已套用整年模板');
     });
+
+    function markMonthsEdited(indices) {
+      if (!Array.isArray(state.monthEdited) || state.monthEdited.length !== 12) {
+        state.monthEdited = Array(12).fill(false);
+      }
+      indices.forEach((idx) => {
+        if (idx >= 0 && idx < 12) state.monthEdited[idx] = true;
+      });
+    }
 
     // Unified Batch Apply Status (Idle Plan, Unused, or Replaced Subscription)
     document.getElementById('btn-apply-batch').addEventListener('click', () => {
@@ -965,6 +1127,7 @@
       }
       const statusId = document.getElementById('inp-batch-status').value;
       pricePopoverState = null;
+      markMonthsEdited(indices);
       mutateMonths(indices, (arr) => {
         arr.length = 0;
         if (statusId && statusId !== 'none_idle') {
@@ -984,6 +1147,7 @@
         return;
       }
       pricePopoverState = null;
+      markMonthsEdited(indices);
       mutateMonths(indices, (arr) => {
         arr.length = 0;
       });
@@ -1021,6 +1185,7 @@
       }
       const isIdlePlan = kind === 'idle';
       const customId = `custom_${isIdlePlan ? 'idle_' : ''}${name.toLowerCase().replace(/\s+/g, '_')}`;
+      markMonthsEdited(indices);
       mutateMonths(indices, (arr) => {
         arr.length = 0;
         arr.push(makeSubItem(null, 1, { id: customId, name, currency, amount, isIdlePlan, replaceableByBf: !isIdlePlan }));
@@ -1231,6 +1396,7 @@
       const mIdx = Number(rowSel.dataset.rowSelect);
       const newId = rowSel.value;
       pricePopoverState = null;
+      markMonthsEdited([mIdx]);
       mutateMonths([mIdx], (arr) => {
         if (newId === 'none_idle') {
           arr.length = 0;
@@ -1243,7 +1409,19 @@
       });
     });
 
-    // Step 3
+    // Step 3: Dynamic Multi-Currency Bidirectional FX Sliders
+    document.getElementById('fx-dynamic-panel').addEventListener('input', (e) => {
+      const slider = e.target.closest('[data-fx-slider]');
+      if (!slider) return;
+      const code = slider.dataset.fxSlider;
+      const val = Number(slider.value);
+      if (!state.fxAnnualChangePct || typeof state.fxAnnualChangePct !== 'object') {
+        state.fxAnnualChangePct = Object.assign({}, DEFAULT_FX_ANNUAL_PCT);
+      }
+      state.fxAnnualChangePct[code] = val;
+      render();
+    });
+
     document.getElementById('renewal-segment').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-renewal]');
       if (!btn) return;
@@ -1263,11 +1441,6 @@
 
     document.getElementById('inp-fallback-strategy').addEventListener('change', (e) => {
       state.fallbackUltraStrategy = e.target.value;
-      render();
-    });
-
-    document.getElementById('inp-try-dep').addEventListener('input', (e) => {
-      state.tryAnnualDepRate = Number(e.target.value);
       render();
     });
 
