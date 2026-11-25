@@ -188,6 +188,8 @@
       'step3.spotTitle': '计价口径说明',
       'step3.spotNote': '今日黑五包年按 t = 0 即期汇率一次性付清，不受后续汇率波动影响；未来各月按月付费的外币订阅按 FX(t) = FX(0) × (1 + r)^(t/12) 折算为名义人民币。所有订阅增删与方案切换均以第 2 步表格为唯一数据源。',
 
+      'step4.readyHint': '全部参数已就绪，点击右侧按钮生成你的 12 个月决策备忘录',
+      'step4.calcBtn': '选好了，开始测算 →',
       'step4.calcTitle': '正在核对 12 个月账本',
       'step4.replayUpfront': '今日预付 · 黑五包年',
       'step4.replaySave': '替省 {yen}',
@@ -460,6 +462,8 @@
       'step3.spotTitle': 'Valuation Basis',
       'step3.spotNote': 'Today Black Friday deal is paid once at spot FX (t = 0) and is immune to future FX moves. Monthly foreign subscriptions follow FX(t) = FX(0) × (1 + r)^(t/12) in nominal CNY. Step 2 is the single source of truth for all plan changes.',
 
+      'step4.readyHint': 'All inputs are ready — generate your 12-month financial decision memo',
+      'step4.calcBtn': 'Done, Calculate Now →',
       'step4.calcTitle': 'Auditing 12-Month Ledger',
       'step4.replayUpfront': 'Today Upfront · BF Annual',
       'step4.replaySave': 'Save {yen}',

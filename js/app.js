@@ -843,10 +843,19 @@
     document.getElementById('inp-retain-prob').value = state.retainProbPct;
   }
 
+  function isStepUnlocked(idx) {
+    if (idx === 0) return true;
+    if (!state.bfPicked) return false;
+    // Step 5 (Verdict) stays locked until the user reaches Step 4 or has already calculated
+    if (idx === 4) return maxVisitedStep >= 4 || currentStep === 3;
+    return true;
+  }
+
   function renderStepTabs() {
     document.getElementById('step-nav-list').innerHTML = STEPS.map((s, idx) => {
-      const cls = idx === currentStep ? 'is-current' : idx <= maxVisitedStep ? 'is-done' : '';
-      return `<button type="button" class="step-tab ${cls}" data-go-step="${idx}">${escapeHtml(t(s.key))}</button>`;
+      const unlocked = isStepUnlocked(idx);
+      const cls = idx === currentStep ? 'is-current' : idx <= maxVisitedStep && unlocked ? 'is-done' : '';
+      return `<button type="button" class="step-tab ${cls}" data-go-step="${idx}" ${unlocked ? '' : 'disabled'}>${escapeHtml(t(s.key))}</button>`;
     }).join('');
   }
 
@@ -1293,6 +1302,13 @@
     } else {
       fxBasisSummary.textContent = t('step4.toggleFxBasis');
     }
+    // Show Turkey 3-year FX history toggle ONLY if the user's deal or plans actually involve TRY
+    const involvesTry =
+      state.bfPreset === 'tr_ios' ||
+      state.bfCurrency === 'TRY' ||
+      (res.activeFxCurrencies || []).some((c) => c.currency === 'TRY');
+    document.getElementById('try-fx-history-toggle').style.display = involvesTry ? 'block' : 'none';
+
     renderDynamicFxPanel(res);
 
     // Center Peek Modal: Model Lifecycle & Retention Probability
@@ -1507,8 +1523,14 @@
   function bindEvents() {
     document.getElementById('step-nav-list').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-go-step]');
-      if (!btn) return;
-      goToStep(Number(btn.dataset.goStep));
+      if (!btn || btn.disabled) return;
+      const idx = Number(btn.dataset.goStep);
+      if (!isStepUnlocked(idx)) return;
+      goToStep(idx);
+    });
+
+    document.getElementById('btn-step4-calc').addEventListener('click', () => {
+      goToStep(4);
     });
 
     document.getElementById('btn-undo').addEventListener('click', performUndo);

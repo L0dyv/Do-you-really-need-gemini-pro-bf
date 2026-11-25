@@ -104,43 +104,44 @@ select {
 }
 
 .topbar-inner {
-  max-width: 1180px;
+  max-width: 1260px;
   margin: 0 auto;
   height: 52px;
-  padding: 0 56px;
+  padding: 0 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 12px;
 }
 
 .topbar-brand {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--ink);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .step-tabs {
   display: flex;
   align-items: center;
-  gap: 4px;
-  overflow-x: auto;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .step-tab {
   border: none;
   background: transparent;
-  padding: 6px 11px;
+  padding: 5px 9px;
   border-radius: 4px;
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--ink-3);
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 0.12s ease, color 0.12s ease;
+  transition: background-color 0.12s ease, color 0.12s ease, opacity 0.12s ease;
 }
 
-.step-tab:hover {
+.step-tab:hover:not(:disabled) {
   background: var(--hover);
   color: var(--ink);
 }
@@ -155,24 +156,34 @@ select {
   color: var(--ink-2);
 }
 
+.step-tab:disabled {
+  opacity: 0.36;
+  cursor: not-allowed;
+}
+
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
 .ghost-btn,
 .ghost-select {
-  height: 32px;
-  padding: 0 10px;
+  height: 30px;
+  padding: 0 8px;
   border-radius: 4px;
   border: none;
   background: transparent;
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--ink-2);
   cursor: pointer;
   outline: none;
+}
+
+#inp-preset-picker {
+  max-width: 112px;
+  text-overflow: ellipsis;
 }
 
 .ghost-btn:hover,
