@@ -71,10 +71,16 @@
 
       <div class="prop-group" id="panel-bf-custom" style="margin-top: 16px;">
         <div class="prop-row">
-          <label class="prop-key" for="inp-bf-cost">实付人民币年费</label>
+          <label class="prop-key" for="inp-bf-raw">自定义实付年费</label>
           <div class="prop-val">
-            <input class="flat-input mono" id="inp-bf-cost" type="number" min="0" max="3000" step="1" style="width:110px;" />
-            <span class="unit">元 / 年</span>
+            <select class="flat-select" id="inp-bf-currency" style="width:110px;">
+              <option value="TRY">TRY 里拉</option>
+              <option value="JPY">JPY 日元</option>
+              <option value="USD">USD 美元</option>
+              <option value="CNY">CNY 人民币</option>
+            </select>
+            <input class="flat-input mono" id="inp-bf-raw" type="number" min="0" max="500000" step="1" style="width:110px;" />
+            <span class="unit mono" id="lbl-bf-converted">≈ ¥477</span>
           </div>
         </div>
       </div>
@@ -85,66 +91,94 @@
       </div>
     </section>
 
-    <!-- STEP 2: 12-Month Detailed Subscription Stack -->
+    <!-- STEP 2: 12-Month Notion Database Table View -->
     <section class="step" data-step="1" id="step-1">
       <p class="step-meta mono">02 / 05</p>
-      <h1 class="page-title">排布未来 12 个月打算开哪些订阅</h1>
-      <p class="page-lead">点选上方月份（支持多选），在下方自由组合常见订阅与数量，或自定义订阅。只开 Ultra 的月份里，黑五 Pro 会处于空闲状态。</p>
+      <h1 class="page-title">排布未来 12 个月的订阅组合</h1>
+      <p class="page-lead">只在表格里放你真实会开的订阅。<strong>只有标记“黑五可顶替”的项</strong>（默认月付 Gemini Pro，其他套餐也可点标签开启）才会计入黑五省下的钱；旺季必开的 Ultra 或照常保留的套餐只作总账参考，不混算抵扣。</p>
 
-      <div class="inline-bar">
-        <div class="inline-links">
-          <button type="button" class="text-btn" data-select-range="peak">选 12–3月</button>
-          <button type="button" class="text-btn" data-select-range="jan_mar">选 1–3月</button>
-          <button type="button" class="text-btn" data-select-range="offseason">选 4–8月</button>
-          <button type="button" class="text-btn" data-select-range="autumn">选 9–11月</button>
-          <button type="button" class="text-btn" data-select-range="all">全选</button>
-        </div>
-        <select class="ghost-select" id="inp-plan-template" aria-label="整年组合模板">
-          <option value="">整年模板...</option>
-          <option value="default">12-3月 Ultra+GPT / 4-11月 Pro</option>
-          <option value="three_pro_devin">1-3月 3×Pro+Devin+GPT / 其余 Pro</option>
-          <option value="offseason_only">1-3月 Ultra+GPT / 4-8月 Pro / 9-11月停</option>
-          <option value="all_pro">全年单号 Pro</option>
-          <option value="empty">清空全年</option>
-        </select>
-      </div>
-
-      <div class="month-grid" id="calendar-grid"></div>
-
-      <!-- Flat Notion-style Editor for Selected Months -->
-      <div class="editor-block">
-        <div class="editor-head">
-          <span class="editor-title" id="editor-selected-title">正在编辑：12月、1月、2月、3月</span>
-          <button type="button" class="text-btn text-btn-muted" id="btn-clear-selected-months">清空所选月份</button>
+      <!-- Prominent Batch Edit Toolbar (Notion Database Header) -->
+      <div class="db-batch-bar">
+        <div class="db-batch-top">
+          <div class="db-batch-select">
+            <span class="db-batch-label">批量编辑</span>
+            <button type="button" class="text-btn" data-select-range="peak">选 12–3月</button>
+            <button type="button" class="text-btn" data-select-range="jan_mar">选 1–3月</button>
+            <button type="button" class="text-btn" data-select-range="offseason">选 4–8月</button>
+            <button type="button" class="text-btn" data-select-range="autumn">选 9–11月</button>
+            <button type="button" class="text-btn" data-select-range="all">全选</button>
+            <button type="button" class="text-btn text-btn-muted" data-select-range="none">取消</button>
+          </div>
+          <select class="ghost-select" id="inp-plan-template" aria-label="整年组合模板">
+            <option value="">整年模板...</option>
+            <option value="default">12-3月 Ultra+GPT / 4-11月 Pro</option>
+            <option value="three_pro_devin">1-3月 3×Pro+Devin+GPT / 其余 Pro</option>
+            <option value="offseason_only">1-3月 Ultra+GPT / 4-8月 Pro / 9-11月停</option>
+            <option value="all_pro">全年单号 Pro</option>
+            <option value="empty">清空全年</option>
+          </select>
         </div>
 
-        <div class="sub-list" id="editor-items-list"></div>
-
-        <!-- Add Common Subscription (Single clean line) -->
-        <div class="add-row">
-          <select class="flat-select" id="inp-add-catalog" aria-label="选择常见订阅"></select>
+        <div class="db-batch-controls">
+          <span class="db-selected-pill mono" id="editor-selected-title">已选 4 个月</span>
+          <select class="flat-select db-catalog-select" id="inp-add-catalog" aria-label="批量选择常见订阅"></select>
           <div class="qty-inline">
             <span class="unit">×</span>
-            <input class="flat-input mono" id="inp-add-qty" type="number" min="1" max="10" value="1" style="width:52px;text-align:center;" />
+            <input class="flat-input mono" id="inp-add-qty" type="number" min="1" max="10" value="1" style="width:48px;text-align:center;" />
           </div>
-          <button type="button" class="subtle-btn" id="btn-add-catalog">加入所选月</button>
+          <label class="check-inline" style="white-space:nowrap;">
+            <input type="checkbox" id="inp-add-replaceable" checked />
+            <span>黑五 Pro 可顶替</span>
+          </label>
+          <button type="button" class="subtle-btn" id="btn-add-catalog">批量加入</button>
+          <button type="button" class="text-btn text-btn-muted" id="btn-clear-selected-months">清空所选</button>
         </div>
-        <p class="muted-note" id="help-catalog-note"></p>
 
-        <!-- Custom Subscription tucked cleanly in a Notion Toggle -->
-        <details class="mini-toggle" id="toggle-custom-sub">
-          <summary>添加自定义订阅（如 Cursor、某国产套餐等）</summary>
-          <div class="custom-row">
-            <input class="flat-input" id="inp-custom-name" type="text" placeholder="订阅名称" />
-            <input class="flat-input mono" id="inp-custom-price" type="number" min="0" max="10000" step="1" placeholder="月费 ¥" style="width:92px;" />
-            <input class="flat-input mono" id="inp-custom-qty" type="number" min="1" max="10" value="1" placeholder="数量" style="width:56px;text-align:center;" />
-            <button type="button" class="subtle-btn" id="btn-add-custom">添加</button>
-          </div>
-        </details>
+        <div class="db-batch-extra">
+          <span class="muted-note" id="help-catalog-note" style="margin:0;"></span>
+          <details class="mini-toggle" id="toggle-custom-sub">
+            <summary>+ 批量添加自定义订阅（支持选里拉 / 日元 / 美元 / 人民币）</summary>
+            <div class="custom-row">
+              <input class="flat-input" id="inp-custom-name" type="text" placeholder="名称，如 Cursor Pro" />
+              <select class="flat-select" id="inp-custom-currency" style="width:94px;">
+                <option value="CNY">CNY ¥</option>
+                <option value="TRY">TRY ₺</option>
+                <option value="JPY">JPY ¥</option>
+                <option value="USD">USD $</option>
+              </select>
+              <input class="flat-input mono" id="inp-custom-price" type="number" min="0" max="500000" step="1" placeholder="金额/月" style="width:86px;" />
+              <input class="flat-input mono" id="inp-custom-qty" type="number" min="1" max="10" value="1" placeholder="数量" style="width:48px;text-align:center;" />
+              <label class="check-inline" style="white-space:nowrap;">
+                <input type="checkbox" id="inp-custom-replaceable" />
+                <span>黑五可顶替</span>
+              </label>
+              <button type="button" class="subtle-btn" id="btn-add-custom">加入所选月</button>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- Notion Database 12-Month Table -->
+      <div class="db-table-wrap">
+        <table class="db-table">
+          <thead>
+            <tr>
+              <th class="col-check">
+                <input type="checkbox" id="chk-select-all" aria-label="全选或取消全选月份" />
+              </th>
+              <th class="col-month">月份</th>
+              <th class="col-subs">本月订阅标签（点标签可切换区/币种/是否可被黑五顶替）</th>
+              <th class="col-status">黑五抵扣状态</th>
+              <th class="col-total num">可被顶替项</th>
+            </tr>
+          </thead>
+          <tbody id="db-months-tbody"></tbody>
+          <tfoot id="db-months-tfoot"></tfoot>
+        </table>
       </div>
 
       <!-- Idle Period & Summary Callout -->
-      <div class="callout" style="margin-top: 24px;">
+      <div class="callout" style="margin-top: 22px;">
         <div class="callout-title" id="insight-step-1-title"></div>
         <p class="callout-text" id="insight-step-1-detail"></p>
       </div>

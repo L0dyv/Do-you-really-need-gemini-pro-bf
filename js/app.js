@@ -1,6 +1,7 @@
 (function () {
   const {
     BF_DEAL_PRESETS,
+    CURRENCIES,
     DEFAULT_STATE,
     HISTORICAL_TIMELINE,
     MONTHS,
@@ -11,9 +12,9 @@
     makeSubItem,
   } = window.SubLedgerData;
 
-  const { calculateLedger, getTryRateAtOffset } = window.SubLedgerCalc;
+  const { calculateLedger, convertToCny, getTryRateAtOffset } = window.SubLedgerCalc;
 
-  const STORAGE_KEY = 'ai_sub_ledger_state_v4';
+  const STORAGE_KEY = 'ai_sub_ledger_state_v6';
 
   const STEPS = [
     { idx: 0, label: '1. 方案', nextLabel: '下一步：排布 12 个月组合 →' },
@@ -31,6 +32,9 @@
   let currentStep = 0;
   let maxVisitedStep = 0;
   let selectedMonths = new Set([0, 1, 2, 3]);
+  // Inline editor panel state under a single month row:
+  // { monthIdx: number, mode: 'add' | 'edit', itemId?: string } | null
+  let inlineEditor = null;
 
   function loadState() {
     try {
@@ -61,6 +65,15 @@
       return `${rounded >= 0 ? '+' : '-'}¥${Math.abs(rounded).toLocaleString('zh-CN')}`;
     }
     return `¥${rounded.toLocaleString('zh-CN')}`;
+  }
+
+  function fmtNativeAmount(amount, currency) {
+    const num = Number(amount) || 0;
+    const text = Number.isInteger(num) ? num.toLocaleString('en-US') : num.toFixed(2);
+    if (currency === 'TRY') return `${text} TRY`;
+    if (currency === 'JPY') return `${text} JPY`;
+    if (currency === 'USD') return `$${text}`;
+    return `¥${text}`;
   }
 
   function formatFutureMonth(baseYear, baseMonth, addMonths) {
@@ -94,38 +107,52 @@
   }
 
   function getSelectedIndices() {
-    const arr = Array.from(selectedMonths).filter((i) => i >= 0 && i < 12).sort((a, b) => a - b);
-    if (arr.length === 0) {
-      selectedMonths.add(0);
-      return [0];
-    }
-    return arr;
+    return Array.from(selectedMonths).filter((i) => i >= 0 && i < 12).sort((a, b) => a - b);
   }
 
-  function mutateSelectedMonths(mutator) {
-    getSelectedIndices().forEach((mIdx) => {
+  function mutateMonths(indices, mutator) {
+    indices.forEach((mIdx) => {
       if (!Array.isArray(state.monthPlans[mIdx])) state.monthPlans[mIdx] = [];
       mutator(state.monthPlans[mIdx], mIdx);
     });
     render();
   }
 
+  function catalogOptionsHtml(selectedId) {
+    const groups = [];
+    SUB_CATALOG.forEach((c) => {
+      if (!groups.includes(c.group)) groups.push(c.group);
+    });
+    return groups
+      .map((g) => {
+        const opts = SUB_CATALOG.filter((c) => c.group === g)
+          .map((c) => {
+            const sel = c.id === selectedId ? ' selected' : '';
+            const priceLabel = fmtNativeAmount(c.amount, c.currency);
+            return `<option value="${c.id}"${sel}>${c.name} · ${priceLabel}</option>`;
+          })
+          .join('');
+        return `<optgroup label="${escapeHtml(g)}">${opts}</optgroup>`;
+      })
+      .join('');
+  }
+
+  function currencyOptionsHtml(selectedCode) {
+    return CURRENCIES.map((c) => {
+      const sel = c.code === selectedCode ? ' selected' : '';
+      return `<option value="${c.code}"${sel}>${c.code} ${c.symbol}</option>`;
+    }).join('');
+  }
+
   function renderStaticTables() {
-    // Topbar preset picker
     const presetPicker = document.getElementById('inp-preset-picker');
     presetPicker.innerHTML =
       '<option value="">载入示例...</option>' +
       SCENARIO_PRESETS.map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
 
-    // Catalog dropdown
-    const catalogSelect = document.getElementById('inp-add-catalog');
-    catalogSelect.innerHTML = SUB_CATALOG.map((c) => {
-      const tag = c.dynamicPrice ? '动态跟随汇率' : `¥${c.defaultPriceCny}/月`;
-      return `<option value="${c.id}">${c.name}（${tag}）</option>`;
-    }).join('');
+    document.getElementById('inp-add-catalog').innerHTML = catalogOptionsHtml();
     updateCatalogNote();
 
-    // Historical timeline table
     document.getElementById('timeline-tbody').innerHTML = HISTORICAL_TIMELINE.map(
       (item) => `
         <tr>
@@ -136,7 +163,6 @@
         </tr>`
     ).join('');
 
-    // FX history table
     document.getElementById('fx-tbody').innerHTML = TRY_FX_HISTORY.map(
       (row) => `
         <tr>
@@ -153,10 +179,15 @@
     const id = document.getElementById('inp-add-catalog').value;
     const found = SUB_CATALOG.find((c) => c.id === id);
     document.getElementById('help-catalog-note').textContent = found ? found.note : '';
+    const repChk = document.getElementById('inp-add-replaceable');
+    if (repChk && found) {
+      repChk.checked = Boolean(found.isGeminiPro);
+    }
   }
 
   function syncInputsFromState() {
-    document.getElementById('inp-bf-cost').value = state.bfCostCny;
+    document.getElementById('inp-bf-currency').value = state.bfCurrency || 'TRY';
+    document.getElementById('inp-bf-raw').value = state.bfRawAmount != null ? state.bfRawAmount : state.bfCostCny;
     document.getElementById('inp-ultra-cny').value = state.currentUltraCny;
     document.getElementById('inp-fail-month').value = state.ultraFailMonthIndex;
     document.getElementById('inp-fallback-strategy').value = state.fallbackUltraStrategy;
@@ -175,72 +206,147 @@
     }).join('');
   }
 
-  function renderStep2Editor(res) {
+  function renderDatabaseTable(res) {
     const indices = getSelectedIndices();
-    const names = indices.map((i) => MONTHS[i].label);
-    document.getElementById('editor-selected-title').textContent =
-      `正在编辑：${names.join('、')}（共 ${indices.length} 个月）`;
+    const selLabel =
+      indices.length === 0
+        ? '未选月份'
+        : indices.length === 12
+          ? '已选全年 12 月'
+          : `已选 ${indices.length} 个月`;
+    document.getElementById('editor-selected-title').textContent = selLabel;
 
-    const map = new Map();
-    indices.forEach((mIdx) => {
-      res.monthlyRows[mIdx].items.forEach((item) => {
-        if (!map.has(item.id)) {
-          map.set(item.id, { item, countMonths: 1, qtys: new Set([item.qty]) });
-        } else {
-          const e = map.get(item.id);
-          e.countMonths += 1;
-          e.qtys.add(item.qty);
+    const chkAll = document.getElementById('chk-select-all');
+    chkAll.checked = indices.length === 12;
+    chkAll.indeterminate = indices.length > 0 && indices.length < 12;
+
+    const tbody = document.getElementById('db-months-tbody');
+    tbody.innerHTML = res.monthlyRows
+      .map((row) => {
+        const isSel = selectedMonths.has(row.index);
+        const isIdleByUltra = row.hasUltraActive && row.replaceableSlots === 0;
+        const isBfActive = row.monthSavedByBf > 0;
+
+        const statusTag = isBfActive
+          ? `<span class="tag tag-green mono">顶替 ${escapeHtml(row.bfReplacedTarget)}</span>`
+          : isIdleByUltra
+            ? '<span class="tag tag-amber">黑五空闲</span>'
+            : '<span class="tag tag-gray">无可顶替项</span>';
+
+        const tokensHtml = row.items
+          .map((it) => {
+            const toneCls = it.replaceableByBf
+              ? 'tone-blue'
+              : it.tone && it.tone !== 'gray'
+                ? `tone-${it.tone}`
+                : '';
+            const qtyPart = it.qty > 1 ? ` ×${it.qty}` : '';
+            const priceLabel = fmtYen(it.unitCny);
+            const repMark = it.replaceableByBf ? ' · 可顶替' : '';
+            const isEditing =
+              inlineEditor &&
+              inlineEditor.mode === 'edit' &&
+              inlineEditor.monthIdx === row.index &&
+              inlineEditor.itemId === it.id;
+            return `
+              <span class="sub-token ${toneCls}" style="${isEditing ? 'outline:1.5px solid #37352f;' : ''}">
+                <button type="button" class="tok-price-btn" style="text-decoration:none;opacity:1;font-weight:500;" data-edit-tag="${row.index}" data-item-id="${escapeHtml(it.id)}" title="点击切换地区/币种/单价/是否可被黑五顶替">${escapeHtml(it.short)}${qtyPart} · ${priceLabel}${repMark} ▾</button>
+                <button type="button" class="tok-btn" data-row-del="${row.index}" data-item-id="${escapeHtml(it.id)}" title="移除">×</button>
+              </span>`;
+          })
+          .join('');
+
+        const mainRow = `
+          <tr class="db-row ${isSel ? 'is-selected' : ''}">
+            <td class="col-check">
+              <input type="checkbox" data-chk-month="${row.index}" ${isSel ? 'checked' : ''} aria-label="勾选${row.month.label}" />
+            </td>
+            <td class="col-month">
+              <span class="db-month-main">${row.month.label}</span>
+              <span class="db-month-phase">${row.phase.label}</span>
+            </td>
+            <td class="col-subs">
+              <div class="row-tokens">
+                ${tokensHtml}
+                <button type="button" class="row-add-btn" data-open-inline-add="${row.index}">+ 添加</button>
+              </div>
+            </td>
+            <td class="col-status">${statusTag}</td>
+            <td class="col-total num mono">${isBfActive ? `省 ${fmtYen(row.monthSavedByBf)}` : '<span class="unit">¥0</span>'}</td>
+          </tr>`;
+
+        if (!inlineEditor || inlineEditor.monthIdx !== row.index) return mainRow;
+
+        // Mode 1: Edit an existing tag directly (Notion-style tag dropdown + currency/amount/qty/replaceable)
+        if (inlineEditor.mode === 'edit') {
+          const target = row.items.find((it) => it.id === inlineEditor.itemId);
+          if (!target) return mainRow;
+          const isDynamic = Boolean(target.dynamicPrice);
+          const editRow = `
+            <tr class="db-inline-add-row">
+              <td colspan="5">
+                <div class="inline-add-bar">
+                  <span class="unit">${row.month.label} 标签：</span>
+                  <select class="flat-select" id="inline-edit-swap" style="max-width:220px;">${catalogOptionsHtml(target.id)}</select>
+                  <select class="flat-select" id="inline-edit-currency" style="width:92px;" ${isDynamic ? 'disabled' : ''}>${currencyOptionsHtml(target.currency || 'CNY')}</select>
+                  <input class="flat-input mono" id="inline-edit-amount" type="number" min="0" max="500000" step="any" value="${target.amount != null ? target.amount : Math.round(target.unitCny)}" style="width:82px;" ${isDynamic ? 'disabled' : ''} />
+                  <span class="unit">×</span>
+                  <input class="flat-input mono" id="inline-edit-qty" type="number" min="1" max="10" value="${target.qty}" style="width:48px;text-align:center;" />
+                  <label class="check-inline" style="white-space:nowrap;">
+                    <input type="checkbox" id="inline-edit-replaceable" ${target.replaceableByBf ? 'checked' : ''} />
+                    <span>黑五可顶替</span>
+                  </label>
+                  <button type="button" class="subtle-btn" data-save-edit-tag="${row.index}" data-item-id="${escapeHtml(target.id)}">保存</button>
+                  <button type="button" class="text-btn text-btn-muted" data-close-inline-add="1">关闭</button>
+                </div>
+              </td>
+            </tr>`;
+          return mainRow + editRow;
         }
-      });
-    });
 
-    const listEl = document.getElementById('editor-items-list');
-    if (map.size === 0) {
-      listEl.innerHTML = '<div class="sub-empty">所选月份暂无订阅，可在下方添加常见订阅或自定义订阅。</div>';
-      return;
-    }
+        // Mode 2: Add new tag to this single month
+        const inlineRow = `
+          <tr class="db-inline-add-row">
+            <td colspan="5">
+              <div class="inline-add-bar">
+                <span class="unit">添加到 ${row.month.label}：</span>
+                <select class="flat-select" id="inline-row-catalog" style="max-width:220px;">${catalogOptionsHtml()}</select>
+                <span class="unit">×</span>
+                <input class="flat-input mono" id="inline-row-qty" type="number" min="1" max="10" value="1" style="width:48px;text-align:center;" />
+                <label class="check-inline" style="white-space:nowrap;">
+                  <input type="checkbox" id="inline-row-replaceable" checked />
+                  <span>黑五可顶替</span>
+                </label>
+                <button type="button" class="subtle-btn" data-confirm-inline-add="${row.index}">添加</button>
+                <span class="unit" style="margin-left:4px;">或自定义：</span>
+                <input class="flat-input" id="inline-row-cname" type="text" placeholder="名称" style="width:100px;" />
+                <select class="flat-select" id="inline-row-ccurrency" style="width:86px;">${currencyOptionsHtml('CNY')}</select>
+                <input class="flat-input mono" id="inline-row-cprice" type="number" min="0" max="500000" placeholder="金额" style="width:74px;" />
+                <button type="button" class="subtle-btn" data-confirm-inline-custom="${row.index}">添加自定义</button>
+                <button type="button" class="text-btn text-btn-muted" data-close-inline-add="1">收起</button>
+              </div>
+            </td>
+          </tr>`;
 
-    listEl.innerHTML = Array.from(map.values())
-      .map(({ item, countMonths, qtys }) => {
-        const hint =
-          countMonths < indices.length
-            ? `<span class="sub-hint">${countMonths}/${indices.length} 个月含此项</span>`
-            : qtys.size > 1
-              ? '<span class="sub-hint">各月数量不同</span>'
-              : '';
-
-        const priceHtml = item.dynamicPrice
-          ? `<span class="price-inline mono">≈ ¥${Math.round(item.unitCny)}/月</span>`
-          : `<span class="price-inline">
-               <span class="unit">¥</span>
-               <input class="flat-input mono" type="number" min="0" max="10000" step="1" value="${Math.round(item.priceCny)}" data-edit-price-id="${escapeHtml(item.id)}" style="width:70px;height:26px;text-align:right;" />
-               <span class="unit">/月</span>
-             </span>`;
-
-        return `
-          <div class="sub-row">
-            <div class="sub-info">
-              <span class="tag tag-${item.tone || 'gray'}">${escapeHtml(item.short)}</span>
-              <span class="sub-name">${escapeHtml(item.name)}</span>
-              ${hint}
-            </div>
-            ${priceHtml}
-            <div class="qty-ctrl">
-              <button type="button" class="qty-btn" data-qty-delta="-1" data-item-id="${escapeHtml(item.id)}" aria-label="减">−</button>
-              <span class="qty-num mono">${item.qty}</span>
-              <button type="button" class="qty-btn" data-qty-delta="1" data-item-id="${escapeHtml(item.id)}" aria-label="加">+</button>
-            </div>
-            <button type="button" class="del-btn" data-remove-id="${escapeHtml(item.id)}">移除</button>
-          </div>`;
+        return mainRow + inlineRow;
       })
       .join('');
+
+    document.getElementById('db-months-tfoot').innerHTML = `
+      <tr>
+        <td></td>
+        <td class="mono" style="font-weight:600;">合计</td>
+        <td>黑五顶替生效 <strong>${res.proCoveredMonths}</strong> 月 · Ultra 空闲 <strong>${res.ultraOverlapMonths}</strong> 月 · 无顶替 <strong>${res.idleNoneMonths}</strong> 月</td>
+        <td class="mono">全年总账 ${fmtYen(res.totalSkipCost)}</td>
+        <td class="num mono" style="font-weight:600;">共省 ${fmtYen(res.totalProValueSaved)}</td>
+      </tr>`;
   }
 
   function renderChart(res) {
     const container = document.getElementById('chart-container');
     const rows = res.monthlyRows;
 
-    const width = 630;
+    const width = 680;
     const height = 210;
     const padL = 56;
     const padR = 20;
@@ -325,65 +431,33 @@
       row.classList.toggle('is-selected', row.dataset.bfChoice === state.bfPreset);
     });
     document.getElementById('panel-bf-custom').style.display = state.bfPreset === 'custom' ? 'block' : 'none';
+    document.getElementById('lbl-bf-converted').textContent = `≈ ${fmtYen(state.bfCostCny)} / 年`;
     document.getElementById('lbl-custom-preview').textContent =
-      state.bfPreset === 'custom' ? `${fmtYen(state.bfCostCny)} / 年` : '自定义';
+      state.bfPreset === 'custom'
+        ? `${fmtNativeAmount(state.bfRawAmount, state.bfCurrency)} ≈ ${fmtYen(state.bfCostCny)}`
+        : '自定义币种与金额';
 
     const rawMonths = res.bfCost / res.monthlyRows[0].proUnit;
     document.getElementById('insight-step-0-title').textContent =
       `折合 ¥${res.bfMonthlyAvg.toFixed(1)} / 月 · 裸回本约 ${rawMonths.toFixed(1)} 个月`;
     document.getElementById('insight-step-0-detail').textContent =
-      `按当前月付 Pro（${fmtYen(res.monthlyRows[0].proUnit)}/月）粗算，全年至少有 ${rawMonths.toFixed(1)} 个月用到 Pro 才不亏。下一步排布你每个月实际要开哪些订阅。`;
+      `按当前月付 Pro（${fmtYen(res.monthlyRows[0].proUnit)}/月）粗算，全年至少有 ${rawMonths.toFixed(1)} 个月用到 Pro 才不亏。下一步在表格中排布每个月要开的订阅标签。`;
 
-    // STEP 2 Calendar
-    const grid = document.getElementById('calendar-grid');
-    grid.innerHTML = res.monthlyRows
-      .map((row) => {
-        const isSel = selectedMonths.has(row.index);
-        const isIdleByUltra = row.hasUltraActive && row.geminiProSlots === 0;
-        const isCompletelyIdle = !row.hasUltraActive && row.geminiProSlots === 0;
-        const tagsHtml =
-          row.items.length === 0
-            ? '<span class="tag tag-gray">停用</span>'
-            : row.items
-                .map((it) => `<span class="tag tag-${it.tone || 'gray'}">${escapeHtml(it.short)}${it.qty > 1 ? `×${it.qty}` : ''}</span>`)
-                .join('');
+    // STEP 2
+    renderDatabaseTable(res);
 
-        const footRight = isIdleByUltra
-          ? '<span class="idle-mark">黑五空闲</span>'
-          : isCompletelyIdle
-            ? '<span>黑五闲置</span>'
-            : '';
-
-        return `
-          <button type="button" class="month-cell ${isSel ? 'is-selected' : ''}" data-month-idx="${row.index}">
-            <div class="month-top">
-              <span class="month-label">${row.month.label}</span>
-              <span class="month-cost mono">${fmtYen(row.skipMonthFlow)}</span>
-            </div>
-            <div class="month-tags">${tagsHtml}</div>
-            <div class="month-foot">
-              <span>${row.phase.label}</span>
-              ${footRight}
-            </div>
-          </button>`;
-      })
-      .join('');
-
-    renderStep2Editor(res);
-
-    // Step 2 Idle & Summary Insight
     const idleUltraMonths = res.monthlyRows
-      .filter((r) => r.hasUltraActive && r.geminiProSlots === 0)
+      .filter((r) => r.hasUltraActive && r.replaceableSlots === 0)
       .map((r) => r.month.label);
     const idleText =
       res.ultraOverlapMonths > 0
-        ? `其中 ${idleUltraMonths.join('、')}（共 ${res.ultraOverlapMonths} 个月）因已开 Ultra，黑五 Pro 将处于空闲状态，对应约 ${fmtYen(res.ultraIdleCostCny)} 年费白交；`
-        : '当前排布没有被 Ultra 覆盖的黑五空闲月；';
+        ? `${idleUltraMonths.join('、')}（共 ${res.ultraOverlapMonths} 个月）因已开 Ultra，黑五 Pro 处于空闲状态，折合白交约 ${fmtYen(res.ultraIdleCostCny)}；`
+        : '当前排布没有因 Ultra 导致的黑五空闲月；';
 
     document.getElementById('insight-step-1-title').textContent =
       `黑五 Pro 生效 ${res.proCoveredMonths} 个月 · 因 Ultra 空闲 ${res.ultraOverlapMonths} 个月 · 停用 ${res.idleNoneMonths} 个月`;
     document.getElementById('insight-step-1-detail').textContent =
-      `${idleText}黑五实际可替代 ${res.proCoveredMonths} 个月的 Pro 槽位（合 ${fmtYen(res.totalProValueSaved)}）；其他订阅全年共 ${fmtYen(res.totalOtherSubsAnnual)}，不买黑五时全年总账 ${fmtYen(res.totalSkipCost)}。`;
+      `${idleText}其余 ${res.proCoveredMonths} 个生效月份可替代月付 Pro 共 ${fmtYen(res.totalProValueSaved)}（其他订阅全年 ${fmtYen(res.totalOtherSubsAnnual)}，不买黑五总账 ${fmtYen(res.totalSkipCost)}）。`;
 
     // STEP 3
     document.querySelectorAll('[data-renewal]').forEach((btn) => {
@@ -402,7 +476,7 @@
     const aprRate = getTryRateAtOffset(5, state.tryAnnualDepRate);
     const novRate = getTryRateAtOffset(12, state.tryAnnualDepRate);
     document.getElementById('help-try-preview').textContent =
-      `推算：2027年4月 1元≈${aprRate.toFixed(2)} TRY（870 TRY≈¥${Math.round(870 / aprRate)}），11月 1元≈${novRate.toFixed(2)} TRY（≈¥${Math.round(870 / novRate)}）。`;
+      `推算：2027年4月 1元≈${aprRate.toFixed(2)} TRY（870 TRY≈¥${Math.round(870 / aprRate)}），11月 1元≈${novRate.toFixed(2)} TRY（≈¥${Math.round(870 / novRate)}）。所有以 TRY 计价的订阅均会自动跟随贬值。`;
 
     document.getElementById('insight-step-2-title').textContent =
       `折算后月付 Pro 均价约 ¥${Math.round(res.avgProPrice)}/月，需有效用满 ${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) : '--'} 个月回本`;
@@ -435,7 +509,7 @@
         ? `你的把握（${state.retainProbPct}%）高于盈亏门槛（${res.breakEvenProbPct.toFixed(1)}%），这笔年付为正期望。点下一步查看完整账本。`
         : `你的把握（${state.retainProbPct}%）低于盈亏门槛（${res.breakEvenProbPct.toFixed(1)}%），提前锁年付期望为负。`;
 
-    // STEP 5 Final Ledger
+    // STEP 5
     const badge = document.getElementById('verdict-badge');
     badge.className = `tag tag-${res.verdict.tone}`;
     badge.textContent = res.verdict.badge;
@@ -445,8 +519,7 @@
     document.getElementById('kpi-bf-cost').textContent = fmtYen(res.bfCost);
     document.getElementById('kpi-bf-monthly').textContent = `（折合 ¥${res.bfMonthlyAvg.toFixed(1)}/月）`;
 
-    const idleSummaryEl = document.getElementById('kpi-idle-summary');
-    idleSummaryEl.textContent =
+    document.getElementById('kpi-idle-summary').textContent =
       res.totalIdleMonths > 0
         ? `共 ${res.totalIdleMonths} 个月空闲（Ultra 重叠 ${res.ultraOverlapMonths} 月 + 停用 ${res.idleNoneMonths} 月，折合白交约 ${fmtYen(res.totalIdleCostCny)}）`
         : '0 个月（全年 12 个月均在生效）';
@@ -468,7 +541,6 @@
       ? `（赔率比 ${oddsRatio.toFixed(2)} : 1）`
       : '（无下行亏损）';
 
-    // Explicit Idle Period Callout in Step 5
     const idleCallout = document.getElementById('idle-callout');
     if (res.totalIdleMonths > 0) {
       idleCallout.style.display = 'block';
@@ -499,6 +571,16 @@
       .join('');
   }
 
+  function updateCustomBfCost() {
+    const cur = document.getElementById('inp-bf-currency').value;
+    const raw = Math.max(0, Number(document.getElementById('inp-bf-raw').value) || 0);
+    state.bfPreset = 'custom';
+    state.bfCurrency = cur;
+    state.bfRawAmount = raw;
+    state.bfCostCny = Math.round(convertToCny(raw, cur, 0, 0));
+    render();
+  }
+
   function bindEvents() {
     document.getElementById('step-nav-list').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-go-step]');
@@ -512,6 +594,7 @@
       const found = SCENARIO_PRESETS.find((p) => p.id === id);
       if (!found) return;
       state = cloneState(found.patch);
+      inlineEditor = null;
       syncInputsFromState();
       e.target.value = '';
       goToStep(4);
@@ -521,6 +604,7 @@
     document.getElementById('btn-reset').addEventListener('click', () => {
       state = cloneState(DEFAULT_STATE);
       selectedMonths = new Set([0, 1, 2, 3]);
+      inlineEditor = null;
       syncInputsFromState();
       goToStep(0);
       showToast('已重置默认参数');
@@ -542,31 +626,20 @@
       const choice = row.dataset.bfChoice;
       state.bfPreset = choice;
       if (choice !== 'custom' && BF_DEAL_PRESETS[choice]) {
-        state.bfCostCny = BF_DEAL_PRESETS[choice].cnyCost;
-        document.getElementById('inp-bf-cost').value = state.bfCostCny;
+        const p = BF_DEAL_PRESETS[choice];
+        state.bfCurrency = p.currency;
+        state.bfRawAmount = p.amount;
+        state.bfCostCny = p.cnyCost;
+        document.getElementById('inp-bf-currency').value = p.currency;
+        document.getElementById('inp-bf-raw').value = p.amount;
       }
       render();
     });
 
-    document.getElementById('inp-bf-cost').addEventListener('input', (e) => {
-      state.bfCostCny = Math.max(0, Number(e.target.value) || 0);
-      state.bfPreset = 'custom';
-      render();
-    });
+    document.getElementById('inp-bf-currency').addEventListener('change', updateCustomBfCost);
+    document.getElementById('inp-bf-raw').addEventListener('input', updateCustomBfCost);
 
-    // Step 2
-    document.getElementById('calendar-grid').addEventListener('click', (e) => {
-      const cell = e.target.closest('[data-month-idx]');
-      if (!cell) return;
-      const idx = Number(cell.dataset.monthIdx);
-      if (selectedMonths.has(idx)) {
-        if (selectedMonths.size > 1) selectedMonths.delete(idx);
-      } else {
-        selectedMonths.add(idx);
-      }
-      render();
-    });
-
+    // Step 2: Quick range selection
     document.querySelectorAll('[data-select-range]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const key = btn.dataset.selectRange;
@@ -575,101 +648,274 @@
         else if (key === 'offseason') selectedMonths = new Set([4, 5, 6, 7, 8]);
         else if (key === 'autumn') selectedMonths = new Set([9, 10, 11]);
         else if (key === 'all') selectedMonths = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+        else if (key === 'none') selectedMonths = new Set();
         render();
       });
+    });
+
+    document.getElementById('chk-select-all').addEventListener('change', (e) => {
+      selectedMonths = e.target.checked
+        ? new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+        : new Set();
+      render();
     });
 
     document.getElementById('inp-plan-template').addEventListener('change', (e) => {
       const key = e.target.value;
       if (!key) return;
       state.monthPlans = buildMonthPlan(key);
+      inlineEditor = null;
       e.target.value = '';
       render();
       showToast('已套用整年模板');
     });
 
-    document.getElementById('btn-clear-selected-months').addEventListener('click', () => {
-      mutateSelectedMonths((arr) => {
-        arr.length = 0;
-      });
-      showToast('已清空所选月份');
-    });
-
     document.getElementById('inp-add-catalog').addEventListener('change', updateCatalogNote);
 
     document.getElementById('btn-add-catalog').addEventListener('click', () => {
+      const indices = getSelectedIndices();
+      if (indices.length === 0) {
+        showToast('请先勾选至少 1 个月份');
+        return;
+      }
       const catalogId = document.getElementById('inp-add-catalog').value;
       const qty = Math.max(1, Math.min(10, Number(document.getElementById('inp-add-qty').value) || 1));
-      mutateSelectedMonths((arr) => {
+      const replaceableByBf = Boolean(document.getElementById('inp-add-replaceable').checked);
+      mutateMonths(indices, (arr) => {
         const existing = arr.find((it) => it.id === catalogId);
-        if (existing) existing.qty = qty;
-        else arr.push(makeSubItem(catalogId, qty));
+        if (existing) {
+          existing.qty = qty;
+          existing.replaceableByBf = replaceableByBf;
+        } else {
+          arr.push(makeSubItem(catalogId, qty, { replaceableByBf }));
+        }
       });
-      showToast('已加入所选月份');
+      showToast(`已批量加入 ${indices.length} 个月份`);
+    });
+
+    document.getElementById('btn-clear-selected-months').addEventListener('click', () => {
+      const indices = getSelectedIndices();
+      if (indices.length === 0) {
+        showToast('请先勾选要清空的月份');
+        return;
+      }
+      inlineEditor = null;
+      mutateMonths(indices, (arr) => {
+        arr.length = 0;
+      });
+      showToast(`已清空 ${indices.length} 个月份`);
     });
 
     document.getElementById('btn-add-custom').addEventListener('click', () => {
+      const indices = getSelectedIndices();
+      if (indices.length === 0) {
+        showToast('请先勾选要添加的月份');
+        return;
+      }
       const nameInp = document.getElementById('inp-custom-name');
+      const curInp = document.getElementById('inp-custom-currency');
       const priceInp = document.getElementById('inp-custom-price');
       const qtyInp = document.getElementById('inp-custom-qty');
       const name = nameInp.value.trim();
-      const priceCny = Math.max(0, Number(priceInp.value) || 0);
+      const currency = curInp.value || 'CNY';
+      const amount = Math.max(0, Number(priceInp.value) || 0);
       const qty = Math.max(1, Math.min(10, Number(qtyInp.value) || 1));
+      const replaceableByBf = Boolean(document.getElementById('inp-custom-replaceable').checked);
       if (!name) {
         showToast('请先输入订阅名称');
         nameInp.focus();
         return;
       }
       const customId = `custom_${name.toLowerCase().replace(/\s+/g, '_')}`;
-      mutateSelectedMonths((arr) => {
+      mutateMonths(indices, (arr) => {
         const existing = arr.find((it) => it.id === customId);
         if (existing) {
-          existing.priceCny = priceCny;
+          existing.currency = currency;
+          existing.amount = amount;
           existing.qty = qty;
+          existing.replaceableByBf = replaceableByBf;
         } else {
-          arr.push(makeSubItem(null, qty, { id: customId, name, priceCny }));
+          arr.push(makeSubItem(null, qty, { id: customId, name, currency, amount, replaceableByBf }));
         }
       });
       nameInp.value = '';
       priceInp.value = '';
       qtyInp.value = '1';
-      showToast(`已添加：${name}`);
+      showToast(`已加入 ${indices.length} 个月份：${name}`);
     });
 
-    const editorList = document.getElementById('editor-items-list');
-    editorList.addEventListener('click', (e) => {
-      const qtyBtn = e.target.closest('[data-qty-delta]');
-      if (qtyBtn) {
-        const id = qtyBtn.dataset.itemId;
-        const delta = Number(qtyBtn.dataset.qtyDelta);
-        mutateSelectedMonths((arr) => {
-          const idx = arr.findIndex((it) => it.id === id);
-          if (idx === -1) return;
-          const next = (arr[idx].qty || 1) + delta;
-          if (next <= 0) arr.splice(idx, 1);
-          else arr[idx].qty = Math.min(10, next);
+    // Database Table Interactions
+    const dbTbody = document.getElementById('db-months-tbody');
+
+    dbTbody.addEventListener('change', (e) => {
+      const chk = e.target.closest('[data-chk-month]');
+      if (chk) {
+        const idx = Number(chk.dataset.chkMonth);
+        if (chk.checked) selectedMonths.add(idx);
+        else selectedMonths.delete(idx);
+        render();
+        return;
+      }
+
+      // When user changes the dropdown inside tag-edit bar, auto-sync currency, amount & replaceable default
+      if (e.target.id === 'inline-edit-swap') {
+        const found = SUB_CATALOG.find((c) => c.id === e.target.value);
+        if (found) {
+          const curEl = document.getElementById('inline-edit-currency');
+          const amtEl = document.getElementById('inline-edit-amount');
+          const repEl = document.getElementById('inline-edit-replaceable');
+          if (curEl) {
+            curEl.value = found.currency;
+            curEl.disabled = Boolean(found.dynamicPrice);
+          }
+          if (amtEl) {
+            amtEl.value = found.amount;
+            amtEl.disabled = Boolean(found.dynamicPrice);
+          }
+          if (repEl) repEl.checked = Boolean(found.isGeminiPro);
+        }
+      }
+      if (e.target.id === 'inline-row-catalog') {
+        const found = SUB_CATALOG.find((c) => c.id === e.target.value);
+        const repEl = document.getElementById('inline-row-replaceable');
+        if (found && repEl) repEl.checked = Boolean(found.isGeminiPro);
+      }
+    });
+
+    dbTbody.addEventListener('click', (e) => {
+      // Remove tag
+      const delBtn = e.target.closest('[data-row-del]');
+      if (delBtn) {
+        const mIdx = Number(delBtn.dataset.rowDel);
+        const id = delBtn.dataset.itemId;
+        if (inlineEditor && inlineEditor.monthIdx === mIdx && inlineEditor.itemId === id) {
+          inlineEditor = null;
+        }
+        mutateMonths([mIdx], (arr) => {
+          const i = arr.findIndex((it) => it.id === id);
+          if (i !== -1) arr.splice(i, 1);
         });
         return;
       }
-      const rmBtn = e.target.closest('[data-remove-id]');
-      if (rmBtn) {
-        const id = rmBtn.dataset.removeId;
-        mutateSelectedMonths((arr) => {
-          const idx = arr.findIndex((it) => it.id === id);
-          if (idx !== -1) arr.splice(idx, 1);
+
+      // Click tag itself -> open inline tag dropdown editor
+      const editBtn = e.target.closest('[data-edit-tag]');
+      if (editBtn) {
+        const mIdx = Number(editBtn.dataset.editTag);
+        const id = editBtn.dataset.itemId;
+        if (inlineEditor && inlineEditor.mode === 'edit' && inlineEditor.monthIdx === mIdx && inlineEditor.itemId === id) {
+          inlineEditor = null;
+        } else {
+          inlineEditor = { monthIdx: mIdx, mode: 'edit', itemId: id };
+        }
+        render();
+        return;
+      }
+
+      // Save edited tag
+      const saveEditBtn = e.target.closest('[data-save-edit-tag]');
+      if (saveEditBtn) {
+        const mIdx = Number(saveEditBtn.dataset.saveEditTag);
+        const oldId = saveEditBtn.dataset.itemId;
+        const swapEl = document.getElementById('inline-edit-swap');
+        const curEl = document.getElementById('inline-edit-currency');
+        const amtEl = document.getElementById('inline-edit-amount');
+        const qtyEl = document.getElementById('inline-edit-qty');
+        const repEl = document.getElementById('inline-edit-replaceable');
+        const newCatId = swapEl ? swapEl.value : oldId;
+        const currency = curEl ? curEl.value : 'CNY';
+        const amount = Math.max(0, Number(amtEl && amtEl.value) || 0);
+        const qty = Math.max(1, Math.min(10, Number(qtyEl && qtyEl.value) || 1));
+        const replaceableByBf = Boolean(repEl && repEl.checked);
+
+        inlineEditor = null;
+        mutateMonths([mIdx], (arr) => {
+          const idx = arr.findIndex((it) => it.id === oldId);
+          if (idx === -1) return;
+          if (arr[idx].isCustom && newCatId === oldId) {
+            arr[idx].currency = currency;
+            arr[idx].amount = amount;
+            arr[idx].qty = qty;
+            arr[idx].replaceableByBf = replaceableByBf;
+          } else {
+            const replacement = makeSubItem(newCatId, qty, { currency, amount, replaceableByBf });
+            arr.splice(idx, 1, replacement);
+          }
+        });
+        return;
+      }
+
+      // Open single-row add bar
+      const openBtn = e.target.closest('[data-open-inline-add]');
+      if (openBtn) {
+        const mIdx = Number(openBtn.dataset.openInlineAdd);
+        if (inlineEditor && inlineEditor.mode === 'add' && inlineEditor.monthIdx === mIdx) {
+          inlineEditor = null;
+        } else {
+          inlineEditor = { monthIdx: mIdx, mode: 'add' };
+        }
+        render();
+        return;
+      }
+
+      if (e.target.closest('[data-close-inline-add]')) {
+        inlineEditor = null;
+        render();
+        return;
+      }
+
+      const addOneBtn = e.target.closest('[data-confirm-inline-add]');
+      if (addOneBtn) {
+        const mIdx = Number(addOneBtn.dataset.confirmInlineAdd);
+        const catEl = document.getElementById('inline-row-catalog');
+        const qtyEl = document.getElementById('inline-row-qty');
+        const repEl = document.getElementById('inline-row-replaceable');
+        if (!catEl) return;
+        const catalogId = catEl.value;
+        const qty = Math.max(1, Math.min(10, Number(qtyEl && qtyEl.value) || 1));
+        const replaceableByBf = Boolean(repEl && repEl.checked);
+        inlineEditor = null;
+        mutateMonths([mIdx], (arr) => {
+          const existing = arr.find((it) => it.id === catalogId);
+          if (existing) {
+            existing.qty = qty;
+            existing.replaceableByBf = replaceableByBf;
+          } else {
+            arr.push(makeSubItem(catalogId, qty, { replaceableByBf }));
+          }
+        });
+        return;
+      }
+
+      const addCusBtn = e.target.closest('[data-confirm-inline-custom]');
+      if (addCusBtn) {
+        const mIdx = Number(addCusBtn.dataset.confirmInlineCustom);
+        const nameEl = document.getElementById('inline-row-cname');
+        const curEl = document.getElementById('inline-row-ccurrency');
+        const priceEl = document.getElementById('inline-row-cprice');
+        const repEl = document.getElementById('inline-row-replaceable');
+        const name = nameEl ? nameEl.value.trim() : '';
+        const currency = curEl ? curEl.value : 'CNY';
+        const amount = Math.max(0, Number(priceEl && priceEl.value) || 0);
+        const replaceableByBf = Boolean(repEl && repEl.checked);
+        if (!name) {
+          showToast('请先输入自定义订阅名称');
+          if (nameEl) nameEl.focus();
+          return;
+        }
+        const customId = `custom_${name.toLowerCase().replace(/\s+/g, '_')}`;
+        inlineEditor = null;
+        mutateMonths([mIdx], (arr) => {
+          const existing = arr.find((it) => it.id === customId);
+          if (existing) {
+            existing.currency = currency;
+            existing.amount = amount;
+            existing.replaceableByBf = replaceableByBf;
+          } else {
+            arr.push(makeSubItem(null, 1, { id: customId, name, currency, amount, replaceableByBf }));
+          }
         });
       }
-    });
-
-    editorList.addEventListener('change', (e) => {
-      const priceInp = e.target.closest('[data-edit-price-id]');
-      if (!priceInp) return;
-      const id = priceInp.dataset.editPriceId;
-      const val = Math.max(0, Number(priceInp.value) || 0);
-      mutateSelectedMonths((arr) => {
-        const found = arr.find((it) => it.id === id);
-        if (found) found.priceCny = val;
-      });
     });
 
     // Step 3

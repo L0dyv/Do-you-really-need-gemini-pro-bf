@@ -70,14 +70,14 @@ select {
 }
 
 .topbar-inner {
-  max-width: 960px;
+  max-width: 1160px;
   margin: 0 auto;
-  height: 46px;
-  padding: 0 24px;
+  height: 50px;
+  padding: 0 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 20px;
 }
 
 .topbar-brand {
@@ -148,11 +148,15 @@ select {
   color: var(--ink);
 }
 
-/* Single Centered Notion Document Page */
+/* Spacious Notion Full-Width Document Canvas */
 .page {
-  max-width: 680px;
+  max-width: 1160px;
   margin: 0 auto;
-  padding: 56px 24px 96px;
+  padding: 48px 40px 96px;
+}
+
+.step-narrow {
+  max-width: 820px;
 }
 
 .step {
@@ -311,23 +315,7 @@ select {
 .tag-green { background: var(--tag-green-bg); color: var(--tag-green-fg); }
 .tag-red { background: var(--tag-red-bg); color: var(--tag-red-fg); }
 
-/* Step 2: Airy Inline Toolbar & Minimalist Month Grid */
-.inline-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-
-.inline-links {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
+/* Step 2: Notion Database Table & Prominent Batch Toolbar */
 .text-btn {
   border: none;
   background: transparent;
@@ -348,208 +336,84 @@ select {
   color: var(--ink-3);
 }
 
-.month-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  border-top: 1px solid var(--line);
-  border-left: 1px solid var(--line);
-}
-
-.month-cell {
-  border: none;
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  background: var(--bg);
-  padding: 11px 10px 10px;
-  text-align: left;
-  cursor: pointer;
+.db-batch-bar {
+  background: var(--surface);
+  border-radius: 4px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  min-height: 92px;
-  transition: background-color 0.12s ease;
-}
-
-.month-cell:hover {
-  background: var(--hover);
-}
-
-.month-cell.is-selected {
-  background: var(--surface);
-  box-shadow: inset 0 2px 0 0 var(--ink);
-}
-
-.month-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-}
-
-.month-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.month-cost {
-  font-size: 11.5px;
-  color: var(--ink-3);
-}
-
-.month-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.month-foot {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--ink-3);
-}
-
-.idle-mark {
-  color: var(--tag-amber-fg);
-  font-weight: 500;
-}
-
-/* Flat Notion Editor Below Calendar */
-.editor-block {
-  margin-top: 28px;
-}
-
-.editor-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--line);
 }
 
-.editor-title {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.sub-list {
-  margin: 4px 0 14px;
-}
-
-.sub-empty {
-  padding: 14px 4px;
-  font-size: 13px;
-  color: var(--ink-3);
-}
-
-.sub-row {
-  display: grid;
-  grid-template-columns: 1fr auto auto auto;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 4px;
-  border-bottom: 1px solid var(--line);
-}
-
-.sub-info {
+.db-batch-top {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  min-width: 0;
   flex-wrap: wrap;
 }
 
-.sub-name {
-  font-size: 13.5px;
-  color: var(--ink);
-}
-
-.sub-hint {
-  font-size: 11.5px;
-  color: var(--ink-3);
-}
-
-.price-inline {
-  display: inline-flex;
+.db-batch-select {
+  display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12.5px;
-  color: var(--ink-2);
+  gap: 2px;
+  flex-wrap: wrap;
 }
 
-.qty-ctrl {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.qty-btn {
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 4px;
-  background: var(--hover);
-  color: var(--ink);
-  cursor: pointer;
-  font-size: 13px;
-  line-height: 1;
-}
-
-.qty-btn:hover {
-  background: var(--active);
-}
-
-.qty-num {
-  min-width: 18px;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.del-btn {
-  border: none;
-  background: transparent;
-  color: var(--ink-3);
-  cursor: pointer;
+.db-batch-label {
   font-size: 12px;
-  padding: 3px 6px;
-  border-radius: 4px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-right: 6px;
 }
 
-.del-btn:hover {
-  background: var(--tag-red-bg);
-  color: var(--tag-red-fg);
-}
-
-.add-row {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 8px;
+.db-batch-controls {
+  display: flex;
   align-items: center;
-  margin-top: 8px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.db-selected-pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(55, 53, 47, 0.08);
+  white-space: nowrap;
+}
+
+.db-catalog-select {
+  flex: 1;
+  min-width: 190px;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+}
+
+.db-batch-controls .flat-input {
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+}
+
+.db-batch-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .qty-inline {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-}
-
-.mini-toggle {
-  margin-top: 12px;
+  gap: 4px;
 }
 
 .mini-toggle summary {
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--ink-2);
-  padding: 4px 0;
+  padding: 2px 0;
   user-select: none;
 }
 
@@ -568,6 +432,199 @@ select {
 .custom-row input[type="text"] {
   flex: 1;
   min-width: 150px;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+}
+
+.custom-row input[type="number"] {
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+}
+
+/* Notion Database 12-Month Table */
+.db-table-wrap {
+  overflow-x: auto;
+}
+
+.db-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.db-table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.db-table td {
+  padding: 12px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.db-table tbody tr.db-row:hover {
+  background: var(--hover);
+}
+
+.db-table tbody tr.db-row.is-selected {
+  background: rgba(55, 53, 47, 0.04);
+}
+
+.db-table .col-check {
+  width: 30px;
+  text-align: center;
+}
+
+.db-table input[type="checkbox"] {
+  accent-color: var(--ink);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.db-table .col-month {
+  width: 116px;
+  white-space: nowrap;
+}
+
+.db-month-main {
+  font-weight: 600;
+  color: var(--ink);
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.db-month-phase {
+  font-size: 11px;
+  color: var(--ink-3);
+  display: inline-block;
+}
+
+.db-table .col-status {
+  width: 156px;
+  white-space: nowrap;
+}
+
+.db-table .col-total {
+  width: 110px;
+  white-space: nowrap;
+}
+
+.db-table .num {
+  text-align: right;
+}
+
+/* Inline Subscription Tokens Inside Each Month Row */
+.row-tokens {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.sub-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  background: var(--tag-gray-bg);
+  color: var(--ink);
+}
+
+.sub-token.tone-dark { background: var(--tag-dark-bg); color: var(--tag-dark-fg); }
+.sub-token.tone-blue { background: var(--tag-blue-bg); color: var(--tag-blue-fg); }
+.sub-token.tone-amber { background: var(--tag-amber-bg); color: var(--tag-amber-fg); }
+
+.tok-btn {
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.58;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.tok-btn:hover {
+  opacity: 1;
+}
+
+.tok-price-btn {
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.72;
+  font-size: 11px;
+  padding: 0 2px;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+.tok-price-btn:hover {
+  opacity: 1;
+}
+
+.row-add-btn {
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.row-add-btn:hover {
+  background: var(--active);
+  color: var(--ink);
+}
+
+/* Inline Expandable Single-Month Add Sub-Row */
+.db-inline-add-row td {
+  background: var(--surface);
+  padding: 10px 12px;
+}
+
+.inline-add-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.inline-add-bar .flat-select,
+.inline-add-bar .flat-input {
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  height: 29px;
+  font-size: 12.5px;
+}
+
+.inline-add-bar .subtle-btn {
+  height: 29px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.db-table tfoot td {
+  padding: 10px 8px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--line);
+  background: #fcfcfb;
 }
 
 /* Flat Inputs & Notion Page Properties */
