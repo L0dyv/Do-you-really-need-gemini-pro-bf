@@ -258,77 +258,67 @@ select {
   width: 100%;
   max-width: 1260px;
   margin: 0 auto;
-  padding: 22px 92px 16px;
+  padding: 22px 76px 16px;
   flex: 1 0 auto;
   display: flex;
   flex-direction: column;
 }
 
-/* Clear, Unmistakable Floating Side Navigation Cards (< / >) */
+/* Minimalist Side-Edge Navigation Zones (< / >) — Subtle, Clear, Zero Box Clutter */
 .side-nav-zone {
   position: fixed;
-  top: 50%;
-  transform: translateY(-50%);
-  min-width: 62px;
-  padding: 13px 8px;
-  border-radius: 10px;
-  border: 1px solid var(--border-2);
-  background: var(--bg);
-  color: var(--ink);
-  box-shadow: 0 2px 10px rgba(15, 15, 15, 0.07);
+  top: 52px;
+  bottom: 0;
+  width: 74px;
+  border: none;
+  background: transparent;
+  color: rgba(55, 53, 47, 0.62);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 5px;
   cursor: pointer;
-  z-index: 25;
-  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease, transform 0.16s ease;
+  z-index: 15;
+  transition: background-color 0.16s ease, color 0.16s ease, opacity 0.16s ease;
 }
 
 .side-nav-prev {
-  left: 16px;
+  left: 0;
 }
 
 .side-nav-next {
-  right: 16px;
-  background: var(--ink);
-  border-color: var(--ink);
-  color: #ffffff;
-  box-shadow: 0 4px 16px rgba(15, 15, 15, 0.18);
+  right: 0;
 }
 
-.side-nav-prev:hover {
-  background: var(--surface);
-  border-color: var(--ink);
-  box-shadow: 0 4px 14px rgba(15, 15, 15, 0.11);
+.side-nav-zone:hover {
+  background: rgba(55, 53, 47, 0.045);
+  color: var(--ink);
 }
 
-.side-nav-next:hover {
-  background: #23221e;
-  border-color: #23221e;
-  box-shadow: 0 6px 20px rgba(15, 15, 15, 0.24);
-}
-
-/* Explicit reveal animation on Step 1 once the user picks a plan */
+/* Gentle reveal on Step 1 once the user picks a plan */
 .side-nav-zone.is-emphasized {
+  color: rgba(55, 53, 47, 0.82);
   animation: sideNavReveal 0.26s ease-out;
+}
+
+.side-nav-zone.is-emphasized .side-nav-tip {
+  opacity: 0.92;
+  color: var(--ink);
 }
 
 @keyframes sideNavReveal {
   from {
     opacity: 0;
-    transform: translate(10px, -50%);
+    transform: translateX(8px);
   }
   to {
     opacity: 1;
-    transform: translate(0, -50%);
+    transform: translateX(0);
   }
 }
 
 .side-nav-zone svg {
-  width: 20px;
-  height: 20px;
   transition: transform 0.16s ease;
 }
 
@@ -341,16 +331,17 @@ select {
 }
 
 .side-nav-tip {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 500;
-  color: var(--ink-2);
-  opacity: 1;
+  color: rgba(55, 53, 47, 0.6);
+  opacity: 0.85;
+  transition: opacity 0.16s ease, color 0.16s ease;
   white-space: nowrap;
-  line-height: 1.2;
 }
 
-.side-nav-next .side-nav-tip {
-  color: rgba(255, 255, 255, 0.94);
+.side-nav-zone:hover .side-nav-tip {
+  opacity: 1;
+  color: var(--ink);
 }
 
 .side-nav-zone.is-hidden {
