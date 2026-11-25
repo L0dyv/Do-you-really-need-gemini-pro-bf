@@ -45,7 +45,7 @@
   <main class="page">
     <!-- STEP 1: Black Friday Deal -->
     <section class="step step-narrow is-active" data-step="0" id="step-0">
-      <div class="step-kicker mono">STEP 01 / 05</div>
+      <div class="step-kicker mono">STEP 01 / 04</div>
       <h1 class="page-title">选择黑五包年方案</h1>
       <p class="page-lead">确定本次需要提前支付的包年成本，支持直接输入里拉、日元、美元或人民币原币金额。</p>
 
@@ -143,7 +143,7 @@
 
     <!-- STEP 2: Authentic Notion Database Table (Side-by-Side Skip vs Buy Comparison) -->
     <section class="step" data-step="1" id="step-1">
-      <div class="step-kicker mono">STEP 02 / 05</div>
+      <div class="step-kicker mono">STEP 02 / 04</div>
       <h1 class="page-title">不买黑五 vs 买黑五：12 个月对照</h1>
 
       <!-- Prominent Mode Switch + Phase Settings Trigger (Self-Explanatory, Zero Wall of Text) -->
@@ -183,7 +183,7 @@
       <div class="db-toolbar-slot">
         <div class="db-header-line" id="db-header-line">
           <div class="db-header-left">
-            <span class="db-view-hint">直接点击原方案标签切换；拖选行或勾选左侧复选框可批量修改；点击阶段色标可调模型周期</span>
+            <span class="db-view-hint">点击原方案胶囊可按品牌/地区/自定义切换；在「不买黑五」列内拖动或勾选可单列批量修改</span>
           </div>
         </div>
 
@@ -191,26 +191,28 @@
         <div class="db-selection-bar" id="db-selection-bar" style="display:none;">
           <span class="db-count-badge mono" id="editor-selected-title">已选 0 个月</span>
           <span class="toolbar-divider" aria-hidden="true"></span>
-          <select class="flat-select db-catalog-select" id="inp-batch-status" aria-label="批量设置不买黑五时的原方案"></select>
-          <button type="button" class="primary-btn btn-xs" id="btn-apply-batch">批量应用</button>
-          <button type="button" class="text-btn text-btn-muted" id="btn-clear-selected-months">设为停用</button>
+          <button type="button" class="primary-btn btn-xs" id="btn-open-batch-picker">批量选择方案（品牌 / 地区 / 自定义） ▾</button>
+          <button type="button" class="text-btn text-btn-muted" id="btn-clear-selected-months">设为本月不买</button>
           <button type="button" class="text-btn text-btn-muted" id="btn-unselect-all" style="margin-left:auto;" title="取消勾选 (Esc)">×</button>
         </div>
       </div>
 
-      <!-- Authentic Notion Database Table (Skip vs Buy Live Side-by-Side) -->
+      <!-- Authentic Notion Database Table (4 Columns, Single-Column Checkbox Inside Skip Column) -->
       <div class="notion-db-wrap">
         <table class="notion-db" id="db-months-table">
           <thead>
             <tr>
-              <th class="col-check">
-                <input type="checkbox" id="chk-select-all" aria-label="全选或取消全选月份" />
-              </th>
               <th class="col-month">
-                <span class="th-inner"><span class="th-icon">Aa</span>月份与模型阶段</span>
+                <span class="th-inner th-month-head">
+                  <span><span class="th-icon">Aa</span> 月份与模型阶段</span>
+                  <button type="button" class="th-mini-action" id="btn-th-phase" title="调整模型生命周期阶段">调周期</button>
+                </span>
               </th>
               <th class="col-skip">
-                <span class="th-inner"><span class="th-icon">◉</span>不买黑五（原方案 · 直接切换）</span>
+                <span class="th-inner">
+                  <input type="checkbox" id="chk-select-all" aria-label="全选或取消全选原方案列" title="全选/取消全选该列" />
+                  <span class="th-icon">◉</span>不买黑五（原方案 · 单列可多选）
+                </span>
               </th>
               <th class="col-buy" id="th-bf-compare">
                 <span class="th-inner"><span class="th-icon">◉</span>买黑五后（全年含黑五 Pro）</span>
@@ -224,30 +226,11 @@
           <tfoot id="db-months-tfoot"></tfoot>
         </table>
       </div>
-
-      <!-- Bottom Inline Custom Input Bar -->
-      <div class="db-bottom-custom">
-        <select class="flat-select" id="inp-custom-kind" style="width:154px;">
-          <option value="replace">自定义被取代订阅</option>
-          <option value="idle">自定义致空闲 Plan</option>
-        </select>
-        <input class="flat-input" id="inp-custom-name" type="text" placeholder="输入名称（先勾选上方月份）" style="flex:1;min-width:160px;" />
-        <select class="flat-select" id="inp-custom-currency" style="width:112px;">
-          <option value="TRY">TRY ₺</option>
-          <option value="JPY">JPY JP¥</option>
-          <option value="HKD">HKD HK$</option>
-          <option value="TWD">TWD NT$</option>
-          <option value="USD">USD $</option>
-          <option value="CNY">CNY ¥</option>
-        </select>
-        <input class="flat-input mono" id="inp-custom-price" type="number" min="0" max="500000" step="1" placeholder="原币月费" style="width:104px;" />
-        <button type="button" class="subtle-btn btn-sm" id="btn-add-custom">应用到勾选月</button>
-      </div>
     </section>
 
     <!-- STEP 3: Dynamic FX, Legacy Ultra Renewal & Bundled Perks -->
     <section class="step step-narrow" data-step="2" id="step-2">
-      <div class="step-kicker mono">STEP 03 / 05</div>
+      <div class="step-kicker mono">STEP 03 / 04</div>
       <h1 class="page-title">核对汇率走势、续费与附带权益</h1>
       <p class="page-lead">今日黑五包年按当前即期汇率一次性锁定；下方仅展示你在第 2 步中实际涉及的外币月付汇率与续费设置。</p>
 
@@ -325,80 +308,8 @@
       </div>
     </section>
 
-    <!-- STEP 4: Model Lifecycle & Probability -->
+    <!-- STEP 4: Final Decision Ledger -->
     <section class="step step-narrow" data-step="3" id="step-3">
-      <div class="step-kicker mono">STEP 04 / 05</div>
-      <h1 class="page-title">按模型周期率评估留存把握</h1>
-      <p class="page-lead">参考历史实证：Gemini 2.5 Pro 撑到 Sonnet 4.5 约 6 个月、撑到 Opus 4.5 前约 7 个月；3.1 Pro 到 Gemini 4 间隔约 9 个月。</p>
-
-      <div class="prop-group">
-        <div class="prop-row">
-          <span class="prop-key">维持 SOTA / 可当主力时长</span>
-          <div class="prop-val prop-val-slider">
-            <input type="range" id="inp-sota-len" min="1" max="12" step="0.5" />
-            <span class="mono val-badge" id="lbl-sota-len">7 个月</span>
-          </div>
-        </div>
-        <p class="muted-note" id="help-sota-until" style="padding: 4px 4px 10px;"></p>
-
-        <div class="prop-row">
-          <span class="prop-key">下代成为 SOTA 的模型间隔</span>
-          <div class="prop-val prop-val-slider">
-            <input type="range" id="inp-next-interval" min="2" max="15" step="1" />
-            <span class="mono val-badge" id="lbl-next-interval">10 个月</span>
-          </div>
-        </div>
-        <p class="muted-note" id="help-next-when" style="padding: 4px 4px 10px;"></p>
-
-        <!-- Minimalist Model Lifecycle Timeline with Labeled Nodes -->
-        <div class="lifecycle-bar" id="lifecycle-bar">
-          <div class="lifecycle-line">
-            <div class="lifecycle-seg-active" id="lc-active-seg"></div>
-            <div class="lc-node lc-node-start" style="left:0%;">
-              <span class="lc-dot"></span>
-              <span class="lc-label">当前旗舰 (11月)</span>
-            </div>
-            <div class="lc-node" id="lc-sota-node">
-              <span class="lc-dot lc-dot-hollow"></span>
-              <span class="lc-label" id="lc-sota-label">维持 SOTA 截止</span>
-            </div>
-            <div class="lc-node lc-node-next" id="lc-next-node">
-              <span class="lc-dot lc-dot-green"></span>
-              <span class="lc-label lc-label-green" id="lc-next-label">下一代成为 SOTA 的模型</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="prop-row" style="margin-top: 12px;">
-          <span class="prop-key">中后期留存把握 (p)</span>
-          <div class="prop-val prop-val-slider">
-            <input type="range" id="inp-retain-prob" min="0" max="100" step="5" />
-            <span class="mono val-badge" id="lbl-retain-prob">65%</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="ev-block">
-        <div class="ev-top">
-          <span>主观留存把握 vs 数学盈亏平衡线</span>
-          <span class="mono" id="lbl-ev-gap">--</span>
-        </div>
-        <div class="ev-track">
-          <div class="ev-threshold" id="ev-threshold-line">
-            <span class="ev-threshold-tag mono" id="ev-threshold-tag">盈亏线</span>
-          </div>
-          <div class="ev-dot" id="ev-user-dot"></div>
-        </div>
-        <div class="ev-axis mono">
-          <span>0%（中后期换别家）</span>
-          <span>50%</span>
-          <span>100%（按计划用满）</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- STEP 5: Final Decision Ledger -->
-    <section class="step step-narrow" data-step="4" id="step-4">
       <!-- Apple/Google-inspired Minimalist Calculation Transition Stage -->
       <div class="calc-stage" id="calc-stage" style="display:none;" aria-live="polite">
         <div class="calc-spinner" aria-hidden="true">
@@ -420,7 +331,7 @@
       </div>
 
       <div class="step5-result" id="step5-result">
-      <div class="step-kicker mono">STEP 05 / 05 · SUMMARY</div>
+      <div class="step-kicker mono">STEP 04 / 04 · SUMMARY</div>
       <div class="verdict-head">
         <span class="tag" id="verdict-badge">计算中</span>
         <h1 class="page-title" id="verdict-headline" style="margin-top: 10px;"></h1>
@@ -566,6 +477,95 @@
       <a href="https://github.com/L0dyv/do-you-really-need-gemini-pro-bf" target="_blank" rel="noopener noreferrer" title="GitHub 仓库地址">L0dyv/do-you-really-need-gemini-pro-bf</a>
     </div>
   </main>
+
+  <!-- Notion Center Peek Modal: Model Lifecycle & Retention Probability -->
+  <div class="center-modal-backdrop" id="phase-modal-backdrop" aria-hidden="true">
+    <div class="center-modal" id="phase-modal" role="dialog" aria-modal="true" aria-labelledby="phase-modal-title">
+      <div class="center-modal-topbar">
+        <span class="center-modal-kicker mono">MODEL LIFECYCLE · CENTER PEEK</span>
+        <button type="button" class="text-btn text-btn-muted" id="btn-close-phase-modal" title="关闭 (Esc)">关闭 ×</button>
+      </div>
+      <div class="center-modal-body">
+        <h2 class="center-modal-title" id="phase-modal-title">按模型周期率调整阶段与留存把握</h2>
+        <p class="center-modal-lead">参考历史实证：Gemini 2.5 Pro 撑到 Sonnet 4.5 约 6 个月、撑到 Opus 4.5 前约 7 个月；3.1 Pro 到 Gemini 4 间隔约 9 个月。拖动滑块时，后方 12 个月表格的阶段色标会实时更新。</p>
+
+        <div class="prop-group">
+          <div class="prop-row">
+            <span class="prop-key">维持 SOTA / 可当主力时长</span>
+            <div class="prop-val prop-val-slider">
+              <input type="range" id="inp-sota-len" min="1" max="12" step="0.5" />
+              <span class="mono val-badge" id="lbl-sota-len">7 个月</span>
+            </div>
+          </div>
+          <p class="muted-note" id="help-sota-until" style="padding: 4px 4px 10px;"></p>
+
+          <div class="prop-row">
+            <span class="prop-key">下代成为 SOTA 的模型间隔</span>
+            <div class="prop-val prop-val-slider">
+              <input type="range" id="inp-next-interval" min="2" max="15" step="1" />
+              <span class="mono val-badge" id="lbl-next-interval">10 个月</span>
+            </div>
+          </div>
+          <p class="muted-note" id="help-next-when" style="padding: 4px 4px 10px;"></p>
+
+          <div class="lifecycle-bar" id="lifecycle-bar">
+            <div class="lifecycle-line">
+              <div class="lifecycle-seg-active" id="lc-active-seg"></div>
+              <div class="lc-node lc-node-start" style="left:0%;">
+                <span class="lc-dot"></span>
+                <span class="lc-label">当前旗舰 (11月)</span>
+              </div>
+              <div class="lc-node" id="lc-sota-node">
+                <span class="lc-dot lc-dot-hollow"></span>
+                <span class="lc-label" id="lc-sota-label">维持 SOTA 截止</span>
+              </div>
+              <div class="lc-node lc-node-next" id="lc-next-node">
+                <span class="lc-dot lc-dot-green"></span>
+                <span class="lc-label lc-label-green" id="lc-next-label">下一代成为 SOTA 的模型</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="phase-modal-legend">
+            <span class="phase-pill is-legend phase-honeymoon">蜜月领先期（1–3月）</span>
+            <span class="phase-pill is-legend phase-steady">第一梯队稳态</span>
+            <span class="phase-pill is-legend phase-risk">空窗/掉队风险</span>
+            <span class="phase-pill is-legend phase-next_gen">新旗舰窗口</span>
+          </div>
+
+          <div class="prop-row" style="margin-top: 8px;">
+            <span class="prop-key">中后期留存把握 (p)</span>
+            <div class="prop-val prop-val-slider">
+              <input type="range" id="inp-retain-prob" min="0" max="100" step="5" />
+              <span class="mono val-badge" id="lbl-retain-prob">65%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="ev-block" style="margin-top: 22px;">
+          <div class="ev-top">
+            <span>主观留存把握 vs 数学盈亏平衡线</span>
+            <span class="mono" id="lbl-ev-gap">--</span>
+          </div>
+          <div class="ev-track">
+            <div class="ev-threshold" id="ev-threshold-line">
+              <span class="ev-threshold-tag mono" id="ev-threshold-tag">盈亏线</span>
+            </div>
+            <div class="ev-dot" id="ev-user-dot"></div>
+          </div>
+          <div class="ev-axis mono">
+            <span>0%（中后期换别家）</span>
+            <span>50%</span>
+            <span>100%（按计划用满）</span>
+          </div>
+        </div>
+
+        <div class="center-modal-footer">
+          <button type="button" class="primary-btn btn-sm" id="btn-done-phase-modal">完成并返回表格</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

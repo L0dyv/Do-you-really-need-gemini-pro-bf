@@ -577,65 +577,98 @@ select {
   border-left: 1px solid var(--border);
 }
 
-/* Floating Model Phase Settings Popover */
-.phase-popover {
+/* Notion Center Peek Modal (Model Lifecycle & Retention Probability) */
+.center-modal-backdrop {
   position: fixed;
-  z-index: 65;
+  inset: 0;
+  z-index: 80;
   display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 20px;
+  background: rgba(15, 15, 15, 0.36);
+  backdrop-filter: blur(2px);
+}
+
+.center-modal-backdrop.is-open {
+  display: flex;
+  animation: fadeIn 0.16s ease;
+}
+
+.center-modal {
+  width: 100%;
+  max-width: 760px;
+  max-height: calc(100vh - 56px);
+  display: flex;
   flex-direction: column;
-  gap: 14px;
-  width: 360px;
-  max-width: calc(100vw - 24px);
-  padding: 16px 18px;
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--bg);
   border: 1px solid var(--border);
-  box-shadow: 0 10px 30px rgba(15, 15, 15, 0.14);
+  box-shadow: 0 24px 64px rgba(15, 15, 15, 0.22);
+  overflow: hidden;
+  animation: centerPeekIn 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.phase-popover.is-open {
-  display: flex;
+@keyframes centerPeekIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-.phase-pop-head {
+.center-modal-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
 }
 
-.phase-pop-title {
+.center-modal-kicker {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.06em;
+}
+
+.center-modal-body {
+  padding: 26px 34px 28px;
+  overflow-y: auto;
+}
+
+.center-modal-title {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.center-modal-lead {
+  margin: 0 0 20px;
   font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.phase-pop-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.phase-pop-label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 13px;
   color: var(--ink-2);
+  line-height: 1.65;
 }
 
-.phase-pop-label strong {
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.phase-pop-legend {
+.phase-modal-legend {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.center-modal-footer {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* Step 2: Fixed-Height Toolbar Slot + Zero-Shift Floating Selection Bar */
@@ -827,14 +860,10 @@ body.is-marquee-dragging {
   background: var(--hover);
 }
 
-.notion-db tbody tr.db-row.is-selected td {
-  background: rgba(35, 131, 226, 0.045);
-}
-
-.notion-db .col-check {
-  width: 44px;
-  text-align: center;
-  padding: 10px 8px;
+/* Single-Column Selection Highlight (Notion Cell Range Style inside .col-skip only) */
+.notion-db tbody td.col-skip.is-cell-selected {
+  background: rgba(35, 131, 226, 0.085) !important;
+  box-shadow: inset 2px 0 0 rgba(35, 131, 226, 0.65), inset -1px 0 0 rgba(35, 131, 226, 0.25);
 }
 
 .notion-db input[type="checkbox"] {
@@ -843,11 +872,33 @@ body.is-marquee-dragging {
   height: 15px;
   cursor: pointer;
   vertical-align: middle;
+  flex-shrink: 0;
 }
 
 .notion-db .col-month {
-  width: 218px;
+  width: 236px;
   white-space: nowrap;
+}
+
+.th-month-head {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.th-mini-action {
+  border: none;
+  background: transparent;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.th-mini-action:hover {
+  background: var(--active);
+  color: var(--ink);
 }
 
 .db-month-main {
@@ -856,10 +907,12 @@ body.is-marquee-dragging {
   margin-right: 8px;
 }
 
-/* Color-Coded Clickable Model Phase Badges */
+/* Color-Coded Clickable Model Phase Badges with Non-Intrusive Hover Tooltip Cue */
 .phase-pill {
+  position: relative;
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   padding: 1px 7px;
   border-radius: 3px;
   border: 1px solid transparent;
@@ -868,12 +921,51 @@ body.is-marquee-dragging {
   line-height: 1.55;
   cursor: pointer;
   white-space: nowrap;
-  transition: filter 0.12s ease, border-color 0.12s ease;
+  transition: filter 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+}
+
+.phase-pill-cue {
+  display: inline-flex;
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  transition: opacity 0.14s ease, width 0.14s ease;
 }
 
 .phase-pill:hover {
-  filter: brightness(0.95);
-  border-color: rgba(55, 53, 47, 0.24);
+  filter: brightness(0.96);
+  border-color: rgba(55, 53, 47, 0.28);
+}
+
+.phase-pill:hover .phase-pill-cue {
+  opacity: 0.78;
+  width: 11px;
+}
+
+/* Lightweight Non-Blocking Tooltip on Hover (Zero Auto-Popup Intrusion) */
+.phase-pill::after {
+  content: "点击调整模型周期";
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%) translateY(3px);
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--ink);
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 40;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.phase-pill:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .phase-pill.phase-honeymoon {
@@ -894,6 +986,14 @@ body.is-marquee-dragging {
 .phase-pill.phase-next_gen {
   background: var(--tag-green-bg);
   color: var(--tag-green-fg);
+}
+
+.phase-pill.is-legend {
+  cursor: default;
+}
+
+.phase-pill.is-legend::after {
+  display: none;
 }
 
 .toolbar-divider {
@@ -1016,128 +1116,278 @@ body.is-marquee-dragging {
   background: var(--bg);
 }
 
-/* In-Place Notion Select Pill Inside Database Cells (Zero-Jump Direct Editing) */
-.cell-select-wrap {
+/* Authentic Notion Database Select Cell Pill + Single-Column Checkbox */
+.cell-skip-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cell-chk {
+  opacity: 0.35;
+  transition: opacity 0.12s ease;
+}
+
+.notion-db tbody tr.db-row:hover .cell-chk,
+.notion-db tbody td.col-skip.is-cell-selected .cell-chk,
+.cell-chk:checked,
+.cell-chk:focus {
+  opacity: 1;
+}
+
+.cell-pill-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  max-width: 100%;
-}
-
-.cell-select {
-  appearance: none;
-  -webkit-appearance: none;
-  height: 28px;
-  max-width: 235px;
-  padding: 0 24px 0 9px;
+  max-width: 245px;
+  padding: 3px 9px;
   border: 1px solid transparent;
   border-radius: 3px;
   font-size: 13px;
   font-weight: 500;
-  line-height: 26px;
+  line-height: 1.5;
   cursor: pointer;
-  outline: none;
+  white-space: nowrap;
+  overflow: hidden;
   text-overflow: ellipsis;
-  background-repeat: no-repeat;
-  background-position: right 7px center;
-  background-size: 10px 10px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' fill='none' stroke='%2337352f' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   transition: filter 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
 }
 
-.cell-select:hover {
+.cell-pill-btn:hover {
   filter: brightness(0.96);
 }
 
-.cell-select:focus {
+.cell-pill-btn.is-open {
   border-color: var(--ink);
 }
 
-.cell-select.tone-yellow { background-color: var(--tag-yellow-bg); color: var(--tag-yellow-fg); }
-.cell-select.tone-blue { background-color: var(--tag-blue-bg); color: var(--tag-blue-fg); }
-.cell-select.tone-purple { background-color: var(--tag-purple-bg); color: var(--tag-purple-fg); }
-.cell-select.tone-green { background-color: var(--tag-green-bg); color: var(--tag-green-fg); }
-.cell-select.tone-gray { background-color: var(--tag-gray-bg); color: var(--tag-gray-fg); }
+.cell-pill-btn.tone-yellow { background: var(--tag-yellow-bg); color: var(--tag-yellow-fg); }
+.cell-pill-btn.tone-blue { background: var(--tag-blue-bg); color: var(--tag-blue-fg); }
+.cell-pill-btn.tone-purple { background: var(--tag-purple-bg); color: var(--tag-purple-fg); }
+.cell-pill-btn.tone-green { background: var(--tag-green-bg); color: var(--tag-green-fg); }
+.cell-pill-btn.tone-gray { background: var(--tag-gray-bg); color: var(--tag-gray-fg); }
 
-.cell-select.tone-empty {
-  background-color: transparent;
+.cell-pill-btn.tone-empty {
+  background: transparent;
   color: var(--ink-3);
   font-weight: 400;
-  border-color: transparent;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' fill='none' stroke='%239b9a97' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
-.cell-select.tone-empty:hover {
-  background-color: var(--active);
+.cell-pill-btn.tone-empty:hover {
+  background: var(--active);
   color: var(--ink-2);
   filter: none;
 }
 
-/* Keep native dropdown menu crisp white on Windows/Chromium */
-.cell-select option,
-.cell-select optgroup {
-  background-color: #ffffff;
-  color: var(--ink);
-  font-weight: 400;
+.cell-pill-caret {
+  font-size: 10px;
+  opacity: 0.55;
+  flex-shrink: 0;
 }
 
-.cell-select optgroup {
-  font-weight: 600;
-  color: var(--ink-2);
-}
-
-.cell-tweak-btn {
-  border: none;
-  background: transparent;
-  padding: 2px 6px;
+.cell-hike-dot {
+  font-size: 11px;
+  padding: 0 5px;
   border-radius: 3px;
-  font-size: 12px;
-  color: var(--ink-3);
-  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  color: var(--ink-2);
   white-space: nowrap;
-  opacity: 0;
-  transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease;
 }
 
-.notion-db tbody tr.db-row:hover .cell-tweak-btn,
-.cell-tweak-btn.is-active,
-.cell-tweak-btn:focus {
-  opacity: 1;
-}
-
-.cell-tweak-btn:hover {
-  background: var(--active);
-  color: var(--ink);
-}
-
-.cell-tweak-btn.is-active {
-  background: var(--tag-gray-bg);
-  color: var(--ink);
-}
-
-/* Floating Zero-Shift Price Tweak Popover */
-.price-popover {
+/* Authentic Notion Database Brand-Grouped Floating Select Picker */
+.notion-picker {
   position: fixed;
-  z-index: 60;
+  z-index: 70;
   display: none;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
-  border-radius: 6px;
+  flex-direction: column;
+  width: 368px;
+  max-width: calc(100vw - 24px);
+  max-height: min(500px, calc(100vh - 32px));
+  border-radius: 7px;
   background: var(--bg);
   border: 1px solid var(--border);
-  box-shadow: 0 8px 24px rgba(15, 15, 15, 0.12);
+  box-shadow: 0 12px 32px rgba(15, 15, 15, 0.14), 0 1px 4px rgba(15, 15, 15, 0.06);
+  overflow: hidden;
 }
 
-.price-popover.is-open {
+.notion-picker.is-open {
   display: flex;
 }
 
-.price-popover .flat-select,
-.price-popover .flat-input {
-  height: 32px;
-  font-size: 13px;
+.np-top {
+  padding: 10px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.np-top-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.np-top-target {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.np-region-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.np-region-label {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.np-region-chips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.np-region-chip {
+  border: 1px solid var(--border-2);
+  background: var(--bg);
+  color: var(--ink-2);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.np-region-chip:hover {
+  border-color: var(--ink-2);
+  color: var(--ink);
+}
+
+.np-region-chip.is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.np-price-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+}
+
+.np-price-inline .flat-select,
+.np-price-inline .flat-input {
+  height: 28px;
+  font-size: 12.5px;
+  padding: 0 7px;
+}
+
+.np-list {
+  overflow-y: auto;
+  padding: 6px 6px;
+  flex: 1 1 auto;
+}
+
+.np-brand-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  padding: 7px 8px 3px;
+  letter-spacing: 0.02em;
+}
+
+.np-item-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.1s ease;
+}
+
+.np-item-btn:hover {
+  background: var(--hover);
+}
+
+.np-item-btn.is-active {
+  background: var(--active);
+}
+
+.np-item-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.np-item-meta {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.np-custom-footer {
+  border-top: 1px solid var(--border);
+  padding: 8px 10px;
+  background: var(--bg);
+}
+
+.np-custom-toggle {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.np-custom-toggle:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.np-custom-form {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 4px;
+}
+
+.np-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.np-custom-form .flat-select,
+.np-custom-form .flat-input {
+  height: 30px;
+  font-size: 12.5px;
+  padding: 0 8px;
 }
 
 /* Notion Page Properties (Steps 3, 4, 5) */
