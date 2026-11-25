@@ -1451,7 +1451,7 @@
     monthsSinceLaunch: 0,
     effectiveSotaMonths: 7,
     nextFlagshipInterval: 10,
-    retainProbPct: 65,
+    postSotaExtraMonths: 3,
   };
 
   function makePresetPatch(templateKey, regionProId, extra) {
@@ -1516,11 +1516,11 @@
       id: 'apr_obsolete',
       name: '仅省淡季 5 个月（保守视角）',
       nameEn: '5 Off-Season Months Only (Conservative)',
-      desc: '1-3月保留 Ultra，4-8月省下 Pro，留存把握 45%',
+      desc: '1-3月保留 Ultra，4-8月省下 Pro，SOTA 后惯性多用 1 个月',
       patch: makePresetPatch('offseason_only', 'gemini_pro_tr', {
         bfPicked: true,
         monthEdited: Array(12).fill(true),
-        retainProbPct: 45,
+        postSotaExtraMonths: 1,
       }),
     },
   ];

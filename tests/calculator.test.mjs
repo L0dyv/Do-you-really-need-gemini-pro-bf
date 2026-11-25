@@ -184,19 +184,22 @@ test('Dual-basket supports multi-seat subscriptions (2x Gemini Pro) and 1 BF sea
   assert.ok(Math.abs(res.monthlyRows[0].monthSavedByBf - oneProCny) < 0.2);
 });
 
-test('Moving effectiveSotaMonths (K) changes downsideNet (D) and EV, and EV endpoints p=0/100 match D/U', () => {
-  const sShort = Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 4, retainProbPct: 60 });
-  const sLong = Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 9, retainProbPct: 60 });
+test('Moving effectiveSotaMonths (K) and postSotaExtraMonths changes expectedNetSavings, and endpoints extra=0 / extra=12-K match D/U', () => {
+  const sShort = Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 4, postSotaExtraMonths: 2 });
+  const sLong = Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 9, postSotaExtraMonths: 2 });
   const rShort = calculateLedger(sShort);
   const rLong = calculateLedger(sLong);
 
+  assert.equal(rShort.expectedActiveMonths, 6);
+  assert.equal(rLong.expectedActiveMonths, 11);
   assert.ok(rLong.downsideNet > rShort.downsideNet, 'Longer SOTA span must improve downsideNet');
-  assert.ok(rLong.expectedNetSavings > rShort.expectedNetSavings, 'Longer SOTA span must improve EV');
+  assert.ok(rLong.expectedNetSavings > rShort.expectedNetSavings, 'Longer active span must improve expectedNetSavings');
 
-  const rP0 = calculateLedger(Object.assign(clone(DEFAULT_STATE), { retainProbPct: 0 }));
-  const rP100 = calculateLedger(Object.assign(clone(DEFAULT_STATE), { retainProbPct: 100 }));
-  assert.ok(Math.abs(rP0.expectedNetSavings - rP0.downsideNet) < 0.01);
-  assert.ok(Math.abs(rP100.expectedNetSavings - rP100.upsideNet) < 0.01);
+  const rExtra0 = calculateLedger(Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 7, postSotaExtraMonths: 0 }));
+  const rExtraFull = calculateLedger(Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 7, postSotaExtraMonths: 5 }));
+  assert.ok(Math.abs(rExtra0.expectedNetSavings - rExtra0.downsideNet) < 0.01);
+  assert.ok(Math.abs(rExtraFull.expectedNetSavings - rExtraFull.upsideNet) < 0.01);
+  assert.equal(rExtraFull.expectedActiveMonths, 12);
 
   // 3x3 sensitivity center cell must exactly equal expectedNetSavings
   const centerCell = rLong.sensitivity.rows[1].cells[1];
@@ -204,34 +207,24 @@ test('Moving effectiveSotaMonths (K) changes downsideNet (D) and EV, and EV endp
   assert.ok(Math.abs(centerCell.ev - rLong.expectedNetSavings) < 0.01);
 });
 
-test('Break-even probability classifies already_even, impossible, threshold, and U < D direction cleanly', () => {
+test('Break-even month classifies already_even, impossible, and threshold cleanly', () => {
   // Impossible: empty 12 months
   const empty = buildPlanPair('empty');
   const rEmpty = calculateLedger(Object.assign(clone(DEFAULT_STATE), empty));
-  assert.equal(rEmpty.breakEvenProbStatus, 'deterministic');
-  assert.equal(rEmpty.breakEvenProbPct, null);
+  assert.equal(rEmpty.breakEvenStatus, 'impossible');
+  assert.equal(rEmpty.breakEvenMonthNum, null);
 
   // Already even inside SOTA span: 12 months US Pro ($19.99) vs ¥477 BF
   const allUs = buildPlanPair('all_pro', 'gemini_pro_us');
-  const rAlready = calculateLedger(Object.assign(clone(DEFAULT_STATE), allUs, { effectiveSotaMonths: 7 }));
-  assert.equal(rAlready.breakEvenProbStatus, 'already_even');
-  assert.equal(rAlready.breakEvenProbPct, 0);
+  const rAlready = calculateLedger(Object.assign(clone(DEFAULT_STATE), allUs, { effectiveSotaMonths: 7, postSotaExtraMonths: 2 }));
+  assert.equal(rAlready.breakEvenStatus, 'already_even');
+  assert.ok(rAlready.breakEvenMonthNum >= 1 && rAlready.breakEvenMonthNum <= 7);
 
-  // Reverse direction (U < D): Month 0 saves $100, Month 10 spends $120 extra in B
-  const sRev = Object.assign(clone(DEFAULT_STATE), buildPlanPair('empty'), {
-    effectiveSotaMonths: 5,
-    fxAnnualChangePct: { TRY: 0, JPY: 0, HKD: 0, TWD: 0, USD: 0 },
-  });
-  sRev.monthPlans[0] = [makeSubItem('idle_gpt_pro100_us', 1)];
-  sRev.buyMonthPlans[0] = [];
-  sRev.buyMonthSynced[0] = false;
-  sRev.monthPlans[10] = [];
-  sRev.buyMonthPlans[10] = [makeSubItem('idle_gpt_pro100_us', 1)];
-  sRev.buyMonthSynced[10] = false;
-  const rRev = calculateLedger(sRev);
-  assert.ok(rRev.downsideNet > 0 && rRev.upsideNet < 0);
-  assert.equal(rRev.breakEvenProbStatus, 'threshold');
-  assert.equal(rRev.breakEvenProbDirection, 'lte');
+  // Threshold: default TR baseline breaks even around Mo 9 (> SOTA 7)
+  const rDefault = calculateLedger(Object.assign(clone(DEFAULT_STATE), { effectiveSotaMonths: 7, postSotaExtraMonths: 3 }));
+  assert.equal(rDefault.breakEvenStatus, 'threshold');
+  assert.ok(rDefault.breakEvenMonthNum > 7 && rDefault.breakEvenMonthNum <= 12);
+  assert.equal(rDefault.monthMargin, rDefault.expectedActiveMonths - rDefault.breakEvenMonthNum);
 });
 
 test('All static DOM IDs referenced in app.js exist in index.html and contain zero emojis', () => {
@@ -256,7 +249,7 @@ test('All static DOM IDs referenced in app.js exist in index.html and contain ze
   assert.equal(emojiRe.test(data), false, 'data.js should not contain emojis');
 });
 
-test('Exporter generates valid vector SVG and standalone HTML with L0dyv attribution and handles null breakEvenProbPct', () => {
+test('Exporter generates valid vector SVG and standalone HTML with L0dyv attribution and handles unreachable payback cleanly', () => {
   const s = clone(DEFAULT_STATE);
   const res = calculateLedger(s);
   const svg = buildSummarySvg(s, res);
