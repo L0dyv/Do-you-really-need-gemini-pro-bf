@@ -351,9 +351,19 @@
           <div class="prop-row prop-row-labeled-slider" style="margin-top: 8px;">
             <span class="prop-key" data-i18n="modal.retainKey">SOTA 掉队后惯性多用</span>
             <div class="prop-val prop-val-slider">
-              <div class="slider-track-wrap">
+              <div class="inertia-axis-wrap" id="inertia-axis-wrap">
+                <div class="inertia-rail">
+                  <div class="inertia-sota-fill" id="inertia-sota-fill"></div>
+                  <div class="inertia-extra-fill" id="inertia-extra-fill"></div>
+                  <span class="inertia-sota-mark" id="inertia-sota-mark" aria-hidden="true"></span>
+                </div>
                 <span class="slider-thumb-tag mono" id="tag-post-sota-month">27年9月</span>
-                <input type="range" id="inp-post-sota-extra" min="0" max="12" step="1" />
+                <input type="range" class="inertia-range-input" id="inp-post-sota-extra" min="0" max="5" step="1" />
+                <div class="inertia-axis-labels mono">
+                  <span class="inertia-ax-start" data-i18n="modal.axisStart">26年12月</span>
+                  <span class="inertia-ax-sota" id="inertia-ax-sota" data-i18n="modal.axisSota">SOTA止</span>
+                  <span class="inertia-ax-end" data-i18n="modal.axisEnd">27年11月</span>
+                </div>
               </div>
               <span class="mono val-badge" id="lbl-post-sota-extra">+3 个月</span>
             </div>

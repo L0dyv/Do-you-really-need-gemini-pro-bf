@@ -169,12 +169,12 @@
       const maxExtra = Math.max(0, 12 - sotaLen);
       let migratedExtra;
       if (parsed.postSotaExtraMonths != null && Number.isFinite(Number(parsed.postSotaExtraMonths))) {
-        migratedExtra = Math.min(12, Math.max(0, Math.round(Number(parsed.postSotaExtraMonths))));
+        migratedExtra = Math.min(maxExtra, Math.max(0, Math.round(Number(parsed.postSotaExtraMonths))));
       } else if (parsed.retainProbPct != null && Number.isFinite(Number(parsed.retainProbPct))) {
         const legacyP = Math.min(100, Math.max(0, Number(parsed.retainProbPct))) / 100;
-        migratedExtra = Math.min(12, Math.max(0, Math.round(legacyP * maxExtra)));
+        migratedExtra = Math.min(maxExtra, Math.max(0, Math.round(legacyP * maxExtra)));
       } else {
-        migratedExtra = DEFAULT_STATE.postSotaExtraMonths;
+        migratedExtra = Math.min(maxExtra, DEFAULT_STATE.postSotaExtraMonths);
       }
       return Object.assign(createInitialUiState(), parsed, {
         fxAnnualChangePct: Object.assign({}, DEFAULT_FX_ANNUAL_PCT),
@@ -822,10 +822,11 @@
     document.getElementById('inp-bf-raw').value = state.bfRawAmount != null ? state.bfRawAmount : state.bfCostCny;
     document.getElementById('inp-sota-len').value = state.effectiveSotaMonths;
     document.getElementById('inp-next-interval').value = state.nextFlagshipInterval;
+    const maxExtra = Math.max(0, 12 - (Number(state.effectiveSotaMonths) || 7));
     const extraEl = document.getElementById('inp-post-sota-extra');
-    extraEl.max = '12';
-    extraEl.value = String(Math.min(12, Math.max(0, Number(state.postSotaExtraMonths) || 0)));
-    extraEl.disabled = false;
+    extraEl.max = String(maxExtra);
+    extraEl.value = String(Math.min(maxExtra, Math.max(0, Number(state.postSotaExtraMonths) || 0)));
+    extraEl.disabled = maxExtra === 0;
   }
 
   function isStepUnlocked(idx) {
@@ -1332,32 +1333,54 @@
     const nextWhenText = formatFutureMonth(2026, 11, state.nextFlagshipInterval);
     const totalUntilText = formatFutureMonth(2026, 11, res.expectedActiveMonths);
     const extraSlider = document.getElementById('inp-post-sota-extra');
-    extraSlider.max = '12';
-    extraSlider.value = String(res.rawPostSotaExtra);
-    extraSlider.disabled = false;
+    const sotaAxisPct = (res.sotaCutoff / 12) * 100;
+    const extraSpanPct = (res.maxPostSotaExtra / 12) * 100;
+    const activeAxisPct = (res.expectedActiveMonths / 12) * 100;
 
-    const rawUntilText = formatFutureMonth(2026, 11, res.sotaCutoff + res.rawPostSotaExtra);
+    extraSlider.max = String(res.maxPostSotaExtra);
+    extraSlider.value = String(res.postSotaExtraMonths);
+    extraSlider.disabled = res.maxPostSotaExtra === 0;
+    if (res.maxPostSotaExtra > 0) {
+      extraSlider.style.left = `calc(${sotaAxisPct.toFixed(4)}% - 8px)`;
+      extraSlider.style.width = `calc(${extraSpanPct.toFixed(4)}% + 16px)`;
+    } else {
+      extraSlider.style.left = 'calc(100% - 8px)';
+      extraSlider.style.width = '16px';
+    }
+
+    document.getElementById('inertia-sota-fill').style.width = `${sotaAxisPct.toFixed(4)}%`;
+    const extraFillEl = document.getElementById('inertia-extra-fill');
+    extraFillEl.style.left = `${sotaAxisPct.toFixed(4)}%`;
+    extraFillEl.style.width = `${Math.max(0, activeAxisPct - sotaAxisPct).toFixed(4)}%`;
+    const sotaMarkEl = document.getElementById('inertia-sota-mark');
+    sotaMarkEl.style.left = `${sotaAxisPct.toFixed(4)}%`;
+    const axSotaEl = document.getElementById('inertia-ax-sota');
+    axSotaEl.style.left = `${sotaAxisPct.toFixed(4)}%`;
+    axSotaEl.style.display = res.sotaCutoff >= 2 && res.sotaCutoff <= 10 ? 'inline' : 'none';
+
     const thumbTagEl = document.getElementById('tag-post-sota-month');
-    const extraRatio = res.rawPostSotaExtra / 12;
-    thumbTagEl.style.left = `calc(${(extraRatio * 100).toFixed(3)}% + ${(8 - extraRatio * 16).toFixed(2)}px)`;
-    thumbTagEl.textContent = lang === 'en-US' ? rawUntilText : rawUntilText.slice(2);
+    thumbTagEl.style.left = `${activeAxisPct.toFixed(4)}%`;
+    thumbTagEl.textContent = lang === 'en-US' ? totalUntilText : totalUntilText.slice(2);
 
     document.getElementById('lbl-sota-len').textContent = t('modal.monthsVal', { n: state.effectiveSotaMonths });
     document.getElementById('lbl-next-interval').textContent = t('modal.monthsVal', { n: state.nextFlagshipInterval });
-    document.getElementById('lbl-post-sota-extra').textContent = t('modal.extraMonthsVal', { n: res.rawPostSotaExtra });
+    document.getElementById('lbl-post-sota-extra').textContent =
+      res.maxPostSotaExtra === 0
+        ? t('modal.extraMonthsFull')
+        : t('modal.extraMonthsVal', { n: res.postSotaExtraMonths });
     document.getElementById('help-sota-until').textContent =
       t('modal.sotaHelp', { n: state.effectiveSotaMonths, until: sotaUntilText });
     document.getElementById('help-next-when').textContent =
       t('modal.nextHelp', { n: state.nextFlagshipInterval, when: nextWhenText });
     document.getElementById('help-post-sota-extra').textContent =
       res.expectedActiveMonths >= 12
-        ? t('modal.retainHelpFull', { k: res.sotaCutoff, rawExtra: res.rawPostSotaExtra })
-        : res.rawPostSotaExtra === 0
+        ? t('modal.retainHelpFull', { k: res.sotaCutoff, extra: res.postSotaExtraMonths })
+        : res.postSotaExtraMonths === 0
           ? t('modal.retainHelpZero', { k: res.sotaCutoff, until: sotaUntilText })
           : t('modal.retainHelpDyn', {
               k: res.sotaCutoff,
               until: sotaUntilText,
-              extra: res.rawPostSotaExtra,
+              extra: res.postSotaExtraMonths,
               total: res.expectedActiveMonths,
               totalUntil: totalUntilText,
             });
@@ -2409,6 +2432,10 @@
     document.getElementById('inp-sota-len').addEventListener('input', (e) => {
       recordUndoSnapshot('sota-len');
       state.effectiveSotaMonths = Number(e.target.value);
+      const maxExtra = Math.max(0, 12 - state.effectiveSotaMonths);
+      if ((Number(state.postSotaExtraMonths) || 0) > maxExtra) {
+        state.postSotaExtraMonths = maxExtra;
+      }
       render();
     });
 

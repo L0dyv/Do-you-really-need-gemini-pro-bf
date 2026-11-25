@@ -1852,30 +1852,114 @@ body.is-marquee-dragging {
 }
 
 .prop-row-labeled-slider {
-  padding-top: 22px;
+  padding-top: 24px;
+  padding-bottom: 18px;
 }
 
-.slider-track-wrap {
+/* Full 12-Month Segmented Inertia Slider (Dec 2026 -> SOTA End -> Nov 2027) */
+.inertia-axis-wrap {
   position: relative;
   flex: 1;
+  height: 22px;
   display: flex;
   align-items: center;
+  margin: 0 4px;
 }
 
-.slider-track-wrap input[type="range"] {
+.inertia-rail {
+  position: relative;
   width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-2);
+}
+
+.inertia-sota-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px 0 0 2px;
+  background: var(--ink);
+  pointer-events: none;
+}
+
+.inertia-extra-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--ink-2);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.inertia-sota-mark {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid var(--ink);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.inertia-range-input {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+  height: 18px;
+  background: transparent !important;
+  z-index: 2;
+}
+
+.inertia-range-input:disabled {
+  cursor: default;
 }
 
 .slider-thumb-tag {
   position: absolute;
-  bottom: 16px;
+  top: -19px;
   transform: translateX(-50%);
   font-size: 11.5px;
-  font-weight: 500;
-  color: var(--ink-2);
+  font-weight: 600;
+  color: var(--ink);
   white-space: nowrap;
   pointer-events: none;
   line-height: 1.2;
+}
+
+.inertia-axis-labels {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 19px;
+  height: 14px;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.inertia-ax-start {
+  position: absolute;
+  left: 0;
+  white-space: nowrap;
+}
+
+.inertia-ax-sota {
+  position: absolute;
+  transform: translateX(-50%);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.inertia-ax-end {
+  position: absolute;
+  right: 0;
+  white-space: nowrap;
 }
 
 .val-badge {
