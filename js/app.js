@@ -1399,24 +1399,6 @@
     const nextNearExtra = showExtraNode && Math.abs(nextPct - activePct) < 13;
     nextNodeEl.classList.toggle('is-staggered', (nextNearSota || nextNearExtra) && !(nextNearExtra && extraNearSota));
 
-    // Compact Inline Payback Status Row
-    const evGapEl = document.getElementById('lbl-ev-gap');
-    if (res.breakEvenMonthNum != null && res.breakEvenMonthNum > 0) {
-      if (res.breakEvenStatus === 'already_even') {
-        evGapEl.textContent = t('modal.evAlready', { m: res.breakEvenMonthNum });
-      } else if (res.monthMargin > 0) {
-        evGapEl.textContent = t('modal.evAbove', { m: res.breakEvenMonthNum, gap: res.monthMargin });
-      } else if (res.monthMargin === 0) {
-        evGapEl.textContent = t('modal.evExact', { m: res.breakEvenMonthNum });
-      } else {
-        evGapEl.textContent = t('modal.evBelow', { m: res.breakEvenMonthNum, gap: Math.abs(res.monthMargin) });
-      }
-    } else if (res.breakEvenStatus === 'already_even') {
-      evGapEl.textContent = t('modal.evAlready', { m: 1 });
-    } else {
-      evGapEl.textContent = t('modal.evImpossible');
-    }
-
     // STEP 5: Institutional Financial Decision Memo (supports switching between Standard Outlook & any of the 4 scenarios)
     const dispCur = getDisplayCurrency();
     const dispSym = dispCur === 'USD' ? '$' : '¥';

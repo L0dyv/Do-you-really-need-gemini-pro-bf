@@ -2146,30 +2146,6 @@ input[type="range"]::-moz-range-thumb {
   top: 32px;
 }
 
-/* Compact Inline Payback Status Row (No duplicate second axis) */
-.payback-inline-bar {
-  margin-top: 16px;
-  padding: 12px 14px;
-  border-radius: 4px;
-  background: var(--surface);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.payback-inline-key {
-  font-size: 13.5px;
-  color: var(--ink-2);
-}
-
-.payback-inline-val {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
 /* EV Ruler */
 .ev-block {
   margin-top: 32px;
