@@ -13,6 +13,10 @@
 - 结合模型 SOTA 周期与留存概率给出加权期望值（EV）及分月对照切换
 - 支持 3x 高清图 / SVG / HTML 等格式导出
 
+## 友链
+
+- [LINUX DO](https://linux.do/)
+
 ## Overview
 
 A tool for calculating whether buying the Gemini Pro Black Friday deal will lose you money, helping you avoid irrational and impulse spending.
@@ -23,7 +27,3 @@ By comparing your real 12-month subscription plans without vs. with the Black Fr
 - Side-by-side comparison of your plans without vs. with the Black Friday deal
 - Probability-weighted Expected Value (EV) based on model SOTA duration and retention confidence, with interactive scenario switching by active months
 - Export as 3x HD PNG, SVG, standalone HTML, and more
-
-## Acknowledgement
-
-- [LINUX DO](https://linux.do/)
