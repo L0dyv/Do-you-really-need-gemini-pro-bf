@@ -108,8 +108,8 @@
       : (isEn ? `Expected Net Savings (Active ${activeM} mo) · ${cur}` : `预期净节省（按用满前 ${activeM} 个月）· ${cur}`);
     const evRateLine = res.bfCost > 0
       ? (isEn
-          ? `${res.sotaCutoff} mo SOTA + ${extraM} mo inertia (${activeM} mo total) · ${rateStr} on upfront`
-          : `前 ${res.sotaCutoff} 月 SOTA + 惯性多用 ${extraM} 月（共 ${activeM} 个月）· 相对预付 ${rateStr}`)
+          ? `${res.sotaCutoff} mo SOTA + ${extraM} mo post-SOTA (${activeM} mo total) · ${rateStr} on upfront`
+          : `前 ${res.sotaCutoff} 月 SOTA + 后续多用 ${extraM} 月（共 ${activeM} 个月）· 相对预付 ${rateStr}`)
       : '';
     let spanSub;
     if (res.breakEvenStatus === 'already_even') {
@@ -119,17 +119,17 @@
       spanSub = isEn ? 'Not even within 12 months' : '全年 12 个月仍未回本';
     } else if (res.monthMargin != null && res.monthMargin > 0) {
       spanSub = isEn
-        ? `${res.sotaCutoff}m SOTA + ${extraM}m inertia · +${res.monthMargin}m margin`
-        : `SOTA ${res.sotaCutoff}月 + 惯性 ${extraM}月 · 超回本线 +${res.monthMargin} 月`;
+        ? `${res.sotaCutoff}m SOTA + ${extraM}m extra · +${res.monthMargin}m margin`
+        : `SOTA ${res.sotaCutoff}月 + 后续 ${extraM}月 · 超回本线 +${res.monthMargin} 月`;
     } else if (res.monthMargin === 0) {
       spanSub = isEn
-        ? `${res.sotaCutoff}m SOTA + ${extraM}m inertia · exact payback`
-        : `SOTA ${res.sotaCutoff}月 + 惯性 ${extraM}月 · 刚好第 ${res.breakEvenMonthNum} 月回本`;
+        ? `${res.sotaCutoff}m SOTA + ${extraM}m extra · exact payback`
+        : `SOTA ${res.sotaCutoff}月 + 后续 ${extraM}月 · 刚好第 ${res.breakEvenMonthNum} 月回本`;
     } else {
       const shortM = Math.abs(res.monthMargin || 0);
       spanSub = isEn
-        ? `${res.sotaCutoff}m SOTA + ${extraM}m inertia · ${shortM}m short`
-        : `SOTA ${res.sotaCutoff}月 + 惯性 ${extraM}月 · 距回本差 ${shortM} 月`;
+        ? `${res.sotaCutoff}m SOTA + ${extraM}m extra · ${shortM}m short`
+        : `SOTA ${res.sotaCutoff}月 + 后续 ${extraM}月 · 距回本差 ${shortM} 月`;
     }
 
     // Build effective cumulative series reflecting expectedActiveMonths cutoff
@@ -182,11 +182,11 @@
       : `标准情况 · 按你的预期（共 ${activeM} 个月）`;
     const stdSub = activeM >= 12
       ? (isEn
-          ? `${res.sotaCutoff} mo SOTA + inertia through Mo 12 (full Plan B)`
-          : `SOTA 前 ${res.sotaCutoff} 月 + 惯性续用至第 12 月（完整执行方案 B）`)
+          ? `${res.sotaCutoff} mo SOTA + post-SOTA through Mo 12 (full Plan B)`
+          : `SOTA 前 ${res.sotaCutoff} 月 + 后续继续用满全年（完整执行方案 B）`)
       : (isEn
-          ? `${res.sotaCutoff} mo SOTA + ${extraM} mo inertia (reverts to Plan A after)`
-          : `SOTA 前 ${res.sotaCutoff} 月 + 惯性多用 ${extraM} 月（之后停用改回方案 A）`);
+          ? `${res.sotaCutoff} mo SOTA + ${extraM} mo post-SOTA (reverts to Plan A after)`
+          : `SOTA 前 ${res.sotaCutoff} 月 + 后续多用 ${extraM} 月（之后停用改回方案 A）`);
     const stdRowSvg = `
       <rect x="${padX}" y="${stdRowY}" width="${contentW}" height="${stdRowH}" fill="#fafaf9"/>
       <line x1="${padX}" y1="${stdRowY}" x2="${W - padX}" y2="${stdRowY}" stroke="#37352f" stroke-width="1.2"/>
@@ -217,8 +217,8 @@
 
     const tblBottomY = subStartY + res.scenarios.length * tblRowH;
     const evFormulaLine = isEn
-      ? `Net Saved = Without BF − Buy (${cur}, spot 1 USD ≈ 6.67 CNY). Top row matches your ${activeM}-mo outlook (${res.sotaCutoff}m SOTA + ${extraM}m inertia).`
-      : `净节省 = 不买黑五 − 买入支出（${cur}，基准 1 USD ≈ 6.67 CNY）。首行按你预期的 ${activeM} 个月（SOTA ${res.sotaCutoff} 月 + 惯性 ${extraM} 月）计算。`;
+      ? `Net Saved = Without BF − Buy (${cur}, spot 1 USD ≈ 6.67 CNY). Top row matches your ${activeM}-mo outlook (${res.sotaCutoff}m SOTA + ${extraM}m post-SOTA).`
+      : `净节省 = 不买黑五 − 买入支出（${cur}，基准 1 USD ≈ 6.67 CNY）。首行按你预期的 ${activeM} 个月（SOTA ${res.sotaCutoff} 月 + 后续 ${extraM} 月）计算。`;
 
     // 3. Cumulative Chart with Day 0 ("今日" / "Now")
     const chartTop = 656;

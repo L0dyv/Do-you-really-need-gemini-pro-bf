@@ -642,7 +642,7 @@
             badge: '值得入手',
             tone: 'green',
             headline: `SOTA 期内即可锁定回本（前 ${core.sotaCutoff} 月已省 ${fmtSignedM(downsideNet)}）`,
-            detail: `即便 SOTA 结束立刻停用依然不亏；按你预期用满 ${expectedActiveMonths} 个月（含惯性多用 ${postSotaExtraMonths} 月），预计净省 ${fmtM(expectedNetSavings)}。`,
+            detail: `即便 SOTA 结束立刻停用依然不亏；按你预期用满 ${expectedActiveMonths} 个月（含后续多用 ${postSotaExtraMonths} 月），预计净省 ${fmtM(expectedNetSavings)}。`,
           };
     } else if (expectedNetSavings >= 40) {
       const marginTxtZh = monthMargin != null && monthMargin > 0
@@ -657,14 +657,14 @@
             badge: 'Worth Buying',
             tone: 'green',
             headline: `Expected ${expectedActiveMonths}-mo usage saves ${fmtM(expectedNetSavings)} (${marginTxtEn})`,
-            detail: `Without BF totals ${fmtM(core.totalSkipCost)} vs ${fmtM(expectedBuyCost)} with BF (active ${expectedActiveMonths} mo: ${core.sotaCutoff} mo SOTA + ${postSotaExtraMonths} mo inertia).`,
+            detail: `Without BF totals ${fmtM(core.totalSkipCost)} vs ${fmtM(expectedBuyCost)} with BF (active ${expectedActiveMonths} mo: ${core.sotaCutoff} mo SOTA + ${postSotaExtraMonths} mo post-SOTA).`,
           }
         : {
             level: 'buy',
             badge: '值得入手',
             tone: 'green',
             headline: `按预期用满 ${expectedActiveMonths} 个月可省 ${fmtM(expectedNetSavings)}（${marginTxtZh}）`,
-            detail: `不买黑五总计 ${fmtM(core.totalSkipCost)}，按前 ${core.sotaCutoff} 月 SOTA + 惯性多用 ${postSotaExtraMonths} 月买入总支出 ${fmtM(expectedBuyCost)}，预计净省 ${fmtSignedM(expectedNetSavings)}。`,
+            detail: `不买黑五总计 ${fmtM(core.totalSkipCost)}，按前 ${core.sotaCutoff} 月 SOTA + 后续多用 ${postSotaExtraMonths} 月买入总支出 ${fmtM(expectedBuyCost)}，预计净省 ${fmtSignedM(expectedNetSavings)}。`,
           };
     } else if (expectedNetSavings >= -40) {
       const lineZh = breakEvenMonthNum != null ? `第 ${breakEvenMonthNum} 个月` : '12 个月内未达标';

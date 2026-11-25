@@ -323,20 +323,39 @@
           </div>
           <p class="muted-note" id="help-next-when" style="padding: 4px 4px 10px;"></p>
 
+          <div class="prop-row">
+            <span class="prop-key" data-i18n="modal.retainKey">SOTA 期过后愿意继续用多久</span>
+            <div class="prop-val prop-val-slider">
+              <input type="range" id="inp-post-sota-extra" min="0" max="5" step="1" />
+              <span class="mono val-badge" id="lbl-post-sota-extra">+3 个月</span>
+            </div>
+          </div>
+          <p class="muted-note" id="help-post-sota-extra" style="padding: 4px 4px 10px;"></p>
+
+          <!-- Single Unified 12-Month Timeline Axis (SOTA -> Willing-to-Continue -> Next-Gen SOTA) -->
           <div class="lifecycle-bar" id="lifecycle-bar">
             <div class="lifecycle-line">
               <div class="lifecycle-seg-active" id="lc-active-seg"></div>
+              <div class="lifecycle-seg-extra" id="lc-extra-seg"></div>
               <div class="lc-node lc-node-start" style="left:0%;">
+                <span class="lc-month mono" data-i18n="modal.axisStart">26年12月</span>
                 <span class="lc-dot"></span>
-                <span class="lc-label" data-i18n="modal.nodeStart">黑五起算 (12月1日)</span>
+                <span class="lc-label" data-i18n="modal.nodeStart">起算 (12月1日)</span>
               </div>
               <div class="lc-node" id="lc-sota-node">
+                <span class="lc-month mono" id="lc-sota-month">27年6月</span>
                 <span class="lc-dot lc-dot-hollow"></span>
-                <span class="lc-label" id="lc-sota-label">SOTA 截止</span>
+                <span class="lc-label" id="lc-sota-label" data-i18n="modal.nodeSotaShort">SOTA 截止</span>
+              </div>
+              <div class="lc-node lc-node-extra" id="lc-extra-node">
+                <span class="lc-month lc-month-blue mono" id="lc-extra-month">27年9月</span>
+                <span class="lc-dot lc-dot-blue"></span>
+                <span class="lc-label lc-label-blue" id="lc-extra-label" data-i18n="modal.nodeExtraShort">愿意用至</span>
               </div>
               <div class="lc-node lc-node-next" id="lc-next-node">
+                <span class="lc-month lc-month-green mono" id="lc-next-month">27年9月</span>
                 <span class="lc-dot lc-dot-green"></span>
-                <span class="lc-label lc-label-green" id="lc-next-label">下一代成为 SOTA 的模型</span>
+                <span class="lc-label lc-label-green" id="lc-next-label" data-i18n="modal.nodeNextShort">下代 SOTA</span>
               </div>
             </div>
           </div>
@@ -347,46 +366,11 @@
             <span class="phase-pill is-legend phase-risk" data-i18n="modal.legendRisk">空窗/掉队风险</span>
             <span class="phase-pill is-legend phase-next_gen" data-i18n="modal.legendNext">新旗舰窗口</span>
           </div>
-
-          <div class="prop-row prop-row-labeled-slider" style="margin-top: 8px;">
-            <span class="prop-key" data-i18n="modal.retainKey">SOTA 掉队后惯性多用</span>
-            <div class="prop-val prop-val-slider">
-              <div class="inertia-axis-wrap" id="inertia-axis-wrap">
-                <div class="inertia-rail">
-                  <div class="inertia-sota-fill" id="inertia-sota-fill"></div>
-                  <div class="inertia-extra-fill" id="inertia-extra-fill"></div>
-                  <span class="inertia-sota-mark" id="inertia-sota-mark" aria-hidden="true"></span>
-                </div>
-                <span class="slider-thumb-tag mono" id="tag-post-sota-month">27年9月</span>
-                <input type="range" class="inertia-range-input" id="inp-post-sota-extra" min="0" max="5" step="1" />
-                <div class="inertia-axis-labels mono">
-                  <span class="inertia-ax-start" data-i18n="modal.axisStart">26年12月</span>
-                  <span class="inertia-ax-sota" id="inertia-ax-sota" data-i18n="modal.axisSota">SOTA止</span>
-                  <span class="inertia-ax-end" data-i18n="modal.axisEnd">27年11月</span>
-                </div>
-              </div>
-              <span class="mono val-badge" id="lbl-post-sota-extra">+3 个月</span>
-            </div>
-          </div>
-          <p class="muted-note" id="help-post-sota-extra" style="padding: 4px 4px 6px;"></p>
         </div>
 
-        <div class="ev-block" style="margin-top: 20px;">
-          <div class="ev-top">
-            <span data-i18n="modal.evTitle">你的预期使用时长 vs 累计回本节点</span>
-            <span class="mono" id="lbl-ev-gap">--</span>
-          </div>
-          <div class="ev-track">
-            <div class="ev-threshold" id="ev-threshold-line">
-              <span class="ev-threshold-tag mono" id="ev-threshold-tag">回本线</span>
-            </div>
-            <div class="ev-dot" id="ev-user-dot"></div>
-          </div>
-          <div class="ev-axis mono">
-            <span data-i18n="modal.evLeft">0 个月</span>
-            <span data-i18n="modal.evMid">6 个月</span>
-            <span data-i18n="modal.evRight">12 个月（用满全年）</span>
-          </div>
+        <div class="payback-inline-bar" id="payback-inline-bar">
+          <span class="payback-inline-key" data-i18n="modal.evTitle">你的预期使用时长 vs 累计回本节点</span>
+          <span class="payback-inline-val mono" id="lbl-ev-gap">--</span>
         </div>
 
         <div class="step1-next-wrap" style="margin-top: 28px;">

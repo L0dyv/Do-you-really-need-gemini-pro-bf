@@ -1851,117 +1851,6 @@ body.is-marquee-dragging {
   flex-wrap: nowrap;
 }
 
-.prop-row-labeled-slider {
-  padding-top: 24px;
-  padding-bottom: 18px;
-}
-
-/* Full 12-Month Segmented Inertia Slider (Dec 2026 -> SOTA End -> Nov 2027) */
-.inertia-axis-wrap {
-  position: relative;
-  flex: 1;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  margin: 0 4px;
-}
-
-.inertia-rail {
-  position: relative;
-  width: 100%;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--border-2);
-}
-
-.inertia-sota-fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  border-radius: 2px 0 0 2px;
-  background: var(--ink);
-  pointer-events: none;
-}
-
-.inertia-extra-fill {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: var(--ink-2);
-  opacity: 0.45;
-  pointer-events: none;
-}
-
-.inertia-sota-mark {
-  position: absolute;
-  top: 50%;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: 2px solid var(--ink);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  z-index: 1;
-}
-
-.inertia-range-input {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  margin: 0;
-  height: 18px;
-  background: transparent !important;
-  z-index: 2;
-}
-
-.inertia-range-input:disabled {
-  cursor: default;
-}
-
-.slider-thumb-tag {
-  position: absolute;
-  top: -19px;
-  transform: translateX(-50%);
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--ink);
-  white-space: nowrap;
-  pointer-events: none;
-  line-height: 1.2;
-}
-
-.inertia-axis-labels {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 19px;
-  height: 14px;
-  font-size: 10.5px;
-  color: var(--ink-3);
-  pointer-events: none;
-}
-
-.inertia-ax-start {
-  position: absolute;
-  left: 0;
-  white-space: nowrap;
-}
-
-.inertia-ax-sota {
-  position: absolute;
-  transform: translateX(-50%);
-  color: var(--ink-2);
-  white-space: nowrap;
-}
-
-.inertia-ax-end {
-  position: absolute;
-  right: 0;
-  white-space: nowrap;
-}
-
 .val-badge {
   min-width: 92px;
   text-align: right;
@@ -2129,15 +2018,17 @@ input[type="range"]::-moz-range-thumb {
   cursor: pointer;
 }
 
-/* Minimalist Model Lifecycle Timeline (Step 4) */
+/* Minimalist Unified 12-Month Model Lifecycle Axis (Step 4) */
 .lifecycle-bar {
-  padding: 36px 14px 28px;
+  padding: 46px 18px 44px;
+  border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+  margin-top: 8px;
 }
 
 .lifecycle-line {
   position: relative;
-  height: 3px;
+  height: 4px;
   background: var(--border);
   border-radius: 2px;
 }
@@ -2148,8 +2039,17 @@ input[type="range"]::-moz-range-thumb {
   top: 0;
   bottom: 0;
   background: var(--ink);
-  border-radius: 2px;
+  border-radius: 2px 0 0 2px;
   transition: width 0.15s ease;
+}
+
+.lifecycle-seg-extra {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #2383e2;
+  border-radius: 0 2px 2px 0;
+  transition: left 0.15s ease, width 0.15s ease;
 }
 
 .lc-node {
@@ -2160,11 +2060,17 @@ input[type="range"]::-moz-range-thumb {
   flex-direction: column;
   align-items: center;
   transition: left 0.15s ease;
+  z-index: 2;
 }
 
 .lc-node-start {
   transform: translate(0, -50%);
   align-items: flex-start;
+}
+
+.lc-node-end-align {
+  transform: translate(-100%, -50%);
+  align-items: flex-end;
 }
 
 .lc-dot {
@@ -2182,27 +2088,86 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: none;
 }
 
+.lc-dot-blue {
+  background: #2383e2;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #2383e2;
+}
+
 .lc-dot-green {
   background: var(--tag-green-fg);
   border: 2px solid #ffffff;
   box-shadow: 0 0 0 1px var(--tag-green-fg);
 }
 
+.lc-month {
+  position: absolute;
+  bottom: 16px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.lc-month-blue {
+  color: #2383e2;
+}
+
+.lc-month-green {
+  color: var(--tag-green-fg);
+}
+
 .lc-label {
   position: absolute;
   top: 16px;
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--ink-2);
   white-space: nowrap;
+  line-height: 1.2;
 }
 
-.lc-node-next .lc-label {
-  top: -26px;
+.lc-label-blue {
+  color: #2383e2;
+  font-weight: 500;
 }
 
 .lc-label-green {
   color: var(--tag-green-fg);
+  font-weight: 500;
+}
+
+/* Anti-collision vertical stagger when two nodes sit close on the single axis */
+.lc-node.is-staggered .lc-month {
+  bottom: 32px;
+}
+
+.lc-node.is-staggered .lc-label {
+  top: 32px;
+}
+
+/* Compact Inline Payback Status Row (No duplicate second axis) */
+.payback-inline-bar {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 4px;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.payback-inline-key {
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+
+.payback-inline-val {
+  font-size: 13.5px;
   font-weight: 600;
+  color: var(--ink);
 }
 
 /* EV Ruler */

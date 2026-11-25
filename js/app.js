@@ -1328,39 +1328,16 @@
 
     renderDynamicFxPanel(res);
 
-    // Step 4: Model Lifecycle & Post-SOTA Inertia Months
+    // Step 4: Model Lifecycle & Post-SOTA Continuation Months
     const sotaUntilText = formatFutureMonth(2026, 11, state.effectiveSotaMonths);
     const nextWhenText = formatFutureMonth(2026, 11, state.nextFlagshipInterval);
     const totalUntilText = formatFutureMonth(2026, 11, res.expectedActiveMonths);
-    const extraSlider = document.getElementById('inp-post-sota-extra');
-    const sotaAxisPct = (res.sotaCutoff / 12) * 100;
-    const extraSpanPct = (res.maxPostSotaExtra / 12) * 100;
-    const activeAxisPct = (res.expectedActiveMonths / 12) * 100;
+    const fmtNodeMonth = (txt) => (lang === 'en-US' ? txt : txt.slice(2));
 
+    const extraSlider = document.getElementById('inp-post-sota-extra');
     extraSlider.max = String(res.maxPostSotaExtra);
     extraSlider.value = String(res.postSotaExtraMonths);
     extraSlider.disabled = res.maxPostSotaExtra === 0;
-    if (res.maxPostSotaExtra > 0) {
-      extraSlider.style.left = `calc(${sotaAxisPct.toFixed(4)}% - 8px)`;
-      extraSlider.style.width = `calc(${extraSpanPct.toFixed(4)}% + 16px)`;
-    } else {
-      extraSlider.style.left = 'calc(100% - 8px)';
-      extraSlider.style.width = '16px';
-    }
-
-    document.getElementById('inertia-sota-fill').style.width = `${sotaAxisPct.toFixed(4)}%`;
-    const extraFillEl = document.getElementById('inertia-extra-fill');
-    extraFillEl.style.left = `${sotaAxisPct.toFixed(4)}%`;
-    extraFillEl.style.width = `${Math.max(0, activeAxisPct - sotaAxisPct).toFixed(4)}%`;
-    const sotaMarkEl = document.getElementById('inertia-sota-mark');
-    sotaMarkEl.style.left = `${sotaAxisPct.toFixed(4)}%`;
-    const axSotaEl = document.getElementById('inertia-ax-sota');
-    axSotaEl.style.left = `${sotaAxisPct.toFixed(4)}%`;
-    axSotaEl.style.display = res.sotaCutoff >= 2 && res.sotaCutoff <= 10 ? 'inline' : 'none';
-
-    const thumbTagEl = document.getElementById('tag-post-sota-month');
-    thumbTagEl.style.left = `${activeAxisPct.toFixed(4)}%`;
-    thumbTagEl.textContent = lang === 'en-US' ? totalUntilText : totalUntilText.slice(2);
 
     document.getElementById('lbl-sota-len').textContent = t('modal.monthsVal', { n: state.effectiveSotaMonths });
     document.getElementById('lbl-next-interval').textContent = t('modal.monthsVal', { n: state.nextFlagshipInterval });
@@ -1385,41 +1362,59 @@
               totalUntil: totalUntilText,
             });
 
-    const sotaPct = Math.min(94, Math.max(8, (state.effectiveSotaMonths / 12) * 100));
-    const nextPct = Math.min(96, Math.max(12, (state.nextFlagshipInterval / 12) * 100));
-    document.getElementById('lc-active-seg').style.width = `${sotaPct}%`;
-    document.getElementById('lc-sota-node').style.left = `${sotaPct}%`;
-    document.getElementById('lc-sota-label').textContent = t('modal.nodeSota', { when: lang === 'en-US' ? sotaUntilText : sotaUntilText.slice(2) });
-    document.getElementById('lc-next-node').style.left = `${nextPct}%`;
-    document.getElementById('lc-next-label').textContent = t('modal.nodeNext', { when: lang === 'en-US' ? nextWhenText : nextWhenText.slice(2) });
+    // Single Unified 12-Month Axis: [0..SOTA] black, [SOTA..Active] blue, plus Next-Gen SOTA green node
+    const sotaPct = (res.sotaCutoff / 12) * 100;
+    const activePct = (res.expectedActiveMonths / 12) * 100;
+    const nextPct = Math.min(100, Math.max(8, (state.nextFlagshipInterval / 12) * 100));
 
-    const evLineEl = document.getElementById('ev-threshold-line');
-    const evTagEl = document.getElementById('ev-threshold-tag');
+    document.getElementById('lc-active-seg').style.width = `${sotaPct.toFixed(4)}%`;
+    const extraSegEl = document.getElementById('lc-extra-seg');
+    extraSegEl.style.left = `${sotaPct.toFixed(4)}%`;
+    extraSegEl.style.width = `${Math.max(0, activePct - sotaPct).toFixed(4)}%`;
+
+    const sotaNodeEl = document.getElementById('lc-sota-node');
+    const extraNodeEl = document.getElementById('lc-extra-node');
+    const nextNodeEl = document.getElementById('lc-next-node');
+
+    sotaNodeEl.style.left = `${sotaPct.toFixed(4)}%`;
+    sotaNodeEl.classList.toggle('lc-node-end-align', sotaPct >= 95);
+    document.getElementById('lc-sota-month').textContent = fmtNodeMonth(sotaUntilText);
+
+    const showExtraNode = res.postSotaExtraMonths > 0;
+    extraNodeEl.style.display = showExtraNode ? 'flex' : 'none';
+    if (showExtraNode) {
+      extraNodeEl.style.left = `${activePct.toFixed(4)}%`;
+      extraNodeEl.classList.toggle('lc-node-end-align', activePct >= 95);
+      document.getElementById('lc-extra-month').textContent = fmtNodeMonth(totalUntilText);
+    }
+
+    nextNodeEl.style.left = `${nextPct.toFixed(4)}%`;
+    nextNodeEl.classList.toggle('lc-node-end-align', nextPct >= 95);
+    document.getElementById('lc-next-month').textContent = fmtNodeMonth(nextWhenText);
+
+    // Anti-collision staggering so month labels above & role labels below never overlap
+    const extraNearSota = showExtraNode && Math.abs(activePct - sotaPct) < 13;
+    extraNodeEl.classList.toggle('is-staggered', extraNearSota);
+    const nextNearSota = Math.abs(nextPct - sotaPct) < 13;
+    const nextNearExtra = showExtraNode && Math.abs(nextPct - activePct) < 13;
+    nextNodeEl.classList.toggle('is-staggered', (nextNearSota || nextNearExtra) && !(nextNearExtra && extraNearSota));
+
+    // Compact Inline Payback Status Row
     const evGapEl = document.getElementById('lbl-ev-gap');
-    const userDotPct = Math.min(100, Math.max(0, (res.expectedActiveMonths / 12) * 100));
-    document.getElementById('ev-user-dot').style.left = `${userDotPct}%`;
-
     if (res.breakEvenMonthNum != null && res.breakEvenMonthNum > 0) {
-      evLineEl.style.display = 'block';
-      const linePct = Math.min(96, Math.max(4, (res.breakEvenMonthNum / 12) * 100));
-      evLineEl.style.left = `${linePct}%`;
-      evTagEl.textContent = t('modal.evLine', { m: res.breakEvenMonthNum });
       if (res.breakEvenStatus === 'already_even') {
-        evGapEl.textContent = t('modal.evAlready');
+        evGapEl.textContent = t('modal.evAlready', { m: res.breakEvenMonthNum });
       } else if (res.monthMargin > 0) {
-        evGapEl.textContent = t('modal.evAbove', { gap: res.monthMargin });
+        evGapEl.textContent = t('modal.evAbove', { m: res.breakEvenMonthNum, gap: res.monthMargin });
       } else if (res.monthMargin === 0) {
         evGapEl.textContent = t('modal.evExact', { m: res.breakEvenMonthNum });
       } else {
-        evGapEl.textContent = t('modal.evBelow', { gap: Math.abs(res.monthMargin) });
+        evGapEl.textContent = t('modal.evBelow', { m: res.breakEvenMonthNum, gap: Math.abs(res.monthMargin) });
       }
+    } else if (res.breakEvenStatus === 'already_even') {
+      evGapEl.textContent = t('modal.evAlready', { m: 1 });
     } else {
-      evLineEl.style.display = 'none';
-      if (res.breakEvenStatus === 'already_even') {
-        evGapEl.textContent = t('modal.evAlready');
-      } else {
-        evGapEl.textContent = t('modal.evImpossible');
-      }
+      evGapEl.textContent = t('modal.evImpossible');
     }
 
     // STEP 5: Institutional Financial Decision Memo (supports switching between Standard Outlook & any of the 4 scenarios)
@@ -2526,7 +2521,7 @@
         ? [
             '[Do You Really Need Gemini Pro Black Friday?]',
             `- Verdict: ${res.verdict.badge} (${res.verdict.headline})`,
-            `- Expected Active Span: ${res.expectedActiveMonths} mo (${res.sotaCutoff} mo SOTA + ${res.postSotaExtraMonths} mo inertia · Payback: ${lineStr})`,
+            `- Expected Active Span: ${res.expectedActiveMonths} mo (${res.sotaCutoff} mo SOTA + ${res.postSotaExtraMonths} mo post-SOTA · Payback: ${lineStr})`,
             `- Plan A (No BF) vs Buy (at ${res.expectedActiveMonths} mo): ${fmtYen(res.totalSkipCost)} vs ${fmtYen(res.expectedBuyCost)}`,
             `- Expected Net Savings: ${fmtYen(res.expectedNetSavings, true)}`,
             `- Cumulative Payback: ${crossStr}`,
@@ -2535,7 +2530,7 @@
         : [
             '【AI 黑五包年决策账本】',
             `- 结论：${res.verdict.badge}（${res.verdict.headline}）`,
-            `- 预期使用时长：共 ${res.expectedActiveMonths} 个月（SOTA ${res.sotaCutoff} 月 + 惯性多用 ${res.postSotaExtraMonths} 月 · 回本线：${lineStr}）`,
+            `- 预期使用时长：共 ${res.expectedActiveMonths} 个月（SOTA ${res.sotaCutoff} 月 + 后续多用 ${res.postSotaExtraMonths} 月 · 回本线：${lineStr}）`,
             `- 总花费对照：不买黑五 ${fmtYen(res.totalSkipCost)} vs 按预期买入支出 ${fmtYen(res.expectedBuyCost)}`,
             `- 预期净节省：${fmtYen(res.expectedNetSavings, true)}`,
             `- 累计回本节点：${crossStr}`,
