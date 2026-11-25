@@ -101,13 +101,14 @@
     const evSignColor = evRounded > 0 ? '#1c3829' : evRounded < 0 ? '#5d1715' : '#37352f';
     const evDigits = `${M.sym}${Math.abs(evRounded).toLocaleString('en-US')}`;
     const rateStr = `${res.evReturnPct >= 0 ? '+' : ''}${res.evReturnPct.toFixed(1)}%`;
-    const evRateLine = res.bfCost > 0
-      ? (isEn ? `Expected Net Savings Rate ${rateStr} (on ${M.fmtMoney(res.bfCost)} upfront)` : `期望净节省率 ${rateStr}（相对今日预付 ${M.fmtMoney(res.bfCost)}）`)
-      : '';
-
     const pPct = Math.round(Number(state.retainProbPct) || 0);
     const wU = Math.min(100, Math.max(0, pPct));
     const wD = 100 - wU;
+    const evRateLine = res.bfCost > 0
+      ? (isEn
+          ? `${wD}% × (${M.fmtMoney(res.downsideNet, true)}) + ${wU}% × (${M.fmtMoney(res.upsideNet, true)}) · ${rateStr} on upfront`
+          : `${wD}% × (${M.fmtMoney(res.downsideNet, true)}) + ${wU}% × (${M.fmtMoney(res.upsideNet, true)}) · 相对预付 ${rateStr}`)
+      : '';
     let probSub;
     if (res.breakEvenProbStatus === 'already_even') {
       probSub = isEn ? 'Locked even in SOTA span (0% line)' : '主力期内已锁定回本（盈亏线 0%）';
@@ -145,35 +146,53 @@
       ? `Upfront ${M.fmtMoney(res.bfCost)}  ·  Avg ${M.fmtMoneyDec(res.bfMonthlyAvg, 1)}/mo  ·  Plan A ${M.fmtMoney(res.totalSkipCost)} vs Plan B ${M.fmtMoney(res.totalBuyCost)}  ·  FX: ${fxSummary}`
       : `今日预付 ${M.fmtMoney(res.bfCost)}  ·  年费月均 ${M.fmtMoneyDec(res.bfMonthlyAvg, 1)}/月  ·  不买 ${M.fmtMoney(res.totalSkipCost)} vs 买黑五 ${M.fmtMoney(res.totalBuyCost)}  ·  汇率：${fxSummary}`;
 
-    // 2. 4-Scenario Early-Abandonment Stress Test directly under Hero EV (y = 376..568)
-    const tblHeadY = 384;
-    const tblRowH = 42;
+    // 2. Tiered Scenario Table directly under Hero EV: Prominent Standard EV Row + 4 Quieter Fixed Cases
+    const tblHeadY = 380;
+    const stdRowY = tblHeadY + 12;
+    const stdRowH = 44;
+    const expectedBuyCost = res.totalSkipCost - res.expectedNetSavings;
+    const evPillBg = evRounded > 0 ? '#dbeddb' : evRounded < 0 ? '#ffe2dd' : '#e3e2e0';
+    const evPillFg = evRounded > 0 ? '#1c3829' : evRounded < 0 ? '#5d1715' : '#32302c';
+    const stdTitle = isEn ? 'Standard Case · Weighted by Your Outlook' : '标准情况 · 按你的预期综合估算';
+    const stdSub = isEn
+      ? `Your outlook: ${wD}% chance to drop as primary after Mo ${res.sotaCutoff} (${M.fmtMoney(res.downsideNet, true)}), ${wU}% full year (${M.fmtMoney(res.upsideNet, true)})`
+      : `预期前 ${res.sotaCutoff} 个月后 ${wD}% 概率不再当主力（${M.fmtMoney(res.downsideNet, true)}），${wU}% 概率用满全年（${M.fmtMoney(res.upsideNet, true)}）`;
+    const stdRowSvg = `
+      <rect x="${padX}" y="${stdRowY}" width="${contentW}" height="${stdRowH}" fill="#f7f6f3"/>
+      <rect x="${padX}" y="${stdRowY}" width="3" height="${stdRowH}" fill="#37352f"/>
+      <line x1="${padX}" y1="${stdRowY}" x2="${W - padX}" y2="${stdRowY}" stroke="#d3d1cb" stroke-width="1.2"/>
+      <text x="${padX + 12}" y="${stdRowY + 19}" fill="#37352f" font-size="13" font-weight="600" font-family="${fontSans}">${esc(stdTitle)}</text>
+      <text x="${padX + 12}" y="${stdRowY + 35}" fill="#787774" font-size="10.5" font-family="${fontSans}">${esc(stdSub)}</text>
+      <text x="${W - padX - 216}" y="${stdRowY + 26}" text-anchor="end" fill="#37352f" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(expectedBuyCost))}</text>
+      <text x="${W - padX - 112}" y="${stdRowY + 26}" text-anchor="end" fill="#37352f" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(res.totalSkipCost))}</text>
+      <rect x="${W - padX - 84}" y="${stdRowY + 11}" width="80" height="22" rx="3" fill="${evPillBg}"/>
+      <text x="${W - padX - 10}" y="${stdRowY + 26}" text-anchor="end" fill="${evPillFg}" font-size="13" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(res.expectedNetSavings, true))}</text>
+    `;
+
+    const tblRowH = 34;
+    const subStartY = stdRowY + stdRowH;
     const scenRows = res.scenarios
       .map((sc, i) => {
-        const y = tblHeadY + 12 + i * tblRowH;
+        const y = subStartY + i * tblRowH;
         const rounded = Math.round(M.conv(sc.diff));
         const pillBg = rounded > 0 ? '#dbeddb' : rounded < 0 ? '#ffe2dd' : '#e3e2e0';
         const pillFg = rounded > 0 ? '#1c3829' : rounded < 0 ? '#5d1715' : '#32302c';
-        const rowBg = sc.isBaseline ? `<rect x="${padX}" y="${y}" width="${contentW}" height="${tblRowH}" fill="#f7f6f3"/>` : '';
-        const topStroke = sc.isBaseline ? '#d3d1cb' : '#e9e9e7';
-        const topWidth = sc.isBaseline ? '1.5' : '1';
         return `
-          ${rowBg}
-          <line x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}" stroke="${topStroke}" stroke-width="${topWidth}"/>
-          <text x="${padX + 6}" y="${y + 18}" fill="#37352f" font-size="12.5" font-weight="500" font-family="${fontSans}">${esc(sc.title)}</text>
-          <text x="${padX + 6}" y="${y + 34}" fill="#9b9a97" font-size="10.5" font-family="${fontSans}">${esc(sc.periodNote || '')}</text>
-          <text x="${W - padX - 216}" y="${y + 25}" text-anchor="end" fill="#37352f" font-size="12.5" font-family="${fontMono}">${esc(M.fmtNum(sc.buyTotal))}</text>
-          <text x="${W - padX - 112}" y="${y + 25}" text-anchor="end" fill="#37352f" font-size="12.5" font-family="${fontMono}">${esc(M.fmtNum(sc.skipTotal))}</text>
-          <rect x="${W - padX - 84}" y="${y + 10}" width="80" height="22" rx="3" fill="${pillBg}"/>
-          <text x="${W - padX - 10}" y="${y + 25}" text-anchor="end" fill="${pillFg}" font-size="12.5" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(sc.diff, true))}</text>
+          <line x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}" stroke="#e9e9e7" stroke-width="1"/>
+          <text x="${padX + 12}" y="${y + 15}" fill="#787774" font-size="11.5" font-weight="500" font-family="${fontSans}">${esc(sc.title)}</text>
+          <text x="${padX + 12}" y="${y + 28}" fill="#9b9a97" font-size="9.5" font-family="${fontSans}">${esc(sc.periodNote || '')}</text>
+          <text x="${W - padX - 216}" y="${y + 21}" text-anchor="end" fill="#787774" font-size="11.5" font-family="${fontMono}">${esc(M.fmtNum(sc.buyTotal))}</text>
+          <text x="${W - padX - 112}" y="${y + 21}" text-anchor="end" fill="#787774" font-size="11.5" font-family="${fontMono}">${esc(M.fmtNum(sc.skipTotal))}</text>
+          <rect x="${W - padX - 80}" y="${y + 8}" width="76" height="19" rx="3" fill="${pillBg}"/>
+          <text x="${W - padX - 10}" y="${y + 21}" text-anchor="end" fill="${pillFg}" font-size="11.5" font-weight="600" font-family="${fontMono}">${esc(M.fmtNum(sc.diff, true))}</text>
         `;
       })
       .join('');
 
-    const tblBottomY = tblHeadY + 12 + res.scenarios.length * tblRowH;
+    const tblBottomY = subStartY + res.scenarios.length * tblRowH;
     const evFormulaLine = isEn
-      ? `Expected Net Savings ${M.fmtMoney(res.expectedNetSavings, true)} = ${wD}% × (${M.fmtMoney(res.downsideNet, true)}) + ${wU}% × (${M.fmtMoney(res.upsideNet, true)}) · Net Saved = Without BF − Buy (${cur}).`
-      : `上方期望净节省 ${M.fmtMoney(res.expectedNetSavings, true)} = ${wD}% × (${M.fmtMoney(res.downsideNet, true)}) + ${wU}% × (${M.fmtMoney(res.upsideNet, true)})。净节省 = 不买黑五 − 买入支出（${cur}）。`;
+      ? `Net Saved = Without BF − Buy (${cur}, spot 1 USD ≈ 6.67 CNY). Top row is the standard retention-weighted estimate; 4 compact rows below show fixed cutoff cases.`
+      : `净节省 = 不买黑五 − 买入支出（${cur}，基准 1 USD ≈ 6.67 CNY）。首行为按留存把握加权的标准结论，下方 4 行为不计概率的固定情景对照。`;
 
     // 3. Cumulative Chart with Day 0 ("今日" / "Now")
     const chartTop = 656;
@@ -282,13 +301,14 @@
   <text x="${padX}" y="${heroBot + 24}" fill="#787774" font-size="12" font-family="${fontMono}">${esc(stripText)}</text>
   <line x1="${padX}" y1="${heroBot + 36}" x2="${W - padX}" y2="${heroBot + 36}" stroke="#e9e9e7" stroke-width="1"/>
 
-  <!-- 4-Scenario Early-Abandonment Stress Test (directly beneath Hero EV) -->
-  <text x="${padX}" y="${tblHeadY - 14}" fill="#37352f" font-size="13.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Early-Abandonment Stress Test' : '提前弃用风险对照'}</text>
-  <text x="${W - padX}" y="${tblHeadY - 14}" text-anchor="end" fill="#9b9a97" font-size="11" font-family="${fontMono}">${isEn ? `Unit: ${cur} · Reverts to Plan A if BF dropped early` : `单位：${cur} · 假设中途弃用黑五后改回方案 A`}</text>
-  <text x="${padX + 6}" y="${tblHeadY + 4}" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Scenario' : '情景'}</text>
-  <text x="${W - padX - 216}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? `Buy (${cur})` : `买入支出 (${cur})`}</text>
-  <text x="${W - padX - 112}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? `Without BF (${cur})` : `不买黑五 (${cur})`}</text>
-  <text x="${W - padX - 6}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Net Saved' : '净节省'}</text>
+  <!-- Tiered Scenario Table (Standard EV Primary Row + 4 Compact Fixed Cases) -->
+  <text x="${padX}" y="${tblHeadY - 14}" fill="#37352f" font-size="13.5" font-weight="600" font-family="${fontSans}">${isEn ? 'Standard Result &amp; What-If Cases' : '标准结论与极端情景对照'}</text>
+  <text x="${W - padX}" y="${tblHeadY - 14}" text-anchor="end" fill="#9b9a97" font-size="11" font-family="${fontMono}">${isEn ? `Unit: ${cur}` : `单位：${cur}`}</text>
+  <text x="${padX + 12}" y="${tblHeadY + 4}" fill="#787774" font-size="11" font-weight="600" font-family="${fontSans}">${isEn ? 'Scenario' : '情景'}</text>
+  <text x="${W - padX - 216}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11" font-weight="600" font-family="${fontSans}">${isEn ? `Buy (${cur})` : `买入支出 (${cur})`}</text>
+  <text x="${W - padX - 112}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11" font-weight="600" font-family="${fontSans}">${isEn ? `Without BF (${cur})` : `不买黑五 (${cur})`}</text>
+  <text x="${W - padX - 6}" y="${tblHeadY + 4}" text-anchor="end" fill="#787774" font-size="11" font-weight="600" font-family="${fontSans}">${isEn ? 'Net Saved' : '净节省'}</text>
+  ${stdRowSvg}
   ${scenRows}
   <line x1="${padX}" y1="${tblBottomY}" x2="${W - padX}" y2="${tblBottomY}" stroke="#e9e9e7" stroke-width="1"/>
   <text x="${padX}" y="${tblBottomY + 19}" fill="#787774" font-size="11" font-family="${fontSans}">${esc(evFormulaLine)}</text>

@@ -267,18 +267,18 @@
 
     const afterSotaLabel = sotaCutoff < 12
       ? (isEn
-          ? `Reverts to Plan A after Mo ${sotaCutoff} · ${wD}% weight in EV`
-          : `第 ${sotaCutoff + 1} 月起改回方案 A · 按 ${wD}% 弃用概率计入上方期望`)
+          ? `Stops using BF as primary after Mo ${sotaCutoff} · ${wD}% weight`
+          : `第 ${sotaCutoff + 1} 月起不再用黑五当主力、改回方案 A · 权重 ${wD}%`)
       : (isEn
-          ? `Full 12 months within SOTA span · ${wD}% weight in EV`
-          : `全年均在主力期内 · 按 ${wD}% 权重计入上方期望`);
+          ? `All 12 months within SOTA span · ${wD}% weight`
+          : `全年均在主力期内 · 权重 ${wD}%`);
 
     return [
       {
         id: 'immediate_stop',
         cutoff: 0,
-        title: isEn ? 'Worst Case: Abandoned Immediately (0 mo)' : '极端情况：买完即弃用（0 个月）',
-        periodNote: isEn ? 'Plan unused from Month 1; upfront fee lost' : '计划完全落空，白花今日预付年费',
+        title: isEn ? '0 mo as primary (dropped immediately)' : '0 个月主力（买完即弃用）',
+        periodNote: isEn ? 'BF Gemini Pro unused from Month 1; upfront fee lost' : '全程未把黑五 Gemini Pro 当主力，白花今日预付年费',
         tag: isEn ? 'Floor' : '风控底线',
         tone: 'red',
         buyTotal: s0.buyTotal,
@@ -289,8 +289,8 @@
         id: 'sota_cutoff',
         cutoff: sotaCutoff,
         title: isEn
-          ? `Drop After SOTA Span (Active ${sotaEndLabel})`
-          : `主力期后弃用（仅生效${sotaEndLabel}）`,
+          ? `First ${sotaCutoff} mo as primary (dropped after SOTA)`
+          : `前 ${sotaCutoff} 个月主力（主力期后弃用）`,
         periodNote: afterSotaLabel,
         tag: isEn ? `${wD}% Weight` : `${wD}% 权重`,
         tone: 'amber',
@@ -302,9 +302,9 @@
         id: 'next_gen_review',
         cutoff: nextGenCutoff,
         title: isEn
-          ? `Hold Until Next-Gen Launch (Active ${nextEndLabel})`
-          : `撑到下代旗舰前（生效${nextEndLabel}）`,
-        periodNote: isEn ? `Follows Plan B until est. next Gemini SOTA (${nextEndLabel})` : `下代 Gemini SOTA 发布前按方案 B 执行（第 ${nextGenCutoff} 月止）`,
+          ? `First ${nextGenCutoff} mo as primary (until next flagship)`
+          : `前 ${nextGenCutoff} 个月主力（撑到下代旗舰前）`,
+        periodNote: isEn ? `Uses BF Gemini Pro as primary until est. next Gemini SOTA` : `下代 Gemini SOTA 发布前持续把黑五当主力`,
         tag: isEn ? 'Review' : '复评节点',
         tone: 'blue',
         buyTotal: sNext.buyTotal,
@@ -314,10 +314,10 @@
       {
         id: 'full_plan',
         cutoff: 12,
-        title: isEn ? 'Full 12-Month Plan Executed · Baseline' : '按第 3 步计划执行满全年（12 个月 · 基准）',
+        title: isEn ? 'All 12 mo as primary (full Plan B)' : '全年 12 个月主力（完整执行方案 B）',
         periodNote: isEn
-          ? `Executes your Step 3 plan in full · ${wU}% retention weight in EV`
-          : `完整执行你填写的 12 个月方案 · 按 ${wU}% 留存把握计入上方期望`,
+          ? `Uses BF per your full 12-month plan · ${wU}% weight`
+          : `全年按你排布的方案使用黑五 · 权重 ${wU}%`,
         tag: isEn ? `${wU}% Weight` : `${wU}% 权重`,
         tone: 'green',
         isBaseline: true,

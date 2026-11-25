@@ -1251,13 +1251,14 @@
     const mobPrev = document.getElementById('btn-mobile-prev');
     const mobNext = document.getElementById('btn-mobile-next');
     const isStep1Picked = Boolean(state.bfPicked);
-    // Show right-edge Next ONLY on steps without an in-page primary CTA (Steps 2 & 3)
+    // Hide left-edge Back on Step 1 and final Decision Memo; show right-edge Next ONLY on table steps (2 & 3)
+    const hidePrev = currentStep === 0 || currentStep === STEPS.length - 1;
     const hideNext = currentStep === 0 || currentStep >= 3;
-    prevBtn.classList.toggle('is-hidden', currentStep === 0);
+    prevBtn.classList.toggle('is-hidden', hidePrev);
     nextBtn.classList.toggle('is-hidden', hideNext);
     nextBtn.classList.toggle('is-emphasized', false);
     document.getElementById('side-next-tip').textContent = t('nav.next');
-    mobPrev.style.visibility = currentStep === 0 ? 'hidden' : 'visible';
+    mobPrev.style.visibility = hidePrev ? 'hidden' : 'visible';
     mobNext.style.visibility = hideNext ? 'hidden' : 'visible';
     document.getElementById('export-group').style.display =
       currentStep === 4 && !isCalculatingFinal ? 'flex' : 'none';
@@ -1363,7 +1364,6 @@
     document.querySelectorAll('[data-disp-cur]').forEach((btn) => {
       btn.classList.toggle('is-active', btn.dataset.dispCur === dispCur);
     });
-    document.getElementById('btn-scen-reset-ev').style.display = activeSc ? 'inline-flex' : 'none';
     document.getElementById('scen-unit-note').textContent = t('step4.scenNoteCur', { cur: dispCur });
     document.getElementById('th-scen-buy').textContent = t('step4.scenColBuyCur', { cur: dispCur });
     document.getElementById('th-scen-skip').textContent = t('step4.scenColSkipCur', { cur: dispCur });
@@ -1436,7 +1436,13 @@
 
       const rateStr = `${res.evReturnPct >= 0 ? '+' : ''}${res.evReturnPct.toFixed(1)}%`;
       document.getElementById('memo-ev-rate').textContent = res.bfCost > 0
-        ? t('step4.evRateText', { rate: rateStr, bf: fmtYen(res.bfCost) })
+        ? t('step4.evRateFormula', {
+            wD,
+            d: fmtYen(res.downsideNet, true),
+            wU,
+            u: fmtYen(res.upsideNet, true),
+            rate: rateStr,
+          })
         : '';
 
       // Condition 1: Retention Confidence vs Break-Even Line
@@ -1515,17 +1521,40 @@
     document.getElementById('legacy-ultra-risk-note').style.display =
       res.hasLegacyTurkeyUltra ? 'block' : 'none';
 
-    // Cumulative Chart, 4-Scenario Table, 3x3 Sensitivity Matrix
+    // Cumulative Chart, Tiered Scenario Table (Standard EV Row + 4 Compact What-If Rows), 3x3 Sensitivity Matrix
     renderChart(res, scenOverlay);
 
-    document.getElementById('scenarios-tbody').innerHTML = res.scenarios
+    const expectedBuyCost = res.totalSkipCost - res.expectedNetSavings;
+    const evRoundedNum = Math.round(res.expectedNetSavings);
+    const evPillCls = evRoundedNum > 0 ? 'is-pos' : evRoundedNum < 0 ? 'is-neg' : 'is-zero';
+    const isStdActive = !activeSc;
+    const stdRowHtml = `
+      <tr class="fin-row-selectable fin-row-standard ${isStdActive ? 'fin-row-active' : ''}" data-scenario-id="__ev__" role="button" tabindex="0" aria-pressed="${isStdActive ? 'true' : 'false'}">
+        <td>
+          <div class="scen-cell-wrap">
+            <span class="scen-radio-dot" aria-hidden="true"></span>
+            <div>
+              <div class="fin-scen-title">${escapeHtml(t('step4.scenStdTitle'))}</div>
+              <div class="fin-scen-sub">${escapeHtml(t('step4.scenStdSub', { k: res.sotaCutoff, wU, wD, d: fmtYen(res.downsideNet, true), u: fmtYen(res.upsideNet, true) }))}</div>
+            </div>
+          </div>
+        </td>
+        <td class="num mono" style="font-weight:600;">${fmtNum(expectedBuyCost)}</td>
+        <td class="num mono" style="font-weight:600;">${fmtNum(res.totalSkipCost)}</td>
+        <td class="num mono"><span class="fin-diff-pill ${evPillCls}">${escapeHtml(fmtNum(res.expectedNetSavings, true))}</span></td>
+      </tr>
+      <tr class="fin-row-divider">
+        <td colspan="4">${escapeHtml(t('step4.scenSubDivider'))}</td>
+      </tr>`;
+
+    const whatIfRowsHtml = res.scenarios
       .map((sc) => {
         const rounded = Math.round(sc.diff);
         const pillCls = rounded > 0 ? 'is-pos' : rounded < 0 ? 'is-neg' : 'is-zero';
         const isActive = activeSc && activeSc.id === sc.id;
         const rowCls = [
           'fin-row-selectable',
-          !activeSc && sc.isBaseline ? 'fin-row-baseline' : '',
+          'fin-row-secondary',
           isActive ? 'fin-row-active' : '',
         ].filter(Boolean).join(' ');
         return `
@@ -1545,6 +1574,8 @@
           </tr>`;
       })
       .join('');
+
+    document.getElementById('scenarios-tbody').innerHTML = stdRowHtml + whatIfRowsHtml;
 
     const displayRows = scenOverlay ? scenOverlay.rows : res.monthlyRows;
     document.getElementById('compare-12m-tbody').innerHTML = displayRows
@@ -1635,26 +1666,25 @@
     });
 
     const scenTbody = document.getElementById('scenarios-tbody');
+    function selectScenarioRow(id) {
+      if (id === '__ev__') {
+        activeScenarioId = null;
+      } else {
+        activeScenarioId = activeScenarioId === id ? null : id;
+      }
+      render();
+    }
     scenTbody.addEventListener('click', (e) => {
       const tr = e.target.closest('tr[data-scenario-id]');
       if (!tr) return;
-      const id = tr.dataset.scenarioId;
-      activeScenarioId = activeScenarioId === id ? null : id;
-      render();
+      selectScenarioRow(tr.dataset.scenarioId);
     });
     scenTbody.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       const tr = e.target.closest('tr[data-scenario-id]');
       if (!tr) return;
       e.preventDefault();
-      const id = tr.dataset.scenarioId;
-      activeScenarioId = activeScenarioId === id ? null : id;
-      render();
-    });
-
-    document.getElementById('btn-scen-reset-ev').addEventListener('click', () => {
-      activeScenarioId = null;
-      render();
+      selectScenarioRow(tr.dataset.scenarioId);
     });
 
     document.getElementById('btn-reset').addEventListener('click', () => {
