@@ -23,9 +23,9 @@
     MONTHS,
     PLAN_BRAND_GROUPS,
     SCENARIO_PRESETS,
-    SUB_CATALOG,
     TRY_FX_HISTORY,
-    buildMonthPlan,
+    buildPlanPair,
+    deriveDefaultBuyPlans,
     makeSubItem,
   } = window.SubLedgerData;
 
@@ -37,7 +37,7 @@
   } = window.SubLedgerCalc;
   const { buildSummarySvg, buildStandaloneHtml, svgToHighResPngBlob } = window.SubLedgerExporter;
 
-  const STORAGE_KEY = 'ai_sub_ledger_state_v11';
+  const STORAGE_KEY = 'ai_sub_ledger_state_v12';
 
   const STEPS = [
     { idx: 0, key: 'nav.step0' },
@@ -50,11 +50,14 @@
     return JSON.parse(JSON.stringify(obj));
   }
 
-  // Fresh UI starts with Step 1 unselected and Step 2's "不买黑五（原方案）" column completely empty
+  // Fresh UI starts with Step 1 unselected, Step 2 in Mode 1 (Plan A only), and all 12 months clean & synced
   function createInitialUiState() {
     const s = cloneState(DEFAULT_STATE);
+    const emptyPair = buildPlanPair('empty');
     s.bfPicked = false;
-    s.monthPlans = buildMonthPlan('empty');
+    s.monthPlans = emptyPair.monthPlans;
+    s.buyMonthPlans = emptyPair.buyMonthPlans;
+    s.buyMonthSynced = emptyPair.buyMonthSynced;
     s.monthEdited = Array(12).fill(false);
     return s;
   }
@@ -64,9 +67,10 @@
   let maxVisitedStep = 0;
   let selectedMonths = new Set();
   let lastCheckedIdx = null;
-  let showBfCompare = true;
+  let showBfCompare = false;
   let phaseModalOpen = false;
-  let pickerState = null; // { targetIndices: number[], anchorRect: DOMRect, showCustom: boolean }
+  // pickerState: { column: 'A'|'B', mode: 'replace'|'add', targetIndices: number[], itemIdx: number|null, anchorRect: DOMRect, showCustom: boolean }
+  let pickerState = null;
   let calcTimers = [];
   let isCalculatingFinal = false;
 
@@ -83,11 +87,29 @@
       if (!parsed.fxAnnualChangePct && parsed.tryAnnualDepRate != null) {
         mergedFx.TRY = Math.round(legacyTryDepToAnnualPct(parsed.tryAnnualDepRate));
       }
+      const plansA = Array.isArray(parsed.monthPlans) && parsed.monthPlans.length === 12
+        ? parsed.monthPlans
+        : Array.from({ length: 12 }, () => []);
+      let plansB;
+      let syncedB;
+      if (
+        Array.isArray(parsed.buyMonthPlans) &&
+        parsed.buyMonthPlans.length === 12 &&
+        Array.isArray(parsed.buyMonthSynced) &&
+        parsed.buyMonthSynced.length === 12
+      ) {
+        plansB = parsed.buyMonthPlans;
+        syncedB = parsed.buyMonthSynced.map(Boolean);
+      } else {
+        const derived = deriveDefaultBuyPlans(plansA);
+        plansB = derived.buyMonthPlans;
+        syncedB = derived.buyMonthSynced;
+      }
       return Object.assign(createInitialUiState(), parsed, {
         fxAnnualChangePct: mergedFx,
-        monthPlans: Array.isArray(parsed.monthPlans) && parsed.monthPlans.length === 12
-          ? parsed.monthPlans
-          : buildMonthPlan('empty'),
+        monthPlans: plansA,
+        buyMonthPlans: plansB,
+        buyMonthSynced: syncedB,
         monthEdited: Array.isArray(parsed.monthEdited) && parsed.monthEdited.length === 12
           ? parsed.monthEdited
           : Array(12).fill(false),
@@ -108,9 +130,19 @@
   function fmtYen(n, withSign) {
     const rounded = Math.round(n);
     if (withSign) {
-      return `${rounded >= 0 ? '+' : '-'}¥${Math.abs(rounded).toLocaleString('zh-CN')}`;
+      if (rounded === 0) return '¥0';
+      return `${rounded > 0 ? '+' : '-'}¥${Math.abs(rounded).toLocaleString('zh-CN')}`;
     }
     return `¥${rounded.toLocaleString('zh-CN')}`;
+  }
+
+  function fmtNum(n, withSign) {
+    const rounded = Math.round(n);
+    if (withSign) {
+      if (rounded === 0) return '0';
+      return `${rounded > 0 ? '+' : '-'}${Math.abs(rounded).toLocaleString('zh-CN')}`;
+    }
+    return rounded.toLocaleString('zh-CN');
   }
 
   function fmtNativeAmount(amount, currency) {
@@ -210,21 +242,57 @@
     });
   }
 
-  function mutateMonths(indices, mutator) {
+  function ensureBuyArrays() {
+    if (!Array.isArray(state.buyMonthPlans) || state.buyMonthPlans.length !== 12) {
+      state.buyMonthPlans = Array.from({ length: 12 }, () => []);
+    }
+    if (!Array.isArray(state.buyMonthSynced) || state.buyMonthSynced.length !== 12) {
+      state.buyMonthSynced = Array(12).fill(true);
+    }
+  }
+
+  function getColumnBasket(column, mIdx) {
+    ensureBuyArrays();
+    if (column === 'B') {
+      return state.buyMonthSynced[mIdx]
+        ? (Array.isArray(state.monthPlans[mIdx]) ? state.monthPlans[mIdx] : [])
+        : (Array.isArray(state.buyMonthPlans[mIdx]) ? state.buyMonthPlans[mIdx] : []);
+    }
+    return Array.isArray(state.monthPlans[mIdx]) ? state.monthPlans[mIdx] : [];
+  }
+
+  function unsyncBuyMonth(mIdx) {
+    ensureBuyArrays();
+    if (state.buyMonthSynced[mIdx]) {
+      const src = Array.isArray(state.monthPlans[mIdx]) ? state.monthPlans[mIdx] : [];
+      state.buyMonthPlans[mIdx] = cloneState(src);
+      state.buyMonthSynced[mIdx] = false;
+    } else if (!Array.isArray(state.buyMonthPlans[mIdx])) {
+      state.buyMonthPlans[mIdx] = [];
+    }
+  }
+
+  function mutateColumnMonths(column, indices, mutator) {
+    ensureBuyArrays();
     indices.forEach((mIdx) => {
-      if (!Array.isArray(state.monthPlans[mIdx])) state.monthPlans[mIdx] = [];
-      mutator(state.monthPlans[mIdx], mIdx);
+      if (column === 'B') {
+        unsyncBuyMonth(mIdx);
+        mutator(state.buyMonthPlans[mIdx], mIdx);
+      } else {
+        if (!Array.isArray(state.monthPlans[mIdx])) state.monthPlans[mIdx] = [];
+        mutator(state.monthPlans[mIdx], mIdx);
+      }
     });
     render();
   }
 
-  // Authentic Brand-Grouped Notion Database Select Popover
+  // Authentic Brand-Grouped Notion Multi-Select Popover (Supports Plan A & Plan B, Replace & Stack, Zero Jargon)
   function renderNotionPicker() {
     if (!pickerState || currentStep !== 1) {
       pickerEl.classList.remove('is-open');
       return;
     }
-    const { targetIndices, anchorRect, showCustom } = pickerState;
+    const { column, mode, targetIndices, itemIdx, anchorRect, showCustom } = pickerState;
     if (!targetIndices || targetIndices.length === 0) {
       pickerState = null;
       pickerEl.classList.remove('is-open');
@@ -232,18 +300,32 @@
     }
 
     const firstIdx = targetIndices[0];
-    const firstArr = state.monthPlans[firstIdx] || [];
-    const currentItem = firstArr[0] || null;
-    const currentId = currentItem ? currentItem.id : 'none_idle';
-    const found = findFamilyByCatalogId(currentId);
+    const firstArr = getColumnBasket(column, firstIdx);
+    const activeSlot = mode === 'add' ? null : (itemIdx != null ? firstArr[itemIdx] : firstArr[0]) || null;
+    const currentId = activeSlot ? activeSlot.id : 'none_idle';
+    const found = activeSlot ? findFamilyByCatalogId(currentId) : null;
     const activeFamily = found ? found.family : null;
 
-    const targetLabel =
-      targetIndices.length === 1
-        ? t('picker.singleTarget', { month: getMonthLabel(firstIdx) })
-        : targetIndices.length === 12
-          ? t('picker.batchAll')
-          : t('picker.batchN', { n: targetIndices.length });
+    let targetLabel;
+    if (targetIndices.length === 1) {
+      if (column === 'B') {
+        targetLabel = mode === 'add'
+          ? t('picker.buyAddTarget', { month: getMonthLabel(firstIdx) })
+          : t('picker.buySingleTarget', { month: getMonthLabel(firstIdx) });
+      } else {
+        targetLabel = mode === 'add'
+          ? t('picker.addTarget', { month: getMonthLabel(firstIdx) })
+          : t('picker.singleTarget', { month: getMonthLabel(firstIdx) });
+      }
+    } else if (mode === 'add') {
+      targetLabel = targetIndices.length === 12
+        ? t('picker.batchAddAll')
+        : t('picker.batchAddN', { n: targetIndices.length });
+    } else {
+      targetLabel = targetIndices.length === 12
+        ? t('picker.batchAll')
+        : t('picker.batchN', { n: targetIndices.length });
+    }
 
     // Region switcher box inside top of dropdown (for multi-region families)
     let regionHtml = '';
@@ -261,68 +343,59 @@
         </div>`;
     }
 
-    // Inline custom price editor for EVERY paid subscription/plan (both replaceable & idle plans!)
+    // Inline custom price editor for EVERY paid subscription/plan
     let priceInlineHtml = '';
-    if (currentItem && currentItem.id !== 'none_idle' && currentItem.id !== 'idle_org_seat') {
-      const isLegacyUltra = currentItem.dynamicPrice === 'gemini_ultra_5x';
-      const curCode = isLegacyUltra ? 'CNY' : (currentItem.currency || 'CNY');
-      const amtVal = isLegacyUltra ? state.currentUltraCny : (currentItem.amount != null ? currentItem.amount : 0);
-      const isTry = curCode === 'TRY' && Boolean(currentItem.replaceableByBf);
+    if (activeSlot && activeSlot.id !== 'none_idle' && activeSlot.id !== 'idle_org_seat') {
+      const isLegacyUltra = activeSlot.dynamicPrice === 'gemini_ultra_5x';
+      const curCode = isLegacyUltra ? 'CNY' : (activeSlot.currency || 'CNY');
+      const amtVal = isLegacyUltra ? state.currentUltraCny : (activeSlot.amount != null ? activeSlot.amount : 0);
+      const isTry = curCode === 'TRY';
       priceInlineHtml = `
         <div class="np-price-inline">
           <select class="flat-select" data-np-cur="1" style="width:94px;">${currencyOptionsHtml(curCode)}</select>
           <input class="flat-input mono" data-np-amt="1" type="number" min="0" max="500000" step="any" value="${amtVal}" style="width:82px;" />
           <label class="check-inline" data-np-hike-wrap="1" style="display:${isTry ? 'inline-flex' : 'none'};font-size:12px;gap:5px;">
-            <input type="checkbox" data-np-hike="1" ${currentItem.midYearHike ? 'checked' : ''} />
+            <input type="checkbox" data-np-hike="1" ${activeSlot.midYearHike ? 'checked' : ''} />
             <span>${escapeHtml(t('picker.hikeCheck'))}</span>
           </label>
           <button type="button" class="subtle-btn btn-xs" data-np-apply-price="1" style="height:28px;padding:0 9px;font-size:12px;">${escapeHtml(t('picker.updatePrice'))}</button>
         </div>`;
     }
 
-    // Brand-grouped list (1 row per plan family)
+    // Clean brand-grouped list (zero replace/idle jargon!)
     const groupsHtml = PLAN_BRAND_GROUPS.map((g) => {
       const rows = g.families
+        .filter((fam) => !(mode === 'add' && fam.id === 'fam_none'))
         .map((fam) => {
           const isAct = activeFamily && activeFamily.id === fam.id;
-          const metaText =
+          const rightMeta =
             fam.variants.length > 1
               ? t('picker.regionsCount', { n: fam.variants.length })
               : fam.variants[0].priceText;
-          const kindHint = fam.kind === 'replace'
-            ? t('picker.canReplace')
-            : (getLang() === 'en-US' ? 'Idle' : fam.badge);
           return `
             <button type="button" class="np-item-btn ${isAct ? 'is-active' : ''}" data-pick-family="${fam.id}">
               <span class="np-item-left">
                 <span class="tag tag-${fam.tone}" style="font-size:12.5px;padding:1px 7px;">${escapeHtml(localizeItemShort(fam.name))}</span>
-                <span class="np-item-meta">${escapeHtml(metaText)}</span>
               </span>
-              <span class="np-item-meta">${escapeHtml(kindHint)}</span>
+              <span class="np-item-meta mono">${escapeHtml(rightMeta)}</span>
             </button>`;
         })
         .join('');
+      if (!rows) return '';
       return `<div class="np-brand-title">${escapeHtml(localizeBrand(g.brand))}</div>${rows}`;
     }).join('');
 
-    // Built-in Custom Plan section at the bottom of the dropdown
+    // Zero-jargon Custom Subscription Form (Name + Currency + Monthly Price)
     const customSectionHtml = showCustom
       ? `
         <div class="np-custom-form">
           <div class="np-custom-row">
-            <select class="flat-select" data-np-ckind="1" style="width:128px;">
-              <option value="replace">${escapeHtml(t('picker.customReplace'))}</option>
-              <option value="idle">${escapeHtml(t('picker.customIdle'))}</option>
-            </select>
             <input class="flat-input" data-np-cname="1" type="text" placeholder="${escapeHtml(t('picker.customNamePh'))}" style="flex:1;min-width:0;" />
           </div>
-          <div class="np-custom-row" data-np-cprice-row="1">
-            <select class="flat-select" data-np-ccur="1" style="width:106px;">${currencyOptionsHtml('CNY')}</select>
+          <div class="np-custom-row">
+            <select class="flat-select" data-np-ccur="1" style="width:106px;">${currencyOptionsHtml('USD')}</select>
             <input class="flat-input mono" data-np-camt="1" type="number" min="0" max="500000" step="any" placeholder="${escapeHtml(t('picker.customPricePh'))}" style="flex:1;min-width:0;" />
             <button type="button" class="primary-btn btn-xs" data-np-csave="1" style="height:30px;">${escapeHtml(t('picker.apply'))}</button>
-          </div>
-          <div class="np-custom-row" data-np-cidle-row="1" style="display:none;justify-content:flex-end;">
-            <button type="button" class="primary-btn btn-xs" data-np-csave="1" style="height:30px;">${escapeHtml(t('picker.applyIdle'))}</button>
           </div>
         </div>`
       : `<button type="button" class="np-custom-toggle" data-np-open-custom="1">${escapeHtml(t('picker.customToggle'))}</button>`;
@@ -358,6 +431,7 @@
     calcTimers = [];
   }
 
+  // Real 12-Month Ledger Replay (~1.12s): plays back actual monthly flows & cumSkip - cumBuy
   function runFinalCalculationSequence() {
     clearCalcTimers();
     const reduceMotion =
@@ -382,43 +456,87 @@
     resultEl.classList.remove('is-revealing');
     exportEl.style.display = 'none';
 
-    const subEl = document.getElementById('calc-stage-sub');
-    const fillEl = document.getElementById('calc-progress-fill');
-    const p0 = document.getElementById('calc-pill-0');
-    const p1 = document.getElementById('calc-pill-1');
-    const p2 = document.getElementById('calc-pill-2');
-
-    [p0, p1, p2].forEach((p) => {
-      p.className = 'calc-pill';
-    });
-    fillEl.style.width = '14%';
-    subEl.textContent = t('step4.calcSub0');
-    p0.classList.add('is-active');
-
     render();
+    const res = calculateLedger(state, getLang());
 
+    const counterEl = document.getElementById('calc-replay-counter');
+    const ticksEl = document.getElementById('calc-replay-ticks');
+    const tapeEl = document.getElementById('calc-replay-tape');
+    const statusEl = document.getElementById('calc-replay-status');
+
+    ticksEl.innerHTML = Array.from({ length: 12 }, (_, idx) => `<span class="replay-tick" data-tick="${idx}"></span>`).join('');
+    const ticks = Array.from(ticksEl.querySelectorAll('.replay-tick'));
+
+    const allTapeEntries = [
+      {
+        col1: t('step4.chartToday'),
+        col2: t('step4.replayUpfront'),
+        cum: -res.bfCost,
+      },
+      ...res.monthlyRows.map((r) => ({
+        col1: getMonthLabel(r.index),
+        col2: r.monthSavedByBf > 0.01
+          ? t('step4.replaySave', { yen: fmtYen(r.monthSavedByBf) })
+          : r.monthSavedByBf < -0.01
+            ? t('step2.extraSpend', { yen: fmtYen(Math.abs(r.monthSavedByBf)) })
+            : t('step4.replayIdle'),
+        cum: r.cumSkip - r.cumBuy,
+      })),
+    ];
+
+    function renderTapeWindow(endIdx) {
+      const start = Math.max(0, endIdx - 2);
+      const slice = allTapeEntries.slice(start, endIdx + 1);
+      tapeEl.innerHTML = slice
+        .map((row, idx) => {
+          const isCur = start + idx === endIdx;
+          const cumCls = row.cum > 0 ? 'is-pos' : row.cum < 0 ? 'is-neg' : '';
+          return `
+            <div class="replay-row ${isCur ? 'is-current' : ''}">
+              <span>${escapeHtml(row.col1)}</span>
+              <span class="r-mid">${escapeHtml(row.col2)}</span>
+              <span class="r-cum ${cumCls}">${escapeHtml(t('step4.replayCum', { yen: fmtYen(row.cum, true) }))}</span>
+            </div>`;
+        })
+        .join('');
+    }
+
+    // 0–140ms: Day 0 upfront
+    counterEl.textContent = '00 / 12';
+    renderTapeWindow(0);
+    statusEl.textContent = `${t('step4.replayUpfront')} ${fmtYen(-res.bfCost, true)}`;
+
+    // 140–800ms: 12 monthly ticks every 55ms
+    for (let m = 0; m < 12; m++) {
+      calcTimers.push(
+        setTimeout(() => {
+          counterEl.textContent = `${String(m + 1).padStart(2, '0')} / 12`;
+          ticks.forEach((tk, idx) => {
+            tk.classList.toggle('is-lit', idx < m);
+            tk.classList.toggle('is-active', idx === m);
+          });
+          renderTapeWindow(m + 1);
+        }, 140 + m * 55)
+      );
+    }
+
+    // 820–980ms: EV weighting summary
     calcTimers.push(
       setTimeout(() => {
-        p0.className = 'calc-pill is-done';
-        p1.className = 'calc-pill is-active';
-        fillEl.style.width = '56%';
-        subEl.textContent = t('step4.calcSub1');
-      }, 280)
+        ticks.forEach((tk) => {
+          tk.classList.add('is-lit');
+          tk.classList.remove('is-active');
+        });
+        const wU = Math.round(Number(state.retainProbPct) || 0);
+        const wD = 100 - wU;
+        statusEl.textContent = `${t('step4.replayWeight', { wD, wU })} · D ${fmtYen(res.downsideNet, true)} / U ${fmtYen(res.upsideNet, true)}`;
+      }, 820)
     );
 
+    // 1020ms: Final reveal
     calcTimers.push(
       setTimeout(() => {
-        p1.className = 'calc-pill is-done';
-        p2.className = 'calc-pill is-active';
-        fillEl.style.width = '90%';
-        subEl.textContent = t('step4.calcSub2');
-      }, 600)
-    );
-
-    calcTimers.push(
-      setTimeout(() => {
-        p2.className = 'calc-pill is-done';
-        fillEl.style.width = '100%';
+        statusEl.textContent = t('step4.replayDone', { ev: fmtYen(res.expectedNetSavings, true) });
         isCalculatingFinal = false;
         stageEl.style.display = 'none';
         resultEl.style.display = 'block';
@@ -426,7 +544,7 @@
         void resultEl.offsetWidth;
         resultEl.classList.add('is-revealing');
         exportEl.style.display = 'flex';
-      }, 940)
+      }, 1060)
     );
   }
 
@@ -606,11 +724,6 @@
   function syncInputsFromState() {
     document.getElementById('inp-bf-currency').value = state.bfCurrency || 'CNY';
     document.getElementById('inp-bf-raw').value = state.bfRawAmount != null ? state.bfRawAmount : state.bfCostCny;
-    document.getElementById('inp-ultra-cny').value = state.currentUltraCny;
-    document.getElementById('inp-fail-month').value = state.ultraFailMonthIndex;
-    document.getElementById('inp-fallback-strategy').value = state.fallbackUltraStrategy;
-    document.getElementById('inp-music-cny').value = state.musicMonthlyCny;
-    document.getElementById('inp-colab-cny').value = state.colabProMonthlyCny || 0;
     document.getElementById('inp-sota-len').value = state.effectiveSotaMonths;
     document.getElementById('inp-next-interval').value = state.nextFlagshipInterval;
     document.getElementById('inp-retain-prob').value = state.retainProbPct;
@@ -625,6 +738,71 @@
 
   const PHASE_CUE_SVG =
     '<span class="phase-pill-cue" aria-hidden="true"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 5h12M2 11h12"/><circle cx="6" cy="5" r="1.8" fill="currentColor"/><circle cx="10.5" cy="11" r="1.8" fill="currentColor"/></svg></span>';
+
+  function renderPillStack(column, rowIdx, items, isSyncedGhost) {
+    const addTitle = escapeHtml(t('step2.addAnotherTitle'));
+    const removeTitle = escapeHtml(t('step2.removeItemTitle'));
+
+    if (!items || items.length === 0) {
+      if (column === 'B') {
+        if (isSyncedGhost) {
+          return `
+            <div class="bf-compare-cell">
+              <span class="bf-synced-muted">${escapeHtml(t('step2.bfWaitBaseline'))}</span>
+              <button type="button" class="cell-add-btn" data-add-picker="B:${rowIdx}" title="${addTitle}">+</button>
+            </div>`;
+        }
+        return `
+          <div class="bf-compare-cell">
+            <button type="button" class="bf-no-extra-pill" data-add-picker="B:${rowIdx}" title="${addTitle}">${escapeHtml(t('step2.bfNoExtra'))}</button>
+            <button type="button" class="cell-add-btn" data-add-picker="B:${rowIdx}" title="${addTitle}">+</button>
+            <button type="button" class="bf-sync-chip" data-sync-b="${rowIdx}" title="${escapeHtml(t('step2.bfSyncBackTip'))}">${escapeHtml(t('step2.bfSyncBack'))}</button>
+          </div>`;
+      }
+      const isOpenEmpty = Boolean(
+        pickerState && pickerState.column === 'A' && pickerState.targetIndices.includes(rowIdx)
+      );
+      return `
+        <button type="button" class="cell-pill-btn tone-empty ${isOpenEmpty ? 'is-open' : ''}" data-open-picker="A:${rowIdx}:0">
+          <span class="cell-pill-text">${escapeHtml(t('step2.pickPlaceholder'))}</span>
+          <span class="cell-pill-caret" aria-hidden="true">▾</span>
+        </button>`;
+    }
+
+    const chipsHtml = items
+      .map((item, idx) => {
+        const tone = `tone-${item.tone || 'gray'}`;
+        const isOpen = Boolean(
+          pickerState &&
+          pickerState.column === column &&
+          pickerState.mode === 'replace' &&
+          pickerState.targetIndices.includes(rowIdx) &&
+          (pickerState.itemIdx === idx || (pickerState.itemIdx == null && idx === 0))
+        );
+        const hikeBadge = item.midYearHike
+          ? `<span class="cell-hike-dot">${escapeHtml(t('step2.hikeTag'))}</span>`
+          : '';
+        return `
+          <span class="pill-chip-group ${tone} ${isSyncedGhost ? 'is-synced-ghost' : ''}">
+            <button type="button" class="cell-pill-btn ${isOpen ? 'is-open' : ''}" data-open-picker="${column}:${rowIdx}:${idx}">
+              <span class="cell-pill-text">${escapeHtml(localizeItemShort(item.short))}</span>
+            </button>
+            <button type="button" class="pill-chip-x" data-remove-item="${column}:${rowIdx}:${idx}" title="${removeTitle}" aria-label="${removeTitle}">×</button>
+          </span>${hikeBadge}`;
+      })
+      .join('');
+
+    const syncHtml = column === 'B' && !isSyncedGhost
+      ? `<button type="button" class="bf-sync-chip" data-sync-b="${rowIdx}" title="${escapeHtml(t('step2.bfSyncBackTip'))}">${escapeHtml(t('step2.bfSyncBack'))}</button>`
+      : '';
+
+    return `
+      <div class="cell-pills-wrap">
+        ${chipsHtml}
+        <button type="button" class="cell-add-btn" data-add-picker="${column}:${rowIdx}" title="${addTitle}">+</button>
+        ${syncHtml}
+      </div>`;
+  }
 
   function renderDatabaseTable(res) {
     const indices = getSelectedIndices();
@@ -641,10 +819,12 @@
     const skipBtn = document.getElementById('btn-mode-skip');
     const buyBtn = document.getElementById('btn-mode-buy');
     const saveThLabel = document.getElementById('th-save-label');
+    const viewHint = document.getElementById('db-view-hint');
     tableEl.classList.toggle('is-compare-hidden', !showBfCompare);
     skipBtn.classList.toggle('is-active', !showBfCompare);
     buyBtn.classList.toggle('is-active', showBfCompare);
     saveThLabel.textContent = showBfCompare ? t('step2.thSaveDiff') : t('step2.thSaveOrig');
+    viewHint.textContent = showBfCompare ? t('step2.hintBuy') : t('step2.hintSkip');
     document.getElementById('lbl-phase-settings-meta').textContent =
       t('step2.phaseMeta', { sota: state.effectiveSotaMonths, prob: state.retainProbPct });
 
@@ -653,63 +833,29 @@
     tbody.innerHTML = res.monthlyRows
       .map((row) => {
         const isSel = selectedMonths.has(row.index);
-        const idleItem = row.items.find((it) => it.isIdlePlan || it.isGeminiUltra || it.dynamicPrice === 'gemini_ultra_5x');
-        const replaceableItem = row.items.find((it) => it.replaceableByBf && !it.isIdlePlan && !it.isGeminiUltra);
-        const primaryItem = idleItem || replaceableItem || null;
-        const isBfActive = row.monthSavedByBf > 0;
-        const isPickerOpen = Boolean(
-          pickerState && pickerState.targetIndices.includes(row.index)
-        );
-
-        const pillTone = primaryItem ? `tone-${primaryItem.tone || 'gray'}` : 'tone-empty';
-        const pillText = primaryItem ? localizeItemShort(primaryItem.short) : t('step2.pickPlaceholder');
-        const isReplacedStrike = showBfCompare && isBfActive && Boolean(replaceableItem);
-        const hikeBadge = replaceableItem && replaceableItem.midYearHike
-          ? `<span class="cell-hike-dot">${escapeHtml(t('step2.hikeTag'))}</span>`
-          : '';
-
         const skipCellHtml = `
           <div class="cell-skip-inner">
             <input type="checkbox" class="cell-chk" data-chk-month="${row.index}" ${isSel ? 'checked' : ''} aria-label="${escapeHtml(getMonthLabel(row.index))}" />
-            <button type="button" class="cell-pill-btn ${pillTone} ${isPickerOpen ? 'is-open' : ''} ${isReplacedStrike ? 'is-replaced-by-bf' : ''}" data-open-picker="${row.index}">
-              <span class="cell-pill-text">${escapeHtml(pillText)}</span>
-              <span class="cell-pill-caret" aria-hidden="true">▾</span>
-            </button>
-            ${hikeBadge}
+            ${renderPillStack('A', row.index, row.items, false)}
           </div>`;
 
-        // Right Column: Pure Black Friday Pro status only (no redundant duplication of left-column plans)
-        let buyCellHtml;
-        if (idleItem && row.ultraFallbackToPro) {
-          buyCellHtml = `
-            <div class="bf-compare-cell">
-              <span class="bf-pill is-active">${escapeHtml(t('step2.bfFallback'))}</span>
-            </div>`;
-        } else if (replaceableItem) {
-          buyCellHtml = `
-            <div class="bf-compare-cell">
-              <span class="bf-pill is-active">${escapeHtml(t('step2.bfReplace'))}</span>
-            </div>`;
-        } else {
-          buyCellHtml = `
-            <div class="bf-compare-cell">
-              <span class="bf-pill is-idle">${escapeHtml(t('step2.bfIdle'))}</span>
-            </div>`;
-        }
+        const buyCellHtml = renderPillStack('B', row.index, row.buyItems, row.buySynced);
 
         let saveText;
         if (showBfCompare) {
-          saveText = isBfActive
-            ? `<span class="mono save-val-active">${escapeHtml(t('step2.saveMonth', { yen: fmtYen(row.monthSavedByBf) }))}</span>`
-            : idleItem
-              ? `<span class="mono save-val-idle">${escapeHtml(t('step2.idleZero'))}</span>`
-              : `<span class="mono save-val-idle">${escapeHtml(t('step2.emptyZero'))}</span>`;
+          if (row.monthSavedByBf > 0.5) {
+            saveText = `<span class="mono save-val-active">${escapeHtml(t('step2.saveMonth', { yen: fmtYen(row.monthSavedByBf) }))}</span>`;
+          } else if (row.monthSavedByBf < -0.5) {
+            saveText = `<span class="mono save-val-neg">${escapeHtml(t('step2.extraSpend', { yen: fmtYen(Math.abs(row.monthSavedByBf)) }))}</span>`;
+          } else if (row.items.length > 0 || row.buyItems.length > 0) {
+            saveText = `<span class="mono save-val-idle">${escapeHtml(t('step2.sameZero'))}</span>`;
+          } else {
+            saveText = `<span class="mono save-val-idle">${escapeHtml(t('step2.emptyZero'))}</span>`;
+          }
         } else {
-          saveText = isBfActive
-            ? `<span class="mono">${fmtYen(row.monthSavedByBf)}</span>`
-            : idleItem
-              ? `<span class="mono save-val-idle">${escapeHtml(t('step2.otherPlan'))}</span>`
-              : '<span class="mono save-val-idle">—</span>';
+          saveText = row.skipMonthFlow > 0
+            ? `<span class="mono">${fmtYen(row.skipMonthFlow)}</span>`
+            : '<span class="mono save-val-idle">—</span>';
         }
 
         return `
@@ -727,36 +873,119 @@
 
     renderNotionPicker();
 
+    const filledMonths = res.monthlyRows.filter((r) => r.items.length > 0).length;
+    const extraB = Math.max(0, res.totalBuyCost - res.bfCost);
+    const netDiff = res.totalSkipCost - res.totalBuyCost;
+    const footDiffHtml = showBfCompare
+      ? (netDiff >= 0
+          ? `<span class="mono save-val-active">${escapeHtml(t('step2.footDiffSave', { yen: fmtYen(netDiff) }))}</span>`
+          : `<span class="mono save-val-neg">${escapeHtml(t('step2.footDiffLoss', { yen: fmtYen(Math.abs(netDiff)) }))}</span>`)
+      : `<span class="unit">${escapeHtml(t('step2.footRight'))}</span>`;
+
     document.getElementById('db-months-tfoot').innerHTML = `
       <tr>
         <td class="mono" style="font-weight:600;">${escapeHtml(t('step2.footTitle'))}</td>
-        <td>${t('step2.footSkip', { pro: res.proCoveredMonths, ultra: res.ultraOverlapMonths, none: res.idleNoneMonths })}</td>
-        <td class="col-buy">${t('step2.footBuy', { pro: res.proCoveredMonths, idle: res.totalIdleMonths })}</td>
-        <td class="num unit">${escapeHtml(t('step2.footRight'))}</td>
+        <td>${t('step2.footSkip', { totalA: fmtYen(res.totalSkipCost), filled: filledMonths })}</td>
+        <td class="col-buy">${t('step2.footBuy', { bf: fmtYen(res.bfCost), extraB: fmtYen(extraB), totalB: fmtYen(res.totalBuyCost) })}</td>
+        <td class="num">${footDiffHtml}</td>
       </tr>`;
   }
 
+  // SVG Bidirectional Payoff Bar (Downside D vs Upside U on shared zero axis)
+  function renderPayoffBar(res) {
+    const container = document.getElementById('payoff-bar-container');
+    const ratioEl = document.getElementById('payoff-ratio-badge');
+
+    const D = res.downsideNet;
+    const U = res.upsideNet;
+    const wU = Math.round(Number(state.retainProbPct) || 0);
+    const wD = 100 - wU;
+
+    const oppositeSigns = (D < 0 && U > 0) || (D > 0 && U < 0);
+    if (D < 0 && U > 0) {
+      ratioEl.textContent = t('step4.payoffRatio', { ratio: (U / Math.abs(D)).toFixed(2) });
+    } else if (U < 0 && D > 0) {
+      ratioEl.textContent = t('step4.payoffRatio', { ratio: (D / Math.abs(U)).toFixed(2) });
+    } else {
+      ratioEl.textContent = '';
+    }
+
+    const W = 760;
+    const H = 86;
+    const padL = 168;
+    const padR = 128;
+    const trackW = W - padL - padR;
+
+    const maxAbs = Math.max(100, Math.abs(D), Math.abs(U));
+    const minVal = Math.min(0, D, U);
+    const maxVal = Math.max(0, D, U);
+    const span = oppositeSigns ? maxAbs * 2 : Math.max(100, maxVal - minVal);
+    const xZero = oppositeSigns
+      ? padL + trackW / 2
+      : minVal < 0
+        ? padL + trackW
+        : padL;
+    const scale = oppositeSigns ? (trackW / 2) / maxAbs : trackW / span;
+
+    function barGeom(val) {
+      const px = Math.abs(val) * scale;
+      if (val >= 0) return { x: xZero, w: Math.max(2, px), fill: '#dbeddb', stroke: '#1c3829', textCls: '#1c3829' };
+      return { x: xZero - Math.max(2, px), w: Math.max(2, px), fill: '#ffe2dd', stroke: '#5d1715', textCls: '#5d1715' };
+    }
+
+    const gD = barGeom(D);
+    const gU = barGeom(U);
+    const lblD = t('step4.payoffDownLabel', { k: res.sotaCutoff });
+    const lblU = t('step4.payoffUpLabel');
+
+    container.innerHTML = `
+      <svg class="payoff-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Downside and Upside payoff comparison">
+        <line x1="${xZero.toFixed(1)}" y1="8" x2="${xZero.toFixed(1)}" y2="${H - 8}" stroke="#d3d1cb" stroke-width="1.2"/>
+        <text x="${xZero.toFixed(1)}" y="${H - 1}" text-anchor="middle" fill="#9b9a97" font-size="10.5" font-family="JetBrains Mono, monospace">¥0</text>
+
+        <!-- Row 1: Downside D -->
+        <text x="2" y="27" fill="#37352f" font-size="12.5" font-weight="500">${escapeHtml(lblD)}</text>
+        <text x="2" y="40" fill="#9b9a97" font-size="11" font-family="JetBrains Mono, monospace">${escapeHtml(t('step4.payoffWeight', { w: wD }))}</text>
+        <rect x="${gD.x.toFixed(1)}" y="16" width="${gD.w.toFixed(1)}" height="18" rx="2.5" fill="${gD.fill}" stroke="${gD.stroke}" stroke-opacity="0.28" stroke-width="1"/>
+        <text x="${W - 4}" y="29" text-anchor="end" fill="${gD.textCls}" font-size="13" font-weight="600" font-family="JetBrains Mono, monospace">${escapeHtml(fmtYen(D, true))}</text>
+
+        <!-- Row 2: Upside U -->
+        <text x="2" y="61" fill="#37352f" font-size="12.5" font-weight="500">${escapeHtml(lblU)}</text>
+        <text x="2" y="74" fill="#9b9a97" font-size="11" font-family="JetBrains Mono, monospace">${escapeHtml(t('step4.payoffWeight', { w: wU }))}</text>
+        <rect x="${gU.x.toFixed(1)}" y="50" width="${gU.w.toFixed(1)}" height="18" rx="2.5" fill="${gU.fill}" stroke="${gU.stroke}" stroke-opacity="0.28" stroke-width="1"/>
+        <text x="${W - 4}" y="63" text-anchor="end" fill="${gU.textCls}" font-size="13" font-weight="600" font-family="JetBrains Mono, monospace">${escapeHtml(fmtYen(U, true))}</text>
+      </svg>`;
+  }
+
+  // Cumulative Chart with Day 0 ("今日" / "Now") upfront anchor
   function renderChart(res) {
     const container = document.getElementById('chart-container');
     const rows = res.monthlyRows;
 
     const width = 760;
-    const height = 225;
-    const padL = 60;
+    const height = 228;
+    const padL = 62;
     const padR = 24;
-    const padT = 22;
+    const padT = 24;
     const padB = 34;
     const plotW = width - padL - padR;
     const plotH = height - padT - padB;
 
-    const maxY = Math.max(600, ...rows.map((r) => Math.max(r.cumBuy, r.cumSkip)));
+    const maxY = Math.max(600, res.bfCost, ...rows.map((r) => Math.max(r.cumBuy, r.cumSkip)));
     const niceMaxY = Math.ceil(maxY / 500) * 500;
 
-    const xAt = (idx) => padL + (idx / (rows.length - 1)) * plotW;
+    // 13 x-positions: 0 = Today (Now), 1..12 = months 0..11
+    const xAt = (idx) => padL + (idx / rows.length) * plotW;
     const yAt = (val) => padT + plotH - (val / niceMaxY) * plotH;
 
-    const buyPts = rows.map((r, i) => `${xAt(i).toFixed(1)},${yAt(r.cumBuy).toFixed(1)}`).join(' ');
-    const skipPts = rows.map((r, i) => `${xAt(i).toFixed(1)},${yAt(r.cumSkip).toFixed(1)}`).join(' ');
+    const buyPts = [
+      `${xAt(0).toFixed(1)},${yAt(res.bfCost).toFixed(1)}`,
+      ...rows.map((r, i) => `${xAt(i + 1).toFixed(1)},${yAt(r.cumBuy).toFixed(1)}`),
+    ].join(' ');
+    const skipPts = [
+      `${xAt(0).toFixed(1)},${yAt(0).toFixed(1)}`,
+      ...rows.map((r, i) => `${xAt(i + 1).toFixed(1)},${yAt(r.cumSkip).toFixed(1)}`),
+    ].join(' ');
 
     const gridLines = [];
     for (let s = 0; s <= 4; s++) {
@@ -764,44 +993,39 @@
       const y = yAt(val).toFixed(1);
       gridLines.push(`
         <line x1="${padL}" y1="${y}" x2="${width - padR}" y2="${y}" stroke="#e9e9e7" stroke-width="1"/>
-        <text x="${padL - 10}" y="${Number(y) + 4}" text-anchor="end" fill="#9b9a97" font-size="11.5" font-family="JetBrains Mono, monospace">¥${Math.round(val)}</text>
+        <text x="${padL - 10}" y="${Number(y) + 4}" text-anchor="end" fill="#9b9a97" font-size="11" font-family="JetBrains Mono, monospace">¥${Math.round(val)}</text>
       `);
     }
 
     let crossoverSvg = '';
     if (res.crossoverMonthIndex !== null) {
-      const cx = xAt(res.crossoverMonthIndex);
+      const cx = xAt(res.crossoverMonthIndex + 1);
       const cy = yAt(rows[res.crossoverMonthIndex].cumBuy);
       crossoverSvg = `
         <line x1="${cx.toFixed(1)}" y1="${padT}" x2="${cx.toFixed(1)}" y2="${padT + plotH}" stroke="#1c3829" stroke-dasharray="3 3" stroke-width="1"/>
-        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.5" fill="#1c3829" stroke="#ffffff" stroke-width="1.5"/>
-        <text x="${Math.min(width - 96, cx + 8).toFixed(1)}" y="${Math.max(padT + 20, cy - 8).toFixed(1)}" fill="#1c3829" font-size="12" font-weight="600">${escapeHtml(t('step4.chartBreakeven', { m: getMonthShort(res.crossoverMonthIndex) }))}</text>
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.2" fill="#1c3829" stroke="#ffffff" stroke-width="1.5"/>
+        <text x="${Math.min(width - 96, cx + 8).toFixed(1)}" y="${Math.max(padT + 20, cy - 8).toFixed(1)}" fill="#1c3829" font-size="11.5" font-weight="600">${escapeHtml(t('step4.chartBreakeven', { m: getMonthShort(res.crossoverMonthIndex) }))}</text>
       `;
     }
 
-    const xLabels = rows
-      .map((r, i) => {
-        const x = xAt(i).toFixed(1);
-        return `
-          <text x="${x}" y="${height - 10}" text-anchor="middle" fill="#787774" font-size="11.5">${escapeHtml(getMonthShort(i))}</text>
-          <circle cx="${x}" cy="${yAt(r.cumBuy).toFixed(1)}" r="2.5" fill="#37352f"/>
-        `;
-      })
-      .join('');
+    const xLabels = [
+      `<text x="${xAt(0).toFixed(1)}" y="${height - 10}" text-anchor="middle" fill="#37352f" font-size="11.5" font-weight="600">${escapeHtml(t('step4.chartToday'))}</text>`,
+      ...rows.map((r, i) => `<text x="${xAt(i + 1).toFixed(1)}" y="${height - 10}" text-anchor="middle" fill="#787774" font-size="11.5">${escapeHtml(getMonthShort(i))}</text>`),
+    ].join('');
 
     const lastRow = rows[rows.length - 1];
-    const lastX = xAt(rows.length - 1);
+    const lastX = xAt(rows.length);
     const buyY = yAt(lastRow.cumBuy) <= yAt(lastRow.cumSkip) ? yAt(lastRow.cumBuy) - 10 : yAt(lastRow.cumBuy) + 16;
     const skipY = yAt(lastRow.cumBuy) <= yAt(lastRow.cumSkip) ? yAt(lastRow.cumSkip) + 16 : yAt(lastRow.cumSkip) - 10;
 
     const nextGenIdx = rows.findIndex((r) => r.phase.key === 'next_gen');
     let nextGenMarkerSvg = '';
     if (nextGenIdx >= 0) {
-      const nx = xAt(nextGenIdx);
+      const nx = xAt(nextGenIdx + 1);
       nextGenMarkerSvg = `
-        <line x1="${nx.toFixed(1)}" y1="${padT}" x2="${nx.toFixed(1)}" y2="${padT + plotH}" stroke="#787774" stroke-dasharray="2 3" stroke-width="1"/>
-        <circle cx="${nx.toFixed(1)}" cy="${(padT + plotH).toFixed(1)}" r="4.5" fill="#1c3829" stroke="#ffffff" stroke-width="1.5"/>
-        <text x="${Math.min(width - 132, Math.max(padL + 6, nx - 44)).toFixed(1)}" y="${(padT + 12).toFixed(1)}" fill="#1c3829" font-size="11.5" font-weight="600">${escapeHtml(t('step4.chartNextGen', { m: getMonthShort(nextGenIdx) }))}</text>
+        <line x1="${nx.toFixed(1)}" y1="${padT}" x2="${nx.toFixed(1)}" y2="${padT + plotH}" stroke="#9b9a97" stroke-dasharray="2 3" stroke-width="1"/>
+        <circle cx="${nx.toFixed(1)}" cy="${(padT + plotH).toFixed(1)}" r="3.5" fill="#1c3829" stroke="#ffffff" stroke-width="1.2"/>
+        <text x="${Math.min(width - 130, Math.max(padL + 6, nx - 38)).toFixed(1)}" y="${(padT + 12).toFixed(1)}" fill="#1c3829" font-size="11" font-weight="600">${escapeHtml(t('step4.chartNextGen', { m: getMonthShort(nextGenIdx) }))}</text>
       `;
     }
 
@@ -809,14 +1033,50 @@
       <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="12-month cumulative comparison">
         ${gridLines.join('')}
         ${nextGenMarkerSvg}
-        <polyline points="${skipPts}" fill="none" stroke="#9b9a97" stroke-width="2" stroke-dasharray="5 4"/>
-        <polyline class="chart-line-draw" points="${buyPts}" fill="none" stroke="#37352f" stroke-width="2.2"/>
+        <polyline points="${skipPts}" fill="none" stroke="#9b9a97" stroke-width="1.9" stroke-dasharray="5 4"/>
+        <polyline points="${buyPts}" fill="none" stroke="#37352f" stroke-width="2.2"/>
+        <circle cx="${xAt(0).toFixed(1)}" cy="${yAt(res.bfCost).toFixed(1)}" r="3.2" fill="#37352f"/>
+        <circle cx="${xAt(0).toFixed(1)}" cy="${yAt(0).toFixed(1)}" r="3.2" fill="#9b9a97"/>
         ${xLabels}
         ${crossoverSvg}
         <text x="${(lastX - 6).toFixed(1)}" y="${buyY.toFixed(1)}" text-anchor="end" fill="#37352f" font-size="12" font-weight="600" font-family="JetBrains Mono, monospace">${escapeHtml(t('step4.chartBuy', { yen: fmtYen(lastRow.cumBuy) }))}</text>
         <text x="${(lastX - 6).toFixed(1)}" y="${skipY.toFixed(1)}" text-anchor="end" fill="#787774" font-size="12" font-family="JetBrains Mono, monospace">${escapeHtml(t('step4.chartSkip', { yen: fmtYen(lastRow.cumSkip) }))}</text>
       </svg>
     `;
+  }
+
+  // Collapsible 3x3 Sensitivity Matrix (p +-10pp x primary FX +-5pp)
+  function renderSensitivityMatrix(res) {
+    const container = document.getElementById('sensitivity-container');
+    const sens = res.sensitivity;
+    if (!sens || !sens.primaryCurrency || !sens.rows || sens.rows.length === 0) {
+      container.innerHTML = `<p class="muted-note" style="margin:0;">${escapeHtml(t('step4.sensNoFx'))}</p>`;
+      return;
+    }
+    const corner = t('step4.sensCorner', { cur: sens.primaryCurrency });
+    const theadCols = sens.pCols.map((pVal) => `<th class="mono">p = ${pVal}%</th>`).join('');
+    const bodyRows = sens.rows
+      .map((row) => {
+        const fxLabel = `${row.fxPct > 0 ? '+' : ''}${row.fxPct}%`;
+        const cells = row.cells
+          .map((cell) => {
+            const signCls = cell.ev > 0.5 ? 'is-pos' : cell.ev < -0.5 ? 'is-neg' : '';
+            const centerCls = cell.isCenter ? 'sens-cell-center' : '';
+            return `<td class="mono ${signCls} ${centerCls}">${escapeHtml(fmtYen(cell.ev, true))}</td>`;
+          })
+          .join('');
+        return `<tr><td class="mono">${escapeHtml(sens.primaryCurrency)} ${escapeHtml(fxLabel)}</td>${cells}</tr>`;
+      })
+      .join('');
+
+    container.innerHTML = `
+      <table class="sens-table">
+        <thead>
+          <tr><th>${escapeHtml(corner)}</th>${theadCols}</tr>
+        </thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+      <p class="sens-note">${escapeHtml(t('step4.sensNote'))}</p>`;
   }
 
   function render() {
@@ -872,25 +1132,7 @@
     // STEP 2
     renderDatabaseTable(res);
 
-    const idleUltraMonths = res.monthlyRows
-      .filter((r) => r.hasUltraActive && r.replaceableSlots === 0)
-      .map((r) => getMonthShort(r.index));
-    const idlePlanLabels = [
-      ...new Set(
-        res.monthlyRows
-          .filter((r) => r.hasUltraActive && r.replaceableSlots === 0)
-          .flatMap((r) => r.items.filter((it) => it.isIdlePlan || it.isGeminiUltra).map((it) => localizeItemShort(it.short)))
-      ),
-    ];
-
-    // STEP 3
-    document.getElementById('section-legacy-ultra').style.display = res.needsLegacyUltraRenewal ? 'block' : 'none';
-    document.querySelectorAll('[data-renewal]').forEach((btn) => {
-      btn.classList.toggle('is-active', btn.dataset.renewal === state.ultraRenewalMode);
-    });
-    document.getElementById('wrap-fail-month').style.display = state.ultraRenewalMode === 'fail_at' ? 'grid' : 'none';
-    document.getElementById('wrap-fallback-strategy').style.display = state.ultraRenewalMode !== 'always' ? 'grid' : 'none';
-    document.getElementById('lbl-fail-month').textContent = getMonthLabel(state.ultraFailMonthIndex) || '';
+    // STEP 3 (Pure FX Outlook)
     renderDynamicFxPanel(res);
 
     // Center Peek Modal: Model Lifecycle & Retention Probability
@@ -903,6 +1145,8 @@
       t('modal.sotaHelp', { n: state.effectiveSotaMonths, until: sotaUntilText });
     document.getElementById('help-next-when').textContent =
       t('modal.nextHelp', { n: state.nextFlagshipInterval, when: nextWhenText });
+    document.getElementById('help-retain-prob').textContent =
+      t('modal.retainHelpDyn', { k: res.sotaCutoff, until: sotaUntilText });
 
     const sotaPct = Math.min(94, Math.max(8, (state.effectiveSotaMonths / 12) * 100));
     const nextPct = Math.min(96, Math.max(12, (state.nextFlagshipInterval / 12) * 100));
@@ -912,84 +1156,155 @@
     document.getElementById('lc-next-node').style.left = `${nextPct}%`;
     document.getElementById('lc-next-label').textContent = t('modal.nodeNext', { when: lang === 'en-US' ? nextWhenText : nextWhenText.slice(2) });
 
-    const thresholdClamped = Math.min(96, Math.max(4, res.breakEvenProbPct));
-    document.getElementById('ev-threshold-line').style.left = `${thresholdClamped}%`;
-    document.getElementById('ev-threshold-tag').textContent = t('modal.evLine', { pct: res.breakEvenProbPct.toFixed(0) });
+    const evLineEl = document.getElementById('ev-threshold-line');
+    const evTagEl = document.getElementById('ev-threshold-tag');
+    const evGapEl = document.getElementById('lbl-ev-gap');
     document.getElementById('ev-user-dot').style.left = `${state.retainProbPct}%`;
-    const probGap = state.retainProbPct - res.breakEvenProbPct;
-    document.getElementById('lbl-ev-gap').textContent =
-      probGap >= 0 ? t('modal.evAbove', { gap: probGap.toFixed(1) }) : t('modal.evBelow', { gap: probGap.toFixed(1) });
 
-    // FINAL STEP (Step 4): Summary Ledger
+    if (res.breakEvenProbStatus === 'threshold' && res.breakEvenProbPct != null) {
+      evLineEl.style.display = 'block';
+      const clamped = Math.min(96, Math.max(4, res.breakEvenProbPct));
+      evLineEl.style.left = `${clamped}%`;
+      evTagEl.textContent = t('modal.evLine', { pct: res.breakEvenProbPct.toFixed(0) });
+      const rawGap = state.retainProbPct - res.breakEvenProbPct;
+      const effectiveGap = res.breakEvenProbDirection === 'lte' ? -rawGap : rawGap;
+      evGapEl.textContent = effectiveGap >= 0
+        ? t('modal.evAbove', { gap: effectiveGap.toFixed(1) })
+        : t('modal.evBelow', { gap: effectiveGap.toFixed(1) });
+    } else {
+      evLineEl.style.display = 'none';
+      if (res.breakEvenProbStatus === 'already_even') {
+        evGapEl.textContent = t('modal.evAlready');
+      } else if (res.breakEvenProbStatus === 'impossible') {
+        evGapEl.textContent = t('modal.evImpossible');
+      } else {
+        evGapEl.textContent = res.upsideNet >= 0 ? t('modal.evDetPos') : t('modal.evDetNeg');
+      }
+    }
+
+    // STEP 4: Institutional Financial Decision Memo
     const badge = document.getElementById('verdict-badge');
     badge.className = `tag tag-${res.verdict.tone}`;
     badge.textContent = res.verdict.badge;
     document.getElementById('verdict-headline').textContent = res.verdict.headline;
     document.getElementById('verdict-detail').textContent = res.verdict.detail;
 
-    document.getElementById('kpi-bf-cost').textContent = fmtYen(res.bfCost);
-    document.getElementById('kpi-bf-monthly').textContent = t('step4.kpiBfAvg', { avg: res.bfMonthlyAvg.toFixed(1) });
+    // Hero EV value (crisp ink numeral + colored sign)
+    const evRounded = Math.round(res.expectedNetSavings);
+    const evHeroEl = document.getElementById('memo-ev-hero');
+    if (evRounded > 0) {
+      evHeroEl.innerHTML = `<span class="ev-sign-pos">+</span>¥${Math.abs(evRounded).toLocaleString('zh-CN')}`;
+    } else if (evRounded < 0) {
+      evHeroEl.innerHTML = `<span class="ev-sign-neg">-</span>¥${Math.abs(evRounded).toLocaleString('zh-CN')}`;
+    } else {
+      evHeroEl.textContent = '¥0';
+    }
+    const rateStr = `${res.evReturnPct >= 0 ? '+' : ''}${res.evReturnPct.toFixed(1)}%`;
+    document.getElementById('memo-ev-rate').textContent = res.bfCost > 0
+      ? t('step4.evRateText', { rate: rateStr, bf: fmtYen(res.bfCost) })
+      : '';
 
-    document.getElementById('kpi-idle-summary').textContent =
-      res.totalIdleMonths > 0
-        ? t('step4.kpiIdleVal', { total: res.totalIdleMonths, ultra: res.ultraOverlapMonths, none: res.idleNoneMonths, cost: fmtYen(res.totalIdleCostCny) })
-        : t('step4.kpiIdleZero');
+    // Condition 1: Retention Confidence vs Break-Even Line
+    document.getElementById('memo-cond-prob').textContent = `${state.retainProbPct}%`;
+    const probSubEl = document.getElementById('memo-cond-prob-sub');
+    if (res.breakEvenProbStatus === 'already_even') {
+      probSubEl.textContent = t('step4.condProbLocked');
+    } else if (res.breakEvenProbStatus === 'impossible') {
+      probSubEl.textContent = t('step4.condProbImpossible');
+    } else if (res.breakEvenProbStatus === 'deterministic') {
+      probSubEl.textContent = t('step4.condProbDet');
+    } else if (res.breakEvenProbPct != null) {
+      const gap = (res.breakEvenProbDirection === 'lte'
+        ? res.breakEvenProbPct - state.retainProbPct
+        : state.retainProbPct - res.breakEvenProbPct);
+      probSubEl.textContent = gap >= 0
+        ? t('step4.condProbAbove', { line: res.breakEvenProbPct.toFixed(1), gap: gap.toFixed(1) })
+        : t('step4.condProbBelow', { line: res.breakEvenProbPct.toFixed(1), gap: gap.toFixed(1) });
+    }
 
-    document.getElementById('kpi-breakeven').textContent = Number.isFinite(res.breakEvenMonths)
-      ? t('step4.kpiBreakevenMo', { n: res.breakEvenMonths.toFixed(1) })
-      : t('step4.kpiNoBreakeven');
-    document.getElementById('kpi-avg-pro').textContent = t('step4.kpiAvgPro', { avg: Math.round(res.avgProPrice) });
+    // Condition 2: True Cumulative Calendar Payback + Equivalent Usage Subtext
+    document.getElementById('memo-cond-crossover').textContent =
+      res.crossoverMonthIndex !== null
+        ? getMonthLabel(res.crossoverMonthIndex)
+        : t('step4.condCrossNone');
+    document.getElementById('memo-cond-crossover-sub').textContent =
+      Number.isFinite(res.equivalentUsageMonths) && res.proCoveredMonths > 0
+        ? t('step4.condCrossSub', { n: res.equivalentUsageMonths.toFixed(1), avg: Math.round(res.avgProPrice) })
+        : t('step4.condCrossSubInf');
 
-    const evEl = document.getElementById('kpi-ev');
-    evEl.textContent = fmtYen(res.expectedNetSavings, true);
-    evEl.className = res.expectedNetSavings > 0 ? 'is-pos' : res.expectedNetSavings < 0 ? 'is-neg' : '';
-    document.getElementById('kpi-prob-line').textContent = t('step4.kpiProbLine', { pct: res.breakEvenProbPct.toFixed(1) });
+    // Hairline Upfront & Idle Strip
+    const idleStripPart = res.totalIdleMonths > 0
+      ? t('step4.stripIdle', { n: res.totalIdleMonths, cost: fmtYen(res.totalIdleCostCny) })
+      : t('step4.stripIdleZero');
+    document.getElementById('memo-strip').innerHTML = `
+      <span>${escapeHtml(t('step4.stripUpfront', { bf: fmtYen(res.bfCost) }))}</span>
+      <span class="memo-strip-sep">·</span>
+      <span>${escapeHtml(t('step4.stripMonthly', { avg: res.bfMonthlyAvg.toFixed(1) }))}</span>
+      <span class="memo-strip-sep">·</span>
+      <span>${escapeHtml(idleStripPart)}</span>`;
 
-    document.getElementById('kpi-upside-downside').textContent =
-      `${fmtYen(res.upsideNet, true)} / ${fmtYen(res.downsideNet, true)}`;
-    const oddsRatio = res.downsideNet < 0 ? Math.max(0, res.upsideNet) / Math.abs(res.downsideNet) : Infinity;
-    document.getElementById('kpi-odds-sub').textContent = Number.isFinite(oddsRatio)
-      ? t('step4.kpiOdds', { ratio: oddsRatio.toFixed(2) })
-      : t('step4.kpiNoDownside');
-
-    const idleCallout = document.getElementById('idle-callout');
+    // Collapsible Idle Breakdown
+    const idleDetails = document.getElementById('idle-details');
     if (res.totalIdleMonths > 0) {
-      idleCallout.style.display = 'block';
-      document.getElementById('idle-callout-title').textContent =
-        t('step4.idleTitle', { total: res.totalIdleMonths });
-      const planDesc = idlePlanLabels.length > 0 ? idlePlanLabels.join(' / ') : t('step2.otherPlan');
-      document.getElementById('idle-callout-detail').textContent =
-        res.ultraOverlapMonths > 0
+      const keptMonths = res.monthlyRows
+        .filter((r) => r.hasKeptPlan)
+        .map((r) => getMonthShort(r.index));
+      const keptLabels = [
+        ...new Set(
+          res.monthlyRows
+            .filter((r) => r.hasKeptPlan)
+            .flatMap((r) => r.items.map((it) => localizeItemShort(it.short)))
+        ),
+      ];
+      idleDetails.style.display = 'block';
+      document.getElementById('idle-details-summary').textContent =
+        t('step4.idleDetailsSummary', { n: res.totalIdleMonths });
+      document.getElementById('idle-details-text').textContent =
+        res.keptOtherPlanMonths > 0
           ? t('step4.idleDetailUltra', {
-              months: idleUltraMonths.join(lang === 'en-US' ? ', ' : '、'),
-              n: res.ultraOverlapMonths,
-              plans: planDesc,
-              pct: Math.round((res.ultraOverlapMonths / 12) * 100),
+              months: keptMonths.join(lang === 'en-US' ? ', ' : '、'),
+              n: res.keptOtherPlanMonths,
+              plans: keptLabels.join(' / '),
+              pct: Math.round((res.keptOtherPlanMonths / 12) * 100),
               cost: fmtYen(res.ultraIdleCostCny),
               pro: res.proCoveredMonths,
             })
-          : t('step4.idleDetailNone', { n: res.idleNoneMonths, cost: fmtYen(res.totalIdleCostCny) });
+          : t('step4.idleDetailNone', {
+              n: res.idleNoneMonths,
+              pct: Math.round((res.idleNoneMonths / 12) * 100),
+              cost: fmtYen(res.totalIdleCostCny),
+            });
     } else {
-      idleCallout.style.display = 'none';
+      idleDetails.style.display = 'none';
     }
 
+    // Conditional Legacy Turkey Ultra Risk Note
+    document.getElementById('legacy-ultra-risk-note').style.display =
+      res.hasLegacyTurkeyUltra ? 'block' : 'none';
+
+    // Bidirectional Payoff Bar, Cumulative Chart, Scenario Table, 3x3 Sensitivity Matrix
+    renderPayoffBar(res);
     renderChart(res);
 
     document.getElementById('scenarios-tbody').innerHTML = res.scenarios
       .map((sc) => {
-        const cls = sc.diff > 0 ? 'is-pos' : sc.diff < 0 ? 'is-neg' : '';
-        const diffLabel = sc.diff >= 0
-          ? t('step4.saveWord', { yen: fmtYen(sc.diff) })
-          : t('step4.lossWord', { yen: fmtYen(Math.abs(sc.diff)) });
+        const rounded = Math.round(sc.diff);
+        const pillCls = rounded > 0 ? 'is-pos' : rounded < 0 ? 'is-neg' : 'is-zero';
+        const rowCls = sc.isBaseline ? 'fin-row-baseline' : '';
         return `
-          <tr>
-            <td>${escapeHtml(sc.title)}</td>
-            <td class="num mono">${fmtYen(sc.buyTotal)}</td>
-            <td class="num mono">${fmtYen(sc.skipTotal)}</td>
-            <td class="num mono ${cls}" style="font-weight:600;">${escapeHtml(diffLabel)}</td>
+          <tr class="${rowCls}">
+            <td>
+              <div class="fin-scen-title">${escapeHtml(sc.title)}</div>
+              <div class="fin-scen-sub">${escapeHtml(sc.periodNote || '')}</div>
+            </td>
+            <td class="num mono">${fmtNum(sc.buyTotal)}</td>
+            <td class="num mono">${fmtNum(sc.skipTotal)}</td>
+            <td class="num mono"><span class="fin-diff-pill ${pillCls}">${escapeHtml(fmtNum(sc.diff, true))}</span></td>
           </tr>`;
       })
       .join('');
+
+    renderSensitivityMatrix(res);
   }
 
   function updateCustomBfCost() {
@@ -1016,12 +1331,13 @@
       const found = SCENARIO_PRESETS.find((p) => p.id === id);
       if (!found) return;
       state = cloneState(found.patch);
+      showBfCompare = true;
       pickerState = null;
       setPhaseModalOpen(false);
       syncInputsFromState();
       e.target.value = '';
       goToStep(3);
-      showToast(`已载入：${found.name}`);
+      showToast(t('toast.presetLoaded', { name: found.name }));
     });
 
     document.getElementById('btn-lang-toggle').addEventListener('click', () => {
@@ -1035,6 +1351,7 @@
     document.getElementById('btn-reset').addEventListener('click', () => {
       state = createInitialUiState();
       selectedMonths = new Set();
+      showBfCompare = false;
       pickerState = null;
       setPhaseModalOpen(false);
       syncInputsFromState();
@@ -1058,7 +1375,7 @@
       if (currentStep < STEPS.length - 1) goToStep(currentStep + 1);
     });
 
-    // Step 1: 5 Regions + Custom (keeps Step 2 empty/user-controlled until user edits or applies a template)
+    // Step 1: 5 Regions + Custom
     document.getElementById('bf-choice-grid').addEventListener('click', (e) => {
       const row = e.target.closest('[data-bf-choice]');
       if (!row) return;
@@ -1086,11 +1403,12 @@
     document.getElementById('inp-bf-currency').addEventListener('change', updateCustomBfCost);
     document.getElementById('inp-bf-raw').addEventListener('input', updateCustomBfCost);
 
-    // Step 2: Prominent Compare Mode Switch & Center Peek Model Phase Modal
+    // Step 2: Two-Stage Mode Switch & Phase Modal
     document.getElementById('bf-compare-segment').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-compare-mode]');
       if (!btn) return;
       showBfCompare = btn.dataset.compareMode === 'on';
+      pickerState = null;
       render();
     });
 
@@ -1104,6 +1422,24 @@
       pickerState = null;
       renderNotionPicker();
       setPhaseModalOpen(true);
+    });
+
+    document.getElementById('btn-auto-drop-pro').addEventListener('click', () => {
+      ensureBuyArrays();
+      let droppedCount = 0;
+      for (let m = 0; m < 12; m++) {
+        const curB = getColumnBasket('B', m);
+        const hasPro = curB.some((it) => it && (it.isGeminiPro || it.dynamicPrice === 'gemini_pro'));
+        if (hasPro) {
+          unsyncBuyMonth(m);
+          state.buyMonthPlans[m] = state.buyMonthPlans[m].filter(
+            (it) => !(it && (it.isGeminiPro || it.dynamicPrice === 'gemini_pro'))
+          );
+          droppedCount += 1;
+        }
+      }
+      render();
+      showToast(droppedCount > 0 ? t('toast.droppedPro', { n: droppedCount }) : t('toast.droppedProNone'));
     });
 
     document.getElementById('btn-close-phase-modal').addEventListener('click', () => setPhaseModalOpen(false));
@@ -1131,23 +1467,48 @@
       if (!key) return;
       const preset = BF_DEAL_PRESETS[state.bfPreset];
       const regionProId = (preset && preset.defaultMonthlyProId) || 'gemini_pro_tr';
-      state.monthPlans = buildMonthPlan(key, regionProId);
+      const pair = buildPlanPair(key, regionProId);
+      state.monthPlans = pair.monthPlans;
+      state.buyMonthPlans = pair.buyMonthPlans;
+      state.buyMonthSynced = pair.buyMonthSynced;
       state.monthEdited = Array(12).fill(key !== 'region_pro');
+      if (key !== 'empty') showBfCompare = true;
       pickerState = null;
       e.target.value = '';
       render();
-      showToast('已套用整年模板');
+      showToast(t('toast.templateApplied'));
     });
 
     document.getElementById('btn-open-batch-picker').addEventListener('click', (e) => {
       e.stopPropagation();
       const indices = getSelectedIndices();
       if (indices.length === 0) {
-        showToast('请先勾选至少 1 个月份');
+        showToast(t('toast.selectMonthFirst'));
         return;
       }
       pickerState = {
+        column: 'A',
+        mode: 'replace',
         targetIndices: indices,
+        itemIdx: 0,
+        anchorRect: e.currentTarget.getBoundingClientRect(),
+        showCustom: false,
+      };
+      renderNotionPicker();
+    });
+
+    document.getElementById('btn-open-batch-add-picker').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const indices = getSelectedIndices();
+      if (indices.length === 0) {
+        showToast(t('toast.selectMonthFirst'));
+        return;
+      }
+      pickerState = {
+        column: 'A',
+        mode: 'add',
+        targetIndices: indices,
+        itemIdx: null,
         anchorRect: e.currentTarget.getBoundingClientRect(),
         showCustom: false,
       };
@@ -1157,15 +1518,15 @@
     document.getElementById('btn-clear-selected-months').addEventListener('click', () => {
       const indices = getSelectedIndices();
       if (indices.length === 0) {
-        showToast('请先勾选要修改的月份');
+        showToast(t('toast.selectMonthFirst'));
         return;
       }
       pickerState = null;
       markMonthsEdited(indices);
-      mutateMonths(indices, (arr) => {
+      mutateColumnMonths('A', indices, (arr) => {
         arr.length = 0;
       });
-      showToast(`已将 ${indices.length} 个月设为本月不买`);
+      showToast(t('toast.clearedN', { n: indices.length }));
     });
 
     // Notion Database Brand-Grouped Floating Select Picker Events
@@ -1173,12 +1534,6 @@
       if (e.target.matches('[data-np-cur]')) {
         const wrap = pickerEl.querySelector('[data-np-hike-wrap]');
         if (wrap) wrap.style.display = e.target.value === 'TRY' ? 'inline-flex' : 'none';
-      } else if (e.target.matches('[data-np-ckind]')) {
-        const isIdle = e.target.value === 'idle';
-        const pr = pickerEl.querySelector('[data-np-cprice-row]');
-        const ir = pickerEl.querySelector('[data-np-cidle-row]');
-        if (pr) pr.style.display = isIdle ? 'none' : 'flex';
-        if (ir) ir.style.display = isIdle ? 'flex' : 'none';
       }
     });
 
@@ -1211,14 +1566,53 @@
         }
         if (!family) return;
         const variant = pickDefaultVariantForFamily(family);
-        const indices = pickerState.targetIndices.slice();
-        markMonthsEdited(indices);
+        const { column, mode, targetIndices, itemIdx } = pickerState;
+        const indices = targetIndices.slice();
+        if (column === 'A') markMonthsEdited(indices);
+
         const shouldClose = family.id === 'fam_none' || family.id === 'fam_org';
-        if (shouldClose) pickerState = null;
-        mutateMonths(indices, (arr) => {
-          arr.length = 0;
-          if (variant.catalogId !== 'none_idle') {
+        let duplicateHit = false;
+
+        if (mode === 'add') {
+          let newSlotIdx = null;
+          mutateColumnMonths(column, indices, (arr) => {
+            if (arr.some((it) => it && it.id === variant.catalogId)) {
+              duplicateHit = true;
+              return;
+            }
             arr.push(makeSubItem(variant.catalogId, 1));
+            if (newSlotIdx === null) newSlotIdx = arr.length - 1;
+          });
+          if (duplicateHit) {
+            showToast(t('toast.alreadyAdded'));
+          }
+          if (shouldClose || duplicateHit) {
+            pickerState = null;
+          } else if (pickerState) {
+            // Switch to replace mode on the newly added item so user can immediately pick region/price!
+            pickerState.mode = 'replace';
+            pickerState.itemIdx = newSlotIdx;
+          }
+          renderNotionPicker();
+          return;
+        }
+
+        if (shouldClose) pickerState = null;
+        mutateColumnMonths(column, indices, (arr) => {
+          if (variant.catalogId === 'none_idle') {
+            if (indices.length === 1 && itemIdx != null && arr.length > 1) {
+              arr.splice(itemIdx, 1);
+            } else {
+              arr.length = 0;
+            }
+            return;
+          }
+          const nextItem = makeSubItem(variant.catalogId, 1);
+          if (indices.length === 1 && itemIdx != null && itemIdx < arr.length) {
+            arr[itemIdx] = nextItem;
+          } else {
+            arr.length = 0;
+            arr.push(nextItem);
           }
         });
         return;
@@ -1227,12 +1621,20 @@
       const varBtn = e.target.closest('[data-pick-variant]');
       if (varBtn && pickerState) {
         const catId = varBtn.dataset.pickVariant;
-        const indices = pickerState.targetIndices.slice();
-        markMonthsEdited(indices);
-        mutateMonths(indices, (arr) => {
-          arr.length = 0;
-          if (catId !== 'none_idle') {
-            arr.push(makeSubItem(catId, 1));
+        const { column, targetIndices, itemIdx } = pickerState;
+        const indices = targetIndices.slice();
+        if (column === 'A') markMonthsEdited(indices);
+        mutateColumnMonths(column, indices, (arr) => {
+          if (catId === 'none_idle') {
+            arr.length = 0;
+            return;
+          }
+          const nextItem = makeSubItem(catId, 1);
+          if (indices.length === 1 && itemIdx != null && itemIdx < arr.length) {
+            arr[itemIdx] = nextItem;
+          } else {
+            arr.length = 0;
+            arr.push(nextItem);
           }
         });
         return;
@@ -1245,21 +1647,22 @@
         const currency = curEl ? curEl.value : 'CNY';
         const amount = Math.max(0, Number(amtEl && amtEl.value) || 0);
         const midYearHike = currency === 'TRY' && Boolean(hikeEl && hikeEl.checked);
-        const indices = pickerState.targetIndices.slice();
-        markMonthsEdited(indices);
+        const { column, targetIndices, itemIdx } = pickerState;
+        const indices = targetIndices.slice();
+        if (column === 'A') markMonthsEdited(indices);
         pickerState = null;
-        mutateMonths(indices, (arr) => {
-          if (!arr[0]) return;
-          if (arr[0].dynamicPrice === 'gemini_ultra_5x' && currency === 'CNY') {
+        mutateColumnMonths(column, indices, (arr) => {
+          const slot = itemIdx != null && arr[itemIdx] ? arr[itemIdx] : arr[0];
+          if (!slot) return;
+          if (slot.dynamicPrice === 'gemini_ultra_5x' && currency === 'CNY') {
             state.currentUltraCny = amount;
-            document.getElementById('inp-ultra-cny').value = amount;
           } else {
-            if (arr[0].dynamicPrice === 'gemini_ultra_5x') {
-              arr[0].dynamicPrice = null;
+            if (slot.dynamicPrice === 'gemini_ultra_5x') {
+              slot.dynamicPrice = null;
             }
-            arr[0].currency = currency;
-            arr[0].amount = amount;
-            arr[0].midYearHike = midYearHike;
+            slot.currency = currency;
+            slot.amount = amount;
+            slot.midYearHike = midYearHike;
           }
         });
         showToast(t('toast.priceUpdated'));
@@ -1267,28 +1670,34 @@
       }
 
       if (e.target.closest('[data-np-csave]') && pickerState) {
-        const kindEl = pickerEl.querySelector('[data-np-ckind]');
         const nameEl = pickerEl.querySelector('[data-np-cname]');
         const curEl = pickerEl.querySelector('[data-np-ccur]');
         const amtEl = pickerEl.querySelector('[data-np-camt]');
-        const isIdlePlan = kindEl && kindEl.value === 'idle';
         const name = nameEl ? nameEl.value.trim() : '';
         if (!name) {
-          showToast('请先输入方案名称');
+          showToast(t('toast.enterName'));
           if (nameEl) nameEl.focus();
           return;
         }
         const currency = curEl ? curEl.value : 'CNY';
-        const amount = isIdlePlan ? 0 : Math.max(0, Number(amtEl && amtEl.value) || 0);
-        const customId = `custom_${isIdlePlan ? 'idle_' : ''}${name.toLowerCase().replace(/\s+/g, '_')}`;
-        const indices = pickerState.targetIndices.slice();
-        markMonthsEdited(indices);
+        const amount = Math.max(0, Number(amtEl && amtEl.value) || 0);
+        const customId = `custom_${name.toLowerCase().replace(/\s+/g, '_')}`;
+        const { column, mode, targetIndices, itemIdx } = pickerState;
+        const indices = targetIndices.slice();
+        if (column === 'A') markMonthsEdited(indices);
         pickerState = null;
-        mutateMonths(indices, (arr) => {
-          arr.length = 0;
-          arr.push(makeSubItem(null, 1, { id: customId, name, currency, amount, isIdlePlan, replaceableByBf: !isIdlePlan }));
+        mutateColumnMonths(column, indices, (arr) => {
+          const nextItem = makeSubItem(null, 1, { id: customId, name, currency, amount });
+          if (mode === 'add') {
+            arr.push(nextItem);
+          } else if (indices.length === 1 && itemIdx != null && itemIdx < arr.length) {
+            arr[itemIdx] = nextItem;
+          } else {
+            arr.length = 0;
+            arr.push(nextItem);
+          }
         });
-        showToast(`已应用自定义方案：${name}`);
+        showToast(t('toast.customApplied', { name }));
       }
     });
 
@@ -1356,7 +1765,6 @@
       const rectRight = left + width;
       const nextSet = marquee.additive ? new Set(marquee.baseSelection) : new Set();
 
-      // Match single-column .col-skip cells (or vertical span across rows)
       dbTbody.querySelectorAll('td.col-skip[data-cell-idx]').forEach((td) => {
         const tr = td.closest('tr');
         const r = tr.getBoundingClientRect();
@@ -1392,7 +1800,6 @@
       }
     });
 
-    // Click outside to close Notion picker or clear single-column selection
     document.addEventListener(
       'click',
       (e) => {
@@ -1403,7 +1810,7 @@
           return;
         }
         if (currentStep !== 1 || phaseModalOpen) return;
-        if (pickerState && !e.target.closest('.notion-picker, [data-open-picker], #btn-open-batch-picker')) {
+        if (pickerState && !e.target.closest('.notion-picker, [data-open-picker], [data-add-picker], #btn-open-batch-picker, #btn-open-batch-add-picker')) {
           pickerState = null;
           renderNotionPicker();
         }
@@ -1415,7 +1822,6 @@
       true
     );
 
-    // Esc closes Center Modal, Notion Picker, or clears selection
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       if (phaseModalOpen) {
@@ -1459,23 +1865,73 @@
         return;
       }
 
+      const syncBtn = e.target.closest('[data-sync-b]');
+      if (syncBtn) {
+        e.stopPropagation();
+        ensureBuyArrays();
+        const mIdx = Number(syncBtn.dataset.syncB);
+        state.buyMonthSynced[mIdx] = true;
+        pickerState = null;
+        render();
+        showToast(t('toast.syncedBack'));
+        return;
+      }
+
+      const rmBtn = e.target.closest('[data-remove-item]');
+      if (rmBtn) {
+        e.stopPropagation();
+        const [col, mStr, iStr] = rmBtn.dataset.removeItem.split(':');
+        const mIdx = Number(mStr);
+        const itemIdx = Number(iStr);
+        pickerState = null;
+        if (col === 'A') markMonthsEdited([mIdx]);
+        mutateColumnMonths(col, [mIdx], (arr) => {
+          if (itemIdx >= 0 && itemIdx < arr.length) arr.splice(itemIdx, 1);
+        });
+        return;
+      }
+
+      const addBtn = e.target.closest('[data-add-picker]');
+      if (addBtn) {
+        e.stopPropagation();
+        const [col, mStr] = addBtn.dataset.addPicker.split(':');
+        const mIdx = Number(mStr);
+        pickerState = {
+          column: col,
+          mode: 'add',
+          targetIndices: [mIdx],
+          itemIdx: null,
+          anchorRect: addBtn.getBoundingClientRect(),
+          showCustom: false,
+        };
+        renderNotionPicker();
+        return;
+      }
+
       const pillBtn = e.target.closest('[data-open-picker]');
       if (pillBtn) {
         e.stopPropagation();
-        const mIdx = Number(pillBtn.dataset.openPicker);
-        // If clicking inside a multi-selected column block, edit all selected cells together!
-        const targets = selectedMonths.size > 1 && selectedMonths.has(mIdx)
+        const [col, mStr, iStr] = pillBtn.dataset.openPicker.split(':');
+        const mIdx = Number(mStr);
+        const itemIdx = Number(iStr);
+        const targets = col === 'A' && selectedMonths.size > 1 && selectedMonths.has(mIdx)
           ? getSelectedIndices()
           : [mIdx];
         if (
           pickerState &&
+          pickerState.column === col &&
+          pickerState.mode === 'replace' &&
           pickerState.targetIndices.length === targets.length &&
-          pickerState.targetIndices[0] === targets[0]
+          pickerState.targetIndices[0] === targets[0] &&
+          pickerState.itemIdx === itemIdx
         ) {
           pickerState = null;
         } else {
           pickerState = {
+            column: col,
+            mode: 'replace',
             targetIndices: targets,
+            itemIdx,
             anchorRect: pillBtn.getBoundingClientRect(),
             showCustom: false,
           };
@@ -1494,38 +1950,6 @@
         state.fxAnnualChangePct = Object.assign({}, DEFAULT_FX_ANNUAL_PCT);
       }
       state.fxAnnualChangePct[code] = val;
-      render();
-    });
-
-    document.getElementById('renewal-segment').addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-renewal]');
-      if (!btn) return;
-      state.ultraRenewalMode = btn.dataset.renewal;
-      render();
-    });
-
-    document.getElementById('inp-ultra-cny').addEventListener('input', (e) => {
-      state.currentUltraCny = Math.max(0, Number(e.target.value) || 0);
-      render();
-    });
-
-    document.getElementById('inp-fail-month').addEventListener('input', (e) => {
-      state.ultraFailMonthIndex = Number(e.target.value);
-      render();
-    });
-
-    document.getElementById('inp-fallback-strategy').addEventListener('change', (e) => {
-      state.fallbackUltraStrategy = e.target.value;
-      render();
-    });
-
-    document.getElementById('inp-music-cny').addEventListener('input', (e) => {
-      state.musicMonthlyCny = Math.max(0, Number(e.target.value) || 0);
-      render();
-    });
-
-    document.getElementById('inp-colab-cny').addEventListener('input', (e) => {
-      state.colabProMonthlyCny = Math.max(0, Number(e.target.value) || 0);
       render();
     });
 
@@ -1601,24 +2025,34 @@
     document.getElementById('btn-copy-summary').addEventListener('click', async () => {
       const lang = getLang();
       const res = calculateLedger(state, lang);
+      const lineStr =
+        res.breakEvenProbStatus === 'already_even'
+          ? (lang === 'en-US' ? 'Locked in SOTA span' : '主力期内已回本')
+          : res.breakEvenProbStatus === 'impossible'
+            ? (lang === 'en-US' ? 'Unreachable' : '全年仍未回本')
+            : res.breakEvenProbPct != null
+              ? `${res.breakEvenProbPct.toFixed(1)}%`
+              : '—';
+      const crossStr =
+        res.crossoverMonthIndex !== null
+          ? getMonthLabel(res.crossoverMonthIndex)
+          : t('step4.condCrossNone');
       const lines = (lang === 'en-US'
         ? [
             '[Do You Really Need Gemini Pro Black Friday?]',
             `- Verdict: ${res.verdict.badge} (${res.verdict.headline})`,
-            `- BF Annual Cost: ${fmtYen(res.bfCost)}/yr (¥${res.bfMonthlyAvg.toFixed(1)}/mo)`,
-            `- Idle Period: ${res.totalIdleMonths} mo (Other Plan ${res.ultraOverlapMonths}m, ~${fmtYen(res.totalIdleCostCny)} amortized)`,
-            `- Break-Even: ${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) + ' mo' : 'Cannot break even'} (avg ¥${Math.round(res.avgProPrice)}/mo)`,
-            `- Expected Value (EV): ${fmtYen(res.expectedNetSavings, true)} (Your ${state.retainProbPct}% vs Break-even ${res.breakEvenProbPct.toFixed(1)}%)`,
-            `- Upside / Downside: ${fmtYen(res.upsideNet, true)} / ${fmtYen(res.downsideNet, true)}`,
+            `- Plan A (No BF) vs Plan B (With BF incl. upfront): ${fmtYen(res.totalSkipCost)} vs ${fmtYen(res.totalBuyCost)}`,
+            `- 12-Mo Expected Net Savings (EV): ${fmtYen(res.expectedNetSavings, true)} (Your ${state.retainProbPct}% · Break-even ${lineStr})`,
+            `- Cumulative Payback: ${crossStr}`,
+            `- Endpoints (D / U): ${fmtYen(res.downsideNet, true)} / ${fmtYen(res.upsideNet, true)}`,
           ]
         : [
             '【AI 黑五包年决策账本】',
             `- 结论：${res.verdict.badge}（${res.verdict.headline}）`,
-            `- 黑五成本：${fmtYen(res.bfCost)}/年（¥${res.bfMonthlyAvg.toFixed(1)}/月）`,
-            `- 黑五空闲期：${res.totalIdleMonths} 个月（致空闲 Plan ${res.ultraOverlapMonths} 月，折合摊销 ${fmtYen(res.ultraIdleCostCny)}）`,
-            `- 实际回本：${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) + ' 个月' : '无法回本'}（月均平替价值 ¥${Math.round(res.avgProPrice)}/月）`,
-            `- 期望净收益 (EV)：${fmtYen(res.expectedNetSavings, true)}（把握 ${state.retainProbPct}% vs 盈亏线 ${res.breakEvenProbPct.toFixed(1)}%）`,
-            `- 最大赢 / 最大亏：${fmtYen(res.upsideNet, true)} / ${fmtYen(res.downsideNet, true)}`,
+            `- 双方案总花费：不买黑五 ${fmtYen(res.totalSkipCost)} vs 买黑五（含预付）${fmtYen(res.totalBuyCost)}`,
+            `- 12 个月期望净节省 (EV)：${fmtYen(res.expectedNetSavings, true)}（留存把握 ${state.retainProbPct}% · 盈亏线 ${lineStr}）`,
+            `- 累计回本节点：${crossStr}`,
+            `- 两端结果（D / U）：${fmtYen(res.downsideNet, true)} / ${fmtYen(res.upsideNet, true)}`,
           ]).join('\n');
 
       try {
