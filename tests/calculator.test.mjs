@@ -17,6 +17,7 @@ const {
   buildSummarySvg,
   buildStandaloneHtml,
 } = require('../js/exporter.js');
+const i18n = require('../js/i18n.js');
 
 function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
@@ -184,4 +185,30 @@ test('TRY mid-year hike only raises sticker price on depreciation and never disc
   const res = calculateLedger(sApp);
   const expectedM6 = convertToCny(870, 'TRY', 7, sApp);
   assert.ok(Math.abs(res.monthlyRows[6].monthSavedByBf - expectedM6) < 0.05);
+});
+
+test('i18n dictionaries have full zh-CN / en-US key parity, valid HTML keys, English export, and zero emojis', () => {
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const i18nSrc = fs.readFileSync(path.join(root, 'js', 'i18n.js'), 'utf8');
+
+  const zhKeys = Object.keys(i18n.MESSAGES['zh-CN']).sort();
+  const enKeys = Object.keys(i18n.MESSAGES['en-US']).sort();
+  assert.deepEqual(enKeys, zhKeys, 'zh-CN and en-US must have identical keys');
+
+  const htmlKeys = [...new Set([...html.matchAll(/data-i18n(?:-[a-z]+)?="([^"]+)"/g)].map((m) => m[1]))];
+  const missingInZh = htmlKeys.filter((k) => !(k in i18n.MESSAGES['zh-CN']));
+  const missingInEn = htmlKeys.filter((k) => !(k in i18n.MESSAGES['en-US']));
+  assert.deepEqual(missingInZh, []);
+  assert.deepEqual(missingInEn, []);
+
+  const s = clone(DEFAULT_STATE);
+  const resEn = calculateLedger(s, 'en-US');
+  assert.equal(resEn.verdict.badge, 'Worth Buying');
+  const svgEn = buildSummarySvg(s, resEn, 'en-US');
+  assert.ok(svgEn.includes('Gemini Pro Black Friday Ledger'));
+
+  const emojiRe = /\p{Extended_Pictographic}/u;
+  assert.equal(emojiRe.test(i18nSrc), false, 'i18n.js should not contain emojis');
+  assert.equal(emojiRe.test(svgEn), false, 'English SVG export should not contain emojis');
 });

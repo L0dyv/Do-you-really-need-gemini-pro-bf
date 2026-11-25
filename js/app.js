@@ -1,5 +1,19 @@
 (function () {
   const {
+    applyDomTranslations,
+    formatFutureMonth,
+    getLang,
+    localizeBrand,
+    localizeCurrencyMeta,
+    localizeItemShort,
+    localizeMonth,
+    localizePhase,
+    localizeRegion,
+    setLang,
+    t,
+  } = window.SubLedgerI18n;
+
+  const {
     BF_DEAL_PRESETS,
     CURRENCIES,
     DEFAULT_FX_ANNUAL_PCT,
@@ -26,10 +40,10 @@
   const STORAGE_KEY = 'ai_sub_ledger_state_v11';
 
   const STEPS = [
-    { idx: 0, label: '1. 方案' },
-    { idx: 1, label: '2. 对照表格' },
-    { idx: 2, label: '3. 汇率与权益' },
-    { idx: 3, label: '4. 结论' },
+    { idx: 0, key: 'nav.step0' },
+    { idx: 1, key: 'nav.step1' },
+    { idx: 2, key: 'nav.step2' },
+    { idx: 3, key: 'nav.step3' },
   ];
 
   function cloneState(obj) {
@@ -112,16 +126,17 @@
 
   function fmtFxDelta(pct) {
     const n = Math.round(Number(pct) || 0);
-    if (n > 0) return { text: `升值 +${n}%`, cls: 'fx-dir-up' };
-    if (n < 0) return { text: `贬值 ${n}%`, cls: 'fx-dir-down' };
-    return { text: '持平 0%', cls: 'fx-dir-flat' };
+    if (n > 0) return { text: t('step3.fxUp', { n }), cls: 'fx-dir-up' };
+    if (n < 0) return { text: t('step3.fxDown', { n }), cls: 'fx-dir-down' };
+    return { text: t('step3.fxFlat'), cls: 'fx-dir-flat' };
   }
 
-  function formatFutureMonth(baseYear, baseMonth, addMonths) {
-    const total = baseYear * 12 + (baseMonth - 1) + Math.round(addMonths);
-    const y = Math.floor(total / 12);
-    const m = (total % 12) + 1;
-    return `${y}年${m}月`;
+  function getMonthLabel(idx) {
+    return localizeMonth(idx, 'long') || MONTHS[idx].label;
+  }
+
+  function getMonthShort(idx) {
+    return localizeMonth(idx, 'short') || MONTHS[idx].short;
   }
 
   function escapeHtml(str) {
@@ -225,10 +240,10 @@
 
     const targetLabel =
       targetIndices.length === 1
-        ? `${MONTHS[firstIdx].label} · 原方案`
+        ? t('picker.singleTarget', { month: getMonthLabel(firstIdx) })
         : targetIndices.length === 12
-          ? '批量修改：全年 12 个月'
-          : `批量修改：已选 ${targetIndices.length} 个月`;
+          ? t('picker.batchAll')
+          : t('picker.batchN', { n: targetIndices.length });
 
     // Region switcher box inside top of dropdown (for multi-region families)
     let regionHtml = '';
@@ -236,12 +251,12 @@
       const chips = activeFamily.variants
         .map((v) => {
           const isAct = v.catalogId === currentId;
-          return `<button type="button" class="np-region-chip ${isAct ? 'is-active' : ''}" data-pick-variant="${v.catalogId}">${escapeHtml(v.region)} · ${escapeHtml(v.priceText)}</button>`;
+          return `<button type="button" class="np-region-chip ${isAct ? 'is-active' : ''}" data-pick-variant="${v.catalogId}">${escapeHtml(localizeRegion(v.region))} · ${escapeHtml(v.priceText)}</button>`;
         })
         .join('');
       regionHtml = `
         <div class="np-region-box">
-          <div class="np-region-label">切换「${escapeHtml(activeFamily.name)}」地区与计价：</div>
+          <div class="np-region-label">${escapeHtml(t('picker.regionHint', { name: localizeItemShort(activeFamily.name) }))}</div>
           <div class="np-region-chips">${chips}</div>
         </div>`;
     }
@@ -258,9 +273,9 @@
           <input class="flat-input mono" data-np-amt="1" type="number" min="0" max="500000" step="any" value="${amtVal}" style="width:82px;" />
           <label class="check-inline" data-np-hike-wrap="1" style="display:${isTry ? 'inline-flex' : 'none'};font-size:12px;gap:5px;">
             <input type="checkbox" data-np-hike="1" ${currentItem.midYearHike ? 'checked' : ''} />
-            <span>6月追调</span>
+            <span>${escapeHtml(t('picker.hikeCheck'))}</span>
           </label>
-          <button type="button" class="subtle-btn btn-xs" data-np-apply-price="1" style="height:28px;padding:0 9px;font-size:12px;">更新价格</button>
+          <button type="button" class="subtle-btn btn-xs" data-np-apply-price="1" style="height:28px;padding:0 9px;font-size:12px;">${escapeHtml(t('picker.updatePrice'))}</button>
         </div>`;
     }
 
@@ -271,20 +286,22 @@
           const isAct = activeFamily && activeFamily.id === fam.id;
           const metaText =
             fam.variants.length > 1
-              ? `${fam.variants.length} 个地区`
+              ? t('picker.regionsCount', { n: fam.variants.length })
               : fam.variants[0].priceText;
-          const kindHint = fam.kind === 'replace' ? '可省月费' : fam.badge;
+          const kindHint = fam.kind === 'replace'
+            ? t('picker.canReplace')
+            : (getLang() === 'en-US' ? 'Idle' : fam.badge);
           return `
             <button type="button" class="np-item-btn ${isAct ? 'is-active' : ''}" data-pick-family="${fam.id}">
               <span class="np-item-left">
-                <span class="tag tag-${fam.tone}" style="font-size:12.5px;padding:1px 7px;">${escapeHtml(fam.name)}</span>
+                <span class="tag tag-${fam.tone}" style="font-size:12.5px;padding:1px 7px;">${escapeHtml(localizeItemShort(fam.name))}</span>
                 <span class="np-item-meta">${escapeHtml(metaText)}</span>
               </span>
               <span class="np-item-meta">${escapeHtml(kindHint)}</span>
             </button>`;
         })
         .join('');
-      return `<div class="np-brand-title">${escapeHtml(g.brand)}</div>${rows}`;
+      return `<div class="np-brand-title">${escapeHtml(localizeBrand(g.brand))}</div>${rows}`;
     }).join('');
 
     // Built-in Custom Plan section at the bottom of the dropdown
@@ -292,28 +309,28 @@
       ? `
         <div class="np-custom-form">
           <div class="np-custom-row">
-            <select class="flat-select" data-np-ckind="1" style="width:122px;">
-              <option value="replace">被黑五取代</option>
-              <option value="idle">致黑五空闲</option>
+            <select class="flat-select" data-np-ckind="1" style="width:128px;">
+              <option value="replace">${escapeHtml(t('picker.customReplace'))}</option>
+              <option value="idle">${escapeHtml(t('picker.customIdle'))}</option>
             </select>
-            <input class="flat-input" data-np-cname="1" type="text" placeholder="输入订阅/方案名称" style="flex:1;min-width:0;" />
+            <input class="flat-input" data-np-cname="1" type="text" placeholder="${escapeHtml(t('picker.customNamePh'))}" style="flex:1;min-width:0;" />
           </div>
           <div class="np-custom-row" data-np-cprice-row="1">
             <select class="flat-select" data-np-ccur="1" style="width:106px;">${currencyOptionsHtml('CNY')}</select>
-            <input class="flat-input mono" data-np-camt="1" type="number" min="0" max="500000" step="any" placeholder="原币月费" style="flex:1;min-width:0;" />
-            <button type="button" class="primary-btn btn-xs" data-np-csave="1" style="height:30px;">应用</button>
+            <input class="flat-input mono" data-np-camt="1" type="number" min="0" max="500000" step="any" placeholder="${escapeHtml(t('picker.customPricePh'))}" style="flex:1;min-width:0;" />
+            <button type="button" class="primary-btn btn-xs" data-np-csave="1" style="height:30px;">${escapeHtml(t('picker.apply'))}</button>
           </div>
           <div class="np-custom-row" data-np-cidle-row="1" style="display:none;justify-content:flex-end;">
-            <button type="button" class="primary-btn btn-xs" data-np-csave="1" style="height:30px;">设为致空闲 Plan</button>
+            <button type="button" class="primary-btn btn-xs" data-np-csave="1" style="height:30px;">${escapeHtml(t('picker.applyIdle'))}</button>
           </div>
         </div>`
-      : `<button type="button" class="np-custom-toggle" data-np-open-custom="1">+ 自定义被取代订阅 / 致空闲 Plan</button>`;
+      : `<button type="button" class="np-custom-toggle" data-np-open-custom="1">${escapeHtml(t('picker.customToggle'))}</button>`;
 
     pickerEl.innerHTML = `
       <div class="np-top">
         <div class="np-top-head">
           <span class="np-top-target">${escapeHtml(targetLabel)}</span>
-          <button type="button" class="text-btn text-btn-muted" data-np-close="1" style="padding:1px 6px;font-size:12.5px;">完成</button>
+          <button type="button" class="text-btn text-btn-muted" data-np-close="1" style="padding:1px 6px;font-size:12.5px;">${escapeHtml(t('picker.done'))}</button>
         </div>
         ${regionHtml}
         ${priceInlineHtml}
@@ -374,7 +391,7 @@
       p.className = 'calc-pill';
     });
     fillEl.style.width = '14%';
-    subEl.textContent = '正在汇总 12 个月不买 vs 买黑五边际排布...';
+    subEl.textContent = t('step4.calcSub0');
     p0.classList.add('is-active');
 
     render();
@@ -384,7 +401,7 @@
         p0.className = 'calc-pill is-done';
         p1.className = 'calc-pill is-active';
         fillEl.style.width = '56%';
-        subEl.textContent = '正在折算外币汇率走势与空闲期摊销...';
+        subEl.textContent = t('step4.calcSub1');
       }, 280)
     );
 
@@ -393,7 +410,7 @@
         p1.className = 'calc-pill is-done';
         p2.className = 'calc-pill is-active';
         fillEl.style.width = '90%';
-        subEl.textContent = '正在按模型周期率测算期望净收益 (EV)...';
+        subEl.textContent = t('step4.calcSub2');
       }, 600)
     );
 
@@ -434,26 +451,31 @@
   function buildFxPreviewText(code, pct) {
     const meta = FX_CURRENCY_META[code];
     if (!meta) return '';
+    const loc = localizeCurrencyMeta(code, meta);
     const map = Object.assign({}, state.fxAnnualChangePct, { [code]: pct });
     const nowCny = Math.round(meta.sampleAmount * getCnyPerUnit(code, 0, map));
     const endCny = Math.round(meta.sampleAmount * getCnyPerUnit(code, 12, map));
-    const dir = pct > 0 ? `升值 ${pct}%` : pct < 0 ? `贬值 ${Math.abs(pct)}%` : '持平';
-    return `${meta.name}${dir}：${meta.sampleLabel}将从今日约 ¥${nowCny} 变为第 12 个月的约 ¥${endCny}。${meta.note}`;
+    const dir = pct > 0
+      ? t('step3.fxDirUp', { n: pct })
+      : pct < 0
+        ? t('step3.fxDirDown', { n: Math.abs(pct) })
+        : t('step3.fxDirFlat');
+    return t('step3.fxPreview', { name: loc.name, dir, sample: loc.sampleLabel, now: nowCny, end: endCny, note: loc.note });
   }
 
   function renderDynamicFxPanel(res) {
     const panel = document.getElementById('fx-dynamic-panel');
     const active = res.activeFxCurrencies || [];
-    const key = active.map((c) => c.currency).join(',');
+    const key = `${getLang()}|${active.map((c) => c.currency).join(',')}`;
 
     if (active.length === 0) {
-      if (panel.dataset.fxKey !== '__empty__') {
-        panel.dataset.fxKey = '__empty__';
+      if (panel.dataset.fxKey !== `${getLang()}|__empty__`) {
+        panel.dataset.fxKey = `${getLang()}|__empty__`;
         panel.innerHTML = `
           <div class="prop-row">
-            <span class="prop-key">当前外币月付</span>
+            <span class="prop-key">${escapeHtml(t('step3.fxNoneKey'))}</span>
             <div class="prop-val">
-              <span class="unit">第 2 步方案中暂未涉及外币月付（今日黑五包年已按当前即期汇率锁定，不受未来汇率波动影响）。</span>
+              <span class="unit">${escapeHtml(t('step3.fxNoneVal'))}</span>
             </div>
           </div>`;
       }
@@ -467,6 +489,7 @@
           const code = entry.currency;
           const meta = FX_CURRENCY_META[code];
           if (!meta) return '';
+          const loc = localizeCurrencyMeta(code, meta);
           const pct = state.fxAnnualChangePct && state.fxAnnualChangePct[code] != null
             ? Number(state.fxAnnualChangePct[code])
             : meta.defaultAnnualPct;
@@ -477,14 +500,14 @@
             return `
               <div class="fx-card-block" data-fx-block="${code}">
                 <div class="prop-row">
-                  <span class="prop-key">${escapeHtml(meta.name)}基准汇率</span>
+                  <span class="prop-key">${escapeHtml(t('step3.fxBaseKey', { name: loc.name }))}</span>
                   <div class="prop-val mono">
                     <span>${escapeHtml(meta.displayBase)}</span>
-                    <span class="unit" data-fx-months="${code}">· 影响第 2 步中 ${entry.monthsCount} 个月</span>
+                    <span class="unit" data-fx-months="${code}">${escapeHtml(t('step3.fxMonths', { n: entry.monthsCount }))}</span>
                   </div>
                 </div>
                 <div class="prop-row">
-                  <span class="prop-key">${escapeHtml(meta.name)}年化涨跌幅</span>
+                  <span class="prop-key">${escapeHtml(t('step3.fxDeltaKey', { name: loc.name }))}</span>
                   <div class="prop-val prop-val-slider">
                     <input type="range" data-fx-slider="${code}" min="${meta.minPct}" max="${meta.maxPct}" step="1" value="${pct}" />
                     <span class="mono val-badge ${d.cls}" data-fx-badge="${code}">${d.text}</span>
@@ -497,12 +520,12 @@
           return `
             <details class="fx-extra-toggle" data-fx-block="${code}">
               <summary>
-                <span><strong>${escapeHtml(meta.name)} (${code})</strong> <span class="unit" data-fx-months="${code}">· 涉及 ${entry.monthsCount} 个月 · ${escapeHtml(meta.displayBase)}</span></span>
+                <span><strong>${escapeHtml(loc.name)} (${code})</strong> <span class="unit" data-fx-months="${code}">${escapeHtml(t('step3.fxMonthsShort', { n: entry.monthsCount, base: meta.displayBase }))}</span></span>
                 <span class="mono ${d.cls}" data-fx-badge="${code}" style="font-weight:600;">${d.text}</span>
               </summary>
               <div class="fx-extra-body">
                 <div class="prop-row" style="border-bottom:none;min-height:40px;padding:4px 0;">
-                  <span class="prop-key">${escapeHtml(meta.name)}年化涨跌幅</span>
+                  <span class="prop-key">${escapeHtml(t('step3.fxDeltaKey', { name: loc.name }))}</span>
                   <div class="prop-val prop-val-slider">
                     <input type="range" data-fx-slider="${code}" min="${meta.minPct}" max="${meta.maxPct}" step="1" value="${pct}" />
                     <span class="mono val-badge ${d.cls}" data-fx-badge2="${code}">${d.text}</span>
@@ -538,8 +561,8 @@
       const monthsEl = panel.querySelector(`[data-fx-months="${code}"]`);
       if (monthsEl) {
         monthsEl.textContent = monthsEl.closest('summary')
-          ? `· 涉及 ${entry.monthsCount} 个月 · ${meta.displayBase}`
-          : `· 影响第 2 步中 ${entry.monthsCount} 个月`;
+          ? t('step3.fxMonthsShort', { n: entry.monthsCount, base: meta.displayBase })
+          : t('step3.fxMonths', { n: entry.monthsCount });
       }
 
       const prevEl = panel.querySelector(`[data-fx-preview="${code}"]`);
@@ -547,11 +570,15 @@
     });
   }
 
-  function renderStaticTables() {
+  function renderPresetOptions() {
     const presetPicker = document.getElementById('inp-preset-picker');
     presetPicker.innerHTML =
-      '<option value="">预设场景...</option>' +
-      SCENARIO_PRESETS.map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
+      `<option value="">${escapeHtml(t('nav.presets'))}</option>` +
+      SCENARIO_PRESETS.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  }
+
+  function renderStaticTables() {
+    renderPresetOptions();
 
     document.getElementById('timeline-tbody').innerHTML = HISTORICAL_TIMELINE.map(
       (item) => `
@@ -591,7 +618,7 @@
   function renderStepTabs() {
     document.getElementById('step-nav-list').innerHTML = STEPS.map((s, idx) => {
       const cls = idx === currentStep ? 'is-current' : idx <= maxVisitedStep ? 'is-done' : '';
-      return `<button type="button" class="step-tab ${cls}" data-go-step="${idx}">${s.label}</button>`;
+      return `<button type="button" class="step-tab ${cls}" data-go-step="${idx}">${escapeHtml(t(s.key))}</button>`;
     }).join('');
   }
 
@@ -603,7 +630,7 @@
     const selBar = document.getElementById('db-selection-bar');
     selBar.style.display = indices.length > 0 ? 'flex' : 'none';
     document.getElementById('editor-selected-title').textContent =
-      indices.length === 12 ? '已选全年 12 月' : `已选 ${indices.length} 个月`;
+      indices.length === 12 ? t('step2.selectedAll') : t('step2.selectedN', { n: indices.length });
 
     const chkAll = document.getElementById('chk-select-all');
     chkAll.checked = indices.length === 12;
@@ -616,10 +643,11 @@
     tableEl.classList.toggle('is-compare-hidden', !showBfCompare);
     skipBtn.classList.toggle('is-active', !showBfCompare);
     buyBtn.classList.toggle('is-active', showBfCompare);
-    saveThLabel.textContent = showBfCompare ? '本月差额' : '原方案月费';
+    saveThLabel.textContent = showBfCompare ? t('step2.thSaveDiff') : t('step2.thSaveOrig');
     document.getElementById('lbl-phase-settings-meta').textContent =
-      `SOTA ${state.effectiveSotaMonths}月 / 留存 ${state.retainProbPct}%`;
+      t('step2.phaseMeta', { sota: state.effectiveSotaMonths, prob: state.retainProbPct });
 
+    const phaseTip = escapeHtml(t('step2.phaseTooltip'));
     const tbody = document.getElementById('db-months-tbody');
     tbody.innerHTML = res.monthlyRows
       .map((row) => {
@@ -637,14 +665,14 @@
           : replaceableItem
             ? `tone-${replaceableItem.tone || 'blue'}`
             : 'tone-empty';
-        const pillText = primaryItem ? primaryItem.short : '点击选择原方案';
+        const pillText = primaryItem ? localizeItemShort(primaryItem.short) : t('step2.pickPlaceholder');
         const hikeBadge = replaceableItem && replaceableItem.midYearHike
-          ? '<span class="cell-hike-dot">6月追调</span>'
+          ? `<span class="cell-hike-dot">${escapeHtml(t('step2.hikeTag'))}</span>`
           : '';
 
         const skipCellHtml = `
           <div class="cell-skip-inner">
-            <input type="checkbox" class="cell-chk" data-chk-month="${row.index}" ${isSel ? 'checked' : ''} aria-label="勾选${row.month.label}" />
+            <input type="checkbox" class="cell-chk" data-chk-month="${row.index}" ${isSel ? 'checked' : ''} aria-label="${escapeHtml(getMonthLabel(row.index))}" />
             <button type="button" class="cell-pill-btn ${pillTone} ${isPickerOpen ? 'is-open' : ''}" data-open-picker="${row.index}">
               <span>${escapeHtml(pillText)}</span>
               <span class="cell-pill-caret" aria-hidden="true">▾</span>
@@ -652,53 +680,52 @@
             ${hikeBadge}
           </div>`;
 
-        // Right Column: "买黑五后（全年自带黑五 Pro）"
         let buyCellHtml;
         if (idleItem && row.ultraFallbackToPro) {
           buyCellHtml = `
             <div class="bf-compare-cell">
-              <span class="bf-pill is-active">黑五 Pro · 顶替 1 槽</span>
-              <span class="bf-replaced-strike">原双号 Pro</span>
+              <span class="bf-pill is-active">${escapeHtml(t('step2.bfFallback'))}</span>
+              <span class="bf-replaced-strike">${escapeHtml(t('step2.bfFallbackOld'))}</span>
             </div>`;
         } else if (idleItem) {
           buyCellHtml = `
             <div class="bf-compare-cell">
-              <span class="bf-keep-plan">${escapeHtml(idleItem.short)}</span>
-              <span class="bf-pill is-idle">黑五 Pro · 空闲</span>
+              <span class="bf-keep-plan">${escapeHtml(localizeItemShort(idleItem.short))}</span>
+              <span class="bf-pill is-idle">${escapeHtml(t('step2.bfIdle'))}</span>
             </div>`;
         } else if (replaceableItem) {
           buyCellHtml = `
             <div class="bf-compare-cell">
-              <span class="bf-pill is-active">黑五 Pro · 取代</span>
-              <span class="bf-replaced-strike">${escapeHtml(replaceableItem.short)}</span>
+              <span class="bf-pill is-active">${escapeHtml(t('step2.bfReplace'))}</span>
+              <span class="bf-replaced-strike">${escapeHtml(localizeItemShort(replaceableItem.short))}</span>
             </div>`;
         } else {
           buyCellHtml = `
             <div class="bf-compare-cell">
-              <span class="bf-pill is-idle">黑五 Pro · 空闲</span>
+              <span class="bf-pill is-idle">${escapeHtml(t('step2.bfIdle'))}</span>
             </div>`;
         }
 
         let saveText;
         if (showBfCompare) {
           saveText = isBfActive
-            ? `<span class="mono save-val-active">省 ${fmtYen(row.monthSavedByBf)}/月</span>`
+            ? `<span class="mono save-val-active">${escapeHtml(t('step2.saveMonth', { yen: fmtYen(row.monthSavedByBf) }))}</span>`
             : idleItem
-              ? '<span class="mono save-val-idle">空闲 · ¥0</span>'
-              : '<span class="mono save-val-idle">未填 · ¥0</span>';
+              ? `<span class="mono save-val-idle">${escapeHtml(t('step2.idleZero'))}</span>`
+              : `<span class="mono save-val-idle">${escapeHtml(t('step2.emptyZero'))}</span>`;
         } else {
           saveText = isBfActive
-            ? `<span class="mono">${fmtYen(row.monthSavedByBf)}/月</span>`
+            ? `<span class="mono">${fmtYen(row.monthSavedByBf)}</span>`
             : idleItem
-              ? '<span class="mono save-val-idle">其他 Plan</span>'
+              ? `<span class="mono save-val-idle">${escapeHtml(t('step2.otherPlan'))}</span>`
               : '<span class="mono save-val-idle">—</span>';
         }
 
         return `
           <tr class="db-row" data-row-idx="${row.index}">
             <td class="col-month">
-              <span class="db-month-main">${row.month.label}</span>
-              <button type="button" class="phase-pill phase-${row.phase.key}" data-open-phase-pop="1">${row.phase.label}${PHASE_CUE_SVG}</button>
+              <span class="db-month-main">${escapeHtml(getMonthLabel(row.index))}</span>
+              <button type="button" class="phase-pill phase-${row.phase.key}" data-open-phase-pop="1" data-tooltip="${phaseTip}">${escapeHtml(localizePhase(row.phase))}${PHASE_CUE_SVG}</button>
             </td>
             <td class="col-skip ${isSel ? 'is-cell-selected' : ''}" data-cell-idx="${row.index}">${skipCellHtml}</td>
             <td class="col-buy">${buyCellHtml}</td>
@@ -711,10 +738,10 @@
 
     document.getElementById('db-months-tfoot').innerHTML = `
       <tr>
-        <td class="mono" style="font-weight:600;">排布统计</td>
-        <td>原需月付 <strong>${res.proCoveredMonths}</strong> 月 · 其他 Plan <strong>${res.ultraOverlapMonths}</strong> 月 · 未填 <strong>${res.idleNoneMonths}</strong> 月</td>
-        <td class="col-buy">黑五 Pro 生效 <strong>${res.proCoveredMonths}</strong> 月 · 空闲 <strong>${res.totalIdleMonths}</strong> 月</td>
-        <td class="num unit">第 4 步汇总计价</td>
+        <td class="mono" style="font-weight:600;">${escapeHtml(t('step2.footTitle'))}</td>
+        <td>${t('step2.footSkip', { pro: res.proCoveredMonths, ultra: res.ultraOverlapMonths, none: res.idleNoneMonths })}</td>
+        <td class="col-buy">${t('step2.footBuy', { pro: res.proCoveredMonths, idle: res.totalIdleMonths })}</td>
+        <td class="num unit">${escapeHtml(t('step2.footRight'))}</td>
       </tr>`;
   }
 
@@ -757,7 +784,7 @@
       crossoverSvg = `
         <line x1="${cx.toFixed(1)}" y1="${padT}" x2="${cx.toFixed(1)}" y2="${padT + plotH}" stroke="#1c3829" stroke-dasharray="3 3" stroke-width="1"/>
         <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.5" fill="#1c3829" stroke="#ffffff" stroke-width="1.5"/>
-        <text x="${Math.min(width - 96, cx + 8).toFixed(1)}" y="${Math.max(padT + 20, cy - 8).toFixed(1)}" fill="#1c3829" font-size="12" font-weight="600">${rows[res.crossoverMonthIndex].month.short}回本</text>
+        <text x="${Math.min(width - 96, cx + 8).toFixed(1)}" y="${Math.max(padT + 20, cy - 8).toFixed(1)}" fill="#1c3829" font-size="12" font-weight="600">${escapeHtml(t('step4.chartBreakeven', { m: getMonthShort(res.crossoverMonthIndex) }))}</text>
       `;
     }
 
@@ -765,7 +792,7 @@
       .map((r, i) => {
         const x = xAt(i).toFixed(1);
         return `
-          <text x="${x}" y="${height - 10}" text-anchor="middle" fill="#787774" font-size="11.5">${r.month.short}</text>
+          <text x="${x}" y="${height - 10}" text-anchor="middle" fill="#787774" font-size="11.5">${escapeHtml(getMonthShort(i))}</text>
           <circle cx="${x}" cy="${yAt(r.cumBuy).toFixed(1)}" r="2.5" fill="#37352f"/>
         `;
       })
@@ -783,27 +810,32 @@
       nextGenMarkerSvg = `
         <line x1="${nx.toFixed(1)}" y1="${padT}" x2="${nx.toFixed(1)}" y2="${padT + plotH}" stroke="#787774" stroke-dasharray="2 3" stroke-width="1"/>
         <circle cx="${nx.toFixed(1)}" cy="${(padT + plotH).toFixed(1)}" r="4.5" fill="#1c3829" stroke="#ffffff" stroke-width="1.5"/>
-        <text x="${Math.min(width - 132, Math.max(padL + 6, nx - 44)).toFixed(1)}" y="${(padT + 12).toFixed(1)}" fill="#1c3829" font-size="11.5" font-weight="600">● 下一代成为 SOTA 的模型 (${rows[nextGenIdx].month.short})</text>
+        <text x="${Math.min(width - 132, Math.max(padL + 6, nx - 44)).toFixed(1)}" y="${(padT + 12).toFixed(1)}" fill="#1c3829" font-size="11.5" font-weight="600">${escapeHtml(t('step4.chartNextGen', { m: getMonthShort(nextGenIdx) }))}</text>
       `;
     }
 
     container.innerHTML = `
-      <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="12个月累积支出对比图">
+      <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="12-month cumulative comparison">
         ${gridLines.join('')}
         ${nextGenMarkerSvg}
         <polyline points="${skipPts}" fill="none" stroke="#9b9a97" stroke-width="2" stroke-dasharray="5 4"/>
         <polyline class="chart-line-draw" points="${buyPts}" fill="none" stroke="#37352f" stroke-width="2.2"/>
         ${xLabels}
         ${crossoverSvg}
-        <text x="${(lastX - 6).toFixed(1)}" y="${buyY.toFixed(1)}" text-anchor="end" fill="#37352f" font-size="12" font-weight="600" font-family="JetBrains Mono, monospace">买:${fmtYen(lastRow.cumBuy)}</text>
-        <text x="${(lastX - 6).toFixed(1)}" y="${skipY.toFixed(1)}" text-anchor="end" fill="#787774" font-size="12" font-family="JetBrains Mono, monospace">不买:${fmtYen(lastRow.cumSkip)}</text>
+        <text x="${(lastX - 6).toFixed(1)}" y="${buyY.toFixed(1)}" text-anchor="end" fill="#37352f" font-size="12" font-weight="600" font-family="JetBrains Mono, monospace">${escapeHtml(t('step4.chartBuy', { yen: fmtYen(lastRow.cumBuy) }))}</text>
+        <text x="${(lastX - 6).toFixed(1)}" y="${skipY.toFixed(1)}" text-anchor="end" fill="#787774" font-size="12" font-family="JetBrains Mono, monospace">${escapeHtml(t('step4.chartSkip', { yen: fmtYen(lastRow.cumSkip) }))}</text>
       </svg>
     `;
   }
 
   function render() {
     saveState();
-    const res = calculateLedger(state);
+    const lang = getLang();
+    applyDomTranslations();
+    document.querySelectorAll('[data-lang-opt]').forEach((el) => {
+      el.classList.toggle('is-active', el.dataset.langOpt === lang);
+    });
+    const res = calculateLedger(state, lang);
 
     document.querySelectorAll('.step').forEach((sec) => {
       sec.classList.toggle('is-active', Number(sec.dataset.step) === currentStep);
@@ -819,7 +851,7 @@
     prevBtn.classList.toggle('is-hidden', currentStep === 0);
     nextBtn.classList.toggle('is-hidden', hideNext);
     nextBtn.classList.toggle('is-emphasized', currentStep === 0 && isStep1Picked);
-    document.getElementById('side-next-tip').textContent = currentStep === 2 ? '查看结论' : '下一步';
+    document.getElementById('side-next-tip').textContent = currentStep === 2 ? t('nav.seeVerdict') : t('nav.next');
     mobPrev.style.visibility = currentStep === 0 ? 'hidden' : 'visible';
     mobNext.style.visibility = hideNext ? 'hidden' : 'visible';
     document.getElementById('export-group').style.display =
@@ -831,18 +863,18 @@
     });
     document.getElementById('panel-bf-custom').style.display =
       isStep1Picked && state.bfPreset === 'custom' ? 'block' : 'none';
-    document.getElementById('lbl-bf-converted').textContent = `≈ ${fmtYen(state.bfCostCny)} / 年`;
+    document.getElementById('lbl-bf-converted').textContent = t('step1.perYear', { yen: fmtYen(state.bfCostCny) });
     document.getElementById('lbl-custom-preview').textContent =
       isStep1Picked && state.bfPreset === 'custom'
         ? `${fmtNativeAmount(state.bfRawAmount, state.bfCurrency)} ≈ ${fmtYen(state.bfCostCny)}`
-        : '自定义币种与金额';
+        : t('step1.customPreviewEmpty');
     const step1Hint = document.getElementById('step1-hint');
     const step1NextBtn = document.getElementById('btn-step1-next');
     if (isStep1Picked) {
-      step1Hint.textContent = '也可随时点击屏幕左右边缘的 < / > 翻页';
+      step1Hint.textContent = t('step1.hintPicked');
       step1NextBtn.style.display = 'inline-flex';
     } else {
-      step1Hint.textContent = '请先选择上方一个方案，选定后将显示下一步按钮';
+      step1Hint.textContent = t('step1.hintUnpicked');
       step1NextBtn.style.display = 'none';
     }
 
@@ -851,51 +883,51 @@
 
     const idleUltraMonths = res.monthlyRows
       .filter((r) => r.hasUltraActive && r.replaceableSlots === 0)
-      .map((r) => r.month.short);
+      .map((r) => getMonthShort(r.index));
     const idlePlanLabels = [
       ...new Set(
         res.monthlyRows
           .filter((r) => r.hasUltraActive && r.replaceableSlots === 0)
-          .flatMap((r) => r.items.filter((it) => it.isIdlePlan || it.isGeminiUltra).map((it) => it.short))
+          .flatMap((r) => r.items.filter((it) => it.isIdlePlan || it.isGeminiUltra).map((it) => localizeItemShort(it.short)))
       ),
     ];
 
-    // STEP 3: Auto-hide Legacy Ultra Renewal unless Step 2 actually uses it + Dynamic Bidirectional FX Panel
+    // STEP 3
     document.getElementById('section-legacy-ultra').style.display = res.needsLegacyUltraRenewal ? 'block' : 'none';
     document.querySelectorAll('[data-renewal]').forEach((btn) => {
       btn.classList.toggle('is-active', btn.dataset.renewal === state.ultraRenewalMode);
     });
     document.getElementById('wrap-fail-month').style.display = state.ultraRenewalMode === 'fail_at' ? 'grid' : 'none';
     document.getElementById('wrap-fallback-strategy').style.display = state.ultraRenewalMode !== 'always' ? 'grid' : 'none';
-    document.getElementById('lbl-fail-month').textContent = MONTHS[state.ultraFailMonthIndex]?.label || '';
+    document.getElementById('lbl-fail-month').textContent = getMonthLabel(state.ultraFailMonthIndex) || '';
     renderDynamicFxPanel(res);
 
     // Center Peek Modal: Model Lifecycle & Retention Probability
     const sotaUntilText = formatFutureMonth(2026, 11, state.effectiveSotaMonths);
     const nextWhenText = formatFutureMonth(2026, 11, state.nextFlagshipInterval);
-    document.getElementById('lbl-sota-len').textContent = `${state.effectiveSotaMonths} 个月`;
-    document.getElementById('lbl-next-interval').textContent = `${state.nextFlagshipInterval} 个月`;
+    document.getElementById('lbl-sota-len').textContent = t('modal.monthsVal', { n: state.effectiveSotaMonths });
+    document.getElementById('lbl-next-interval').textContent = t('modal.monthsVal', { n: state.nextFlagshipInterval });
     document.getElementById('lbl-retain-prob').textContent = `${state.retainProbPct}%`;
     document.getElementById('help-sota-until').textContent =
-      `指你认为当前这一代模型能维持 SOTA 水准、足够作为主力生产力使用的时长。自 2026年11月起算 ${state.effectiveSotaMonths} 个月，预计可用至 ${sotaUntilText}。`;
+      t('modal.sotaHelp', { n: state.effectiveSotaMonths, until: sotaUntilText });
     document.getElementById('help-next-when').textContent =
-      `指 Google 下一代能够重新成为 SOTA 的旗舰模型出现间隔。自 2026年11月起算 ${state.nextFlagshipInterval} 个月，预计在 ${nextWhenText} 登场。`;
+      t('modal.nextHelp', { n: state.nextFlagshipInterval, when: nextWhenText });
 
     const sotaPct = Math.min(94, Math.max(8, (state.effectiveSotaMonths / 12) * 100));
     const nextPct = Math.min(96, Math.max(12, (state.nextFlagshipInterval / 12) * 100));
     document.getElementById('lc-active-seg').style.width = `${sotaPct}%`;
     document.getElementById('lc-sota-node').style.left = `${sotaPct}%`;
-    document.getElementById('lc-sota-label').textContent = `主力期止 (${sotaUntilText.slice(2)})`;
+    document.getElementById('lc-sota-label').textContent = t('modal.nodeSota', { when: lang === 'en-US' ? sotaUntilText : sotaUntilText.slice(2) });
     document.getElementById('lc-next-node').style.left = `${nextPct}%`;
-    document.getElementById('lc-next-label').textContent = `下一代成为 SOTA 的模型 (${nextWhenText.slice(2)})`;
+    document.getElementById('lc-next-label').textContent = t('modal.nodeNext', { when: lang === 'en-US' ? nextWhenText : nextWhenText.slice(2) });
 
     const thresholdClamped = Math.min(96, Math.max(4, res.breakEvenProbPct));
     document.getElementById('ev-threshold-line').style.left = `${thresholdClamped}%`;
-    document.getElementById('ev-threshold-tag').textContent = `盈亏线 ${res.breakEvenProbPct.toFixed(0)}%`;
+    document.getElementById('ev-threshold-tag').textContent = t('modal.evLine', { pct: res.breakEvenProbPct.toFixed(0) });
     document.getElementById('ev-user-dot').style.left = `${state.retainProbPct}%`;
     const probGap = state.retainProbPct - res.breakEvenProbPct;
     document.getElementById('lbl-ev-gap').textContent =
-      probGap >= 0 ? `高于盈亏线 +${probGap.toFixed(1)}%` : `低于盈亏线 ${probGap.toFixed(1)}%`;
+      probGap >= 0 ? t('modal.evAbove', { gap: probGap.toFixed(1) }) : t('modal.evBelow', { gap: probGap.toFixed(1) });
 
     // FINAL STEP (Step 4): Summary Ledger
     const badge = document.getElementById('verdict-badge');
@@ -905,40 +937,47 @@
     document.getElementById('verdict-detail').textContent = res.verdict.detail;
 
     document.getElementById('kpi-bf-cost').textContent = fmtYen(res.bfCost);
-    document.getElementById('kpi-bf-monthly').textContent = `（折合 ¥${res.bfMonthlyAvg.toFixed(1)}/月）`;
+    document.getElementById('kpi-bf-monthly').textContent = t('step4.kpiBfAvg', { avg: res.bfMonthlyAvg.toFixed(1) });
 
     document.getElementById('kpi-idle-summary').textContent =
       res.totalIdleMonths > 0
-        ? `共 ${res.totalIdleMonths} 个月空闲（致空闲 Plan ${res.ultraOverlapMonths} 月 + 未填 ${res.idleNoneMonths} 月，折合摊销约 ${fmtYen(res.totalIdleCostCny)}）`
-        : '0 个月（全年 12 个月均在生效）';
+        ? t('step4.kpiIdleVal', { total: res.totalIdleMonths, ultra: res.ultraOverlapMonths, none: res.idleNoneMonths, cost: fmtYen(res.totalIdleCostCny) })
+        : t('step4.kpiIdleZero');
 
     document.getElementById('kpi-breakeven').textContent = Number.isFinite(res.breakEvenMonths)
-      ? `${res.breakEvenMonths.toFixed(1)} 个月`
-      : '无法回本';
-    document.getElementById('kpi-avg-pro').textContent = `（月均平替价值 ¥${Math.round(res.avgProPrice)}/月）`;
+      ? t('step4.kpiBreakevenMo', { n: res.breakEvenMonths.toFixed(1) })
+      : t('step4.kpiNoBreakeven');
+    document.getElementById('kpi-avg-pro').textContent = t('step4.kpiAvgPro', { avg: Math.round(res.avgProPrice) });
 
     const evEl = document.getElementById('kpi-ev');
     evEl.textContent = fmtYen(res.expectedNetSavings, true);
     evEl.className = res.expectedNetSavings > 0 ? 'is-pos' : res.expectedNetSavings < 0 ? 'is-neg' : '';
-    document.getElementById('kpi-prob-line').textContent = `（盈亏概率线 ${res.breakEvenProbPct.toFixed(1)}%）`;
+    document.getElementById('kpi-prob-line').textContent = t('step4.kpiProbLine', { pct: res.breakEvenProbPct.toFixed(1) });
 
     document.getElementById('kpi-upside-downside').textContent =
       `${fmtYen(res.upsideNet, true)} / ${fmtYen(res.downsideNet, true)}`;
     const oddsRatio = res.downsideNet < 0 ? Math.max(0, res.upsideNet) / Math.abs(res.downsideNet) : Infinity;
     document.getElementById('kpi-odds-sub').textContent = Number.isFinite(oddsRatio)
-      ? `（赔率比 ${oddsRatio.toFixed(2)} : 1）`
-      : '（无下行亏损）';
+      ? t('step4.kpiOdds', { ratio: oddsRatio.toFixed(2) })
+      : t('step4.kpiNoDownside');
 
     const idleCallout = document.getElementById('idle-callout');
     if (res.totalIdleMonths > 0) {
       idleCallout.style.display = 'block';
       document.getElementById('idle-callout-title').textContent =
-        `空闲期说明：全年有 ${res.totalIdleMonths} 个月黑五 Pro 处于闲置状态`;
-      const planDesc = idlePlanLabels.length > 0 ? `「${idlePlanLabels.join(' / ')}」` : '其他高阶/外部 Plan';
+        t('step4.idleTitle', { total: res.totalIdleMonths });
+      const planDesc = idlePlanLabels.length > 0 ? idlePlanLabels.join(' / ') : t('step2.otherPlan');
       document.getElementById('idle-callout-detail').textContent =
         res.ultraOverlapMonths > 0
-          ? `在 ${idleUltraMonths.join('、')} 这 ${res.ultraOverlapMonths} 个月里，由于使用 ${planDesc}，黑五 Pro 处于空闲状态（约占年费 ${Math.round((res.ultraOverlapMonths / 12) * 100)}%，即 ${fmtYen(res.ultraIdleCostCny)}）。黑五能否回本，取决于剩下 ${res.proCoveredMonths} 个被取代订阅的生效月份。`
-          : `当前有 ${res.idleNoneMonths} 个未填月份黑五 Pro 闲置（折合 ${fmtYen(res.totalIdleCostCny)}）。`;
+          ? t('step4.idleDetailUltra', {
+              months: idleUltraMonths.join(lang === 'en-US' ? ', ' : '、'),
+              n: res.ultraOverlapMonths,
+              plans: planDesc,
+              pct: Math.round((res.ultraOverlapMonths / 12) * 100),
+              cost: fmtYen(res.ultraIdleCostCny),
+              pro: res.proCoveredMonths,
+            })
+          : t('step4.idleDetailNone', { n: res.idleNoneMonths, cost: fmtYen(res.totalIdleCostCny) });
     } else {
       idleCallout.style.display = 'none';
     }
@@ -948,13 +987,15 @@
     document.getElementById('scenarios-tbody').innerHTML = res.scenarios
       .map((sc) => {
         const cls = sc.diff > 0 ? 'is-pos' : sc.diff < 0 ? 'is-neg' : '';
-        const diffLabel = sc.diff >= 0 ? `省 ${fmtYen(sc.diff)}` : `亏 ${fmtYen(Math.abs(sc.diff))}`;
+        const diffLabel = sc.diff >= 0
+          ? t('step4.saveWord', { yen: fmtYen(sc.diff) })
+          : t('step4.lossWord', { yen: fmtYen(Math.abs(sc.diff)) });
         return `
           <tr>
-            <td>${sc.title}</td>
+            <td>${escapeHtml(sc.title)}</td>
             <td class="num mono">${fmtYen(sc.buyTotal)}</td>
             <td class="num mono">${fmtYen(sc.skipTotal)}</td>
-            <td class="num mono ${cls}" style="font-weight:600;">${diffLabel}</td>
+            <td class="num mono ${cls}" style="font-weight:600;">${escapeHtml(diffLabel)}</td>
           </tr>`;
       })
       .join('');
@@ -992,6 +1033,14 @@
       showToast(`已载入：${found.name}`);
     });
 
+    document.getElementById('btn-lang-toggle').addEventListener('click', () => {
+      const next = getLang() === 'zh-CN' ? 'en-US' : 'zh-CN';
+      setLang(next);
+      renderPresetOptions();
+      render();
+      showToast(t('toast.langSwitched'));
+    });
+
     document.getElementById('btn-reset').addEventListener('click', () => {
       state = createInitialUiState();
       selectedMonths = new Set();
@@ -999,7 +1048,7 @@
       setPhaseModalOpen(false);
       syncInputsFromState();
       goToStep(0);
-      showToast('已重置为空白初始状态');
+      showToast(t('toast.reset'));
     });
 
     document.getElementById('btn-prev').addEventListener('click', () => {
@@ -1509,61 +1558,75 @@
     }
 
     document.getElementById('btn-copy-hd-img').addEventListener('click', async () => {
-      const res = calculateLedger(state);
-      const svg = buildSummarySvg(state, res);
+      const lang = getLang();
+      const res = calculateLedger(state, lang);
+      const svg = buildSummarySvg(state, res, lang);
       try {
         const pngBlob = await svgToHighResPngBlob(svg, 3);
         if (navigator.clipboard && typeof window.ClipboardItem !== 'undefined') {
           await navigator.clipboard.write([new window.ClipboardItem({ 'image/png': pngBlob })]);
-          showToast('已复制 3x 超清图片到剪贴板，可直接粘贴');
+          showToast(t('toast.copiedPng'));
         } else {
           triggerDownload(pngBlob, 'do-you-really-need-gemini-pro-bf-3x.png');
-          showToast('当前环境不支持剪贴板写图，已自动下载 3x 超清 PNG');
+          showToast(t('toast.downloadedPng'));
         }
       } catch {
         try {
           const pngBlob = await svgToHighResPngBlob(svg, 3);
           triggerDownload(pngBlob, 'do-you-really-need-gemini-pro-bf-3x.png');
-          showToast('已下载 3x 超清 PNG 图片');
+          showToast(t('toast.downloadedPng'));
         } catch {
-          showToast('图片生成失败，请改用导出 SVG');
+          showToast(t('toast.pngFailed'));
         }
       }
     });
 
     document.getElementById('btn-export-svg').addEventListener('click', () => {
-      const res = calculateLedger(state);
-      const svg = buildSummarySvg(state, res);
+      const lang = getLang();
+      const res = calculateLedger(state, lang);
+      const svg = buildSummarySvg(state, res, lang);
       const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
       triggerDownload(blob, 'do-you-really-need-gemini-pro-bf.svg');
-      showToast('已导出矢量 SVG 图片');
+      showToast(t('toast.exportedSvg'));
     });
 
     document.getElementById('btn-export-html').addEventListener('click', () => {
-      const res = calculateLedger(state);
-      const html = buildStandaloneHtml(state, res);
+      const lang = getLang();
+      const res = calculateLedger(state, lang);
+      const html = buildStandaloneHtml(state, res, lang);
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       triggerDownload(blob, 'do-you-really-need-gemini-pro-bf-report.html');
-      showToast('已导出独立 HTML 报告网页');
+      showToast(t('toast.exportedHtml'));
     });
 
     document.getElementById('btn-copy-summary').addEventListener('click', async () => {
-      const res = calculateLedger(state);
-      const lines = [
-        '【AI 黑五包年决策账本】',
-        `- 结论：${res.verdict.badge}（${res.verdict.headline}）`,
-        `- 黑五成本：${fmtYen(res.bfCost)}/年（¥${res.bfMonthlyAvg.toFixed(1)}/月）`,
-        `- 黑五空闲期：${res.totalIdleMonths} 个月（致空闲 Plan ${res.ultraOverlapMonths} 月，折合摊销 ${fmtYen(res.ultraIdleCostCny)}）`,
-        `- 实际回本：${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) + ' 个月' : '无法回本'}（月均平替价值 ¥${Math.round(res.avgProPrice)}/月）`,
-        `- 期望净收益 (EV)：${fmtYen(res.expectedNetSavings, true)}（把握 ${state.retainProbPct}% vs 盈亏线 ${res.breakEvenProbPct.toFixed(1)}%）`,
-        `- 最大赢 / 最大亏：${fmtYen(res.upsideNet, true)} / ${fmtYen(res.downsideNet, true)}`,
-      ].join('\n');
+      const lang = getLang();
+      const res = calculateLedger(state, lang);
+      const lines = (lang === 'en-US'
+        ? [
+            '[Do You Really Need Gemini Pro Black Friday?]',
+            `- Verdict: ${res.verdict.badge} (${res.verdict.headline})`,
+            `- BF Annual Cost: ${fmtYen(res.bfCost)}/yr (¥${res.bfMonthlyAvg.toFixed(1)}/mo)`,
+            `- Idle Period: ${res.totalIdleMonths} mo (Other Plan ${res.ultraOverlapMonths}m, ~${fmtYen(res.totalIdleCostCny)} amortized)`,
+            `- Break-Even: ${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) + ' mo' : 'Cannot break even'} (avg ¥${Math.round(res.avgProPrice)}/mo)`,
+            `- Expected Value (EV): ${fmtYen(res.expectedNetSavings, true)} (Your ${state.retainProbPct}% vs Break-even ${res.breakEvenProbPct.toFixed(1)}%)`,
+            `- Upside / Downside: ${fmtYen(res.upsideNet, true)} / ${fmtYen(res.downsideNet, true)}`,
+          ]
+        : [
+            '【AI 黑五包年决策账本】',
+            `- 结论：${res.verdict.badge}（${res.verdict.headline}）`,
+            `- 黑五成本：${fmtYen(res.bfCost)}/年（¥${res.bfMonthlyAvg.toFixed(1)}/月）`,
+            `- 黑五空闲期：${res.totalIdleMonths} 个月（致空闲 Plan ${res.ultraOverlapMonths} 月，折合摊销 ${fmtYen(res.ultraIdleCostCny)}）`,
+            `- 实际回本：${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) + ' 个月' : '无法回本'}（月均平替价值 ¥${Math.round(res.avgProPrice)}/月）`,
+            `- 期望净收益 (EV)：${fmtYen(res.expectedNetSavings, true)}（把握 ${state.retainProbPct}% vs 盈亏线 ${res.breakEvenProbPct.toFixed(1)}%）`,
+            `- 最大赢 / 最大亏：${fmtYen(res.upsideNet, true)} / ${fmtYen(res.downsideNet, true)}`,
+          ]).join('\n');
 
       try {
         await navigator.clipboard.writeText(lines);
-        showToast('已复制决策摘要');
+        showToast(t('toast.copiedText'));
       } catch {
-        showToast('复制失败');
+        showToast(t('toast.copyFailed'));
       }
     });
   }

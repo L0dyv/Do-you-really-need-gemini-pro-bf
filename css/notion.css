@@ -162,6 +162,36 @@ select {
   color: var(--ink);
 }
 
+/* Topbar Minimalist Language Toggle (中 / EN) */
+.lang-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 30px;
+  padding: 0 9px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-size: 12px;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.lang-toggle-btn:hover {
+  background: var(--hover);
+  border-color: var(--border-2);
+}
+
+.lang-toggle-btn .lang-opt.is-active {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.lang-toggle-btn .lang-sep {
+  color: var(--border-2);
+}
+
 /* Notion Page Canvas — Fits single viewport cleanly on Steps 1-4 */
 .page {
   width: 100%;
@@ -944,7 +974,7 @@ body.is-marquee-dragging {
 
 /* Lightweight Non-Blocking Tooltip on Hover (Zero Auto-Popup Intrusion) */
 .phase-pill::after {
-  content: "点击调整模型周期";
+  content: attr(data-tooltip);
   position: absolute;
   left: 50%;
   bottom: calc(100% + 6px);

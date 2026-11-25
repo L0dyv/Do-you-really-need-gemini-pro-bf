@@ -53,7 +53,8 @@
    * Build a crisp, Notion-styled vector SVG summary card (960 x 820).
    * Designed both for standalone .svg download and 3x ultra-HD PNG rasterization.
    */
-  function buildSummarySvg(state, res) {
+  function buildSummarySvg(state, res, lang) {
+    const isEn = lang === 'en-US';
     const W = 960;
     const H = 840;
     const padX = 56;
@@ -62,7 +63,8 @@
     const fontMono = 'JetBrains Mono, Cascadia Mono, Consolas, monospace';
 
     const vCol = badgeColors(res.verdict.tone);
-    const detailLines = wrapLines(res.verdict.detail, 52).slice(0, 3);
+    const detailLines = wrapLines(res.verdict.detail, isEn ? 86 : 52).slice(0, 3);
+    const enMonths = ['Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
 
     // 12-month visual strip
     const cellW = contentW / 12;
@@ -74,10 +76,15 @@
         const isUltra = row.hasUltraActive && !isActive;
         const fill = isActive ? '#d3e5ef' : isUltra ? '#fdecc8' : '#f1f1ef';
         const fg = isActive ? '#183347' : isUltra ? '#402c1b' : '#787774';
-        const tagText = isActive ? `+¥${Math.round(row.monthSavedByBf)}` : isUltra ? '致空闲' : '停用';
+        const tagText = isActive
+          ? `+¥${Math.round(row.monthSavedByBf)}`
+          : isUltra
+            ? (isEn ? 'Idle' : '致空闲')
+            : (isEn ? 'Off' : '停用');
+        const mShort = isEn ? enMonths[idx] : row.month.short;
         return `
           <rect x="${(x + 2).toFixed(1)}" y="${stripY}" width="${(cellW - 4).toFixed(1)}" height="46" rx="3" fill="${fill}"/>
-          <text x="${(x + cellW / 2).toFixed(1)}" y="${stripY + 18}" text-anchor="middle" fill="${fg}" font-size="11.5" font-weight="600" font-family="${fontSans}">${esc(row.month.short)}</text>
+          <text x="${(x + cellW / 2).toFixed(1)}" y="${stripY + 18}" text-anchor="middle" fill="${fg}" font-size="11.5" font-weight="600" font-family="${fontSans}">${esc(mShort)}</text>
           <text x="${(x + cellW / 2).toFixed(1)}" y="${stripY + 35}" text-anchor="middle" fill="${fg}" font-size="10.5" font-family="${fontMono}">${esc(tagText)}</text>
         `;
       })
@@ -87,20 +94,30 @@
     const propY = 314;
     const idleText =
       res.totalIdleMonths > 0
-        ? `${res.totalIdleMonths} 个月（致空闲 Plan ${res.ultraOverlapMonths} 月 · 摊销约 ${fmtYen(res.totalIdleCostCny)}）`
-        : '0 个月（全年生效）';
+        ? (isEn
+            ? `${res.totalIdleMonths} mo (Other Plan ${res.ultraOverlapMonths}m · ~${fmtYen(res.totalIdleCostCny)} amortized)`
+            : `${res.totalIdleMonths} 个月（致空闲 Plan ${res.ultraOverlapMonths} 月 · 摊销约 ${fmtYen(res.totalIdleCostCny)}）`)
+        : (isEn ? '0 months (active all year)' : '0 个月（全年生效）');
     const fxSummary = (res.activeFxCurrencies || []).length > 0
       ? res.activeFxCurrencies
           .map((c) => `${c.currency} ${c.annualPct > 0 ? '+' : ''}${Math.round(c.annualPct)}%`)
           .join(' · ')
-      : '无外币月付';
-    const props = [
-      ['黑五包年成本', `${fmtYen(res.bfCost)} / 年（¥${res.bfMonthlyAvg.toFixed(1)}/月 · 汇率假设：${fxSummary}）`],
-      ['黑五空闲期', idleText],
-      ['实际回本周期', `${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) + ' 个月' : '无法回本'}（月均平替价值 ¥${Math.round(res.avgProPrice)}/月）`],
-      ['期望净收益 (EV)', `${fmtYen(res.expectedNetSavings, true)}（你的把握 ${state.retainProbPct}% vs 盈亏线 ${res.breakEvenProbPct.toFixed(1)}%）`],
-      ['最大赢 / 最大亏', `${fmtYen(res.upsideNet, true)} / ${fmtYen(res.downsideNet, true)}`],
-    ];
+      : (isEn ? 'No FX monthly' : '无外币月付');
+    const props = isEn
+      ? [
+          ['BF Annual Cost', `${fmtYen(res.bfCost)} / yr (¥${res.bfMonthlyAvg.toFixed(1)}/mo · FX: ${fxSummary})`],
+          ['BF Idle Period', idleText],
+          ['Break-Even Span', `${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) + ' mo' : 'Cannot break even'} (avg ¥${Math.round(res.avgProPrice)}/mo)`],
+          ['Expected Value (EV)', `${fmtYen(res.expectedNetSavings, true)} (Your ${state.retainProbPct}% vs Line ${res.breakEvenProbPct.toFixed(1)}%)`],
+          ['Upside / Downside', `${fmtYen(res.upsideNet, true)} / ${fmtYen(res.downsideNet, true)}`],
+        ]
+      : [
+          ['黑五包年成本', `${fmtYen(res.bfCost)} / 年（¥${res.bfMonthlyAvg.toFixed(1)}/月 · 汇率假设：${fxSummary}）`],
+          ['黑五空闲期', idleText],
+          ['实际回本周期', `${Number.isFinite(res.breakEvenMonths) ? res.breakEvenMonths.toFixed(1) + ' 个月' : '无法回本'}（月均平替价值 ¥${Math.round(res.avgProPrice)}/月）`],
+          ['期望净收益 (EV)', `${fmtYen(res.expectedNetSavings, true)}（你的把握 ${state.retainProbPct}% vs 盈亏线 ${res.breakEvenProbPct.toFixed(1)}%）`],
+          ['最大赢 / 最大亏', `${fmtYen(res.upsideNet, true)} / ${fmtYen(res.downsideNet, true)}`],
+        ];
     const propsSvg = props
       .map(([k, v], i) => {
         const y = propY + i * 34;
@@ -174,7 +191,7 @@
 
   <!-- Header -->
   <text x="${padX}" y="54" fill="#9b9a97" font-size="12" font-family="${fontMono}" letter-spacing="1">DO YOU REALLY NEED GEMINI PRO BF? · DECISION SUMMARY</text>
-  <text x="${padX}" y="92" fill="#37352f" font-size="28" font-weight="700" font-family="${fontSans}">AI 黑五包年决策账本</text>
+  <text x="${padX}" y="92" fill="#37352f" font-size="28" font-weight="700" font-family="${fontSans}">${isEn ? 'Gemini Pro Black Friday Ledger' : 'AI 黑五包年决策账本'}</text>
 
   <!-- Verdict Pill -->
   <rect x="${W - padX - 150}" y="66" width="150" height="30" rx="4" fill="${vCol.bg}"/>
@@ -221,8 +238,9 @@
   /**
    * Build a self-contained single-file HTML report that can be opened offline or shared.
    */
-  function buildStandaloneHtml(state, res) {
-    const svg = buildSummarySvg(state, res);
+  function buildStandaloneHtml(state, res, lang) {
+    const isEn = lang === 'en-US';
+    const svg = buildSummarySvg(state, res, lang);
     const monthRowsHtml = res.monthlyRows
       .map((r) => {
         const status = r.monthSavedByBf > 0

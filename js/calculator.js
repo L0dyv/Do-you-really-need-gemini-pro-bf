@@ -240,7 +240,8 @@
     });
   }
 
-  function buildComparisonScenarios(state, baseRows, bfCost, musicFee, needsLegacyUltraRenewal) {
+  function buildComparisonScenarios(state, baseRows, bfCost, musicFee, needsLegacyUltraRenewal, lang) {
+    const isEn = lang === 'en-US';
     const m0to3Buy = baseRows.slice(0, 4).reduce((s, r) => s + r.buyMonthFlow, 0);
     const m0to3Skip = baseRows.slice(0, 4).reduce((s, r) => s + r.skipMonthFlow, 0);
     const m4to11Other = baseRows.slice(4).reduce((s, r) => s + r.otherSubsCost, 0);
@@ -265,8 +266,10 @@
       const s3Skip = decSkip + janMarPro * 2 + janMarOther + musicFee * 3 + aprAugPro + m4to11Other + musicFee * 8;
       thirdScenario = {
         id: 'tr_fail_double_pro',
-        title: '土区断续兜底剧本：1~3月改双 Pro 顶住，4~8月用单 Pro',
-        tag: '保险价值',
+        title: isEn
+          ? 'Legacy TR Fallback: Dual Pro in Jan–Mar, single Pro in Apr–Aug'
+          : '土区断续兜底剧本：1~3月改双 Pro 顶住，4~8月用单 Pro',
+        tag: isEn ? 'Hedge' : '保险价值',
         tone: 'blue',
         buyTotal: s3Buy,
         skipTotal: s3Skip,
@@ -278,8 +281,10 @@
       const sotaSkip = baseRows.slice(0, sotaEnd).reduce((s, r) => s + r.skipMonthFlow, 0);
       thirdScenario = {
         id: 'sota_only',
-        title: `稳态期剧本：仅在主力 SOTA 期（前 ${sotaEnd} 个月）使用，之后停用`,
-        tag: '周期测算',
+        title: isEn
+          ? `SOTA Span Only: Active for first ${sotaEnd} months, then dropped`
+          : `稳态期剧本：仅在主力 SOTA 期（前 ${sotaEnd} 个月）使用，之后停用`,
+        tag: isEn ? 'Lifecycle' : '周期测算',
         tone: 'blue',
         buyTotal: sotaBuy,
         skipTotal: sotaSkip,
@@ -290,8 +295,10 @@
     return [
       {
         id: 'worst',
-        title: '最差剧本：4月后 Gemini 掉队，彻底停用 Gemini',
-        tag: '风控底线',
+        title: isEn
+          ? 'Worst Case: Gemini lags after Apr, completely dropped'
+          : '最差剧本：4月后 Gemini 掉队，彻底停用 Gemini',
+        tag: isEn ? 'Downside' : '风控底线',
         tone: 'red',
         buyTotal: s1Buy,
         skipTotal: s1Skip,
@@ -299,8 +306,10 @@
       },
       {
         id: 'offseason5',
-        title: '淡季剧本：4~8月用满 5 个月 Pro，9月切走',
-        tag: '中性测试',
+        title: isEn
+          ? 'Mid Case: Use Pro for 5 months (Apr–Aug), switch in Sep'
+          : '淡季剧本：4~8月用满 5 个月 Pro，9月切走',
+        tag: isEn ? 'Neutral' : '中性测试',
         tone: 'amber',
         buyTotal: s2Buy,
         skipTotal: s2Skip,
@@ -309,8 +318,10 @@
       thirdScenario,
       {
         id: 'full_plan',
-        title: '当前 12 个月订阅组合完整执行',
-        tag: '你的计划',
+        title: isEn
+          ? 'Full Execution: Current 12-month plan as configured'
+          : '当前 12 个月订阅组合完整执行',
+        tag: isEn ? 'Your Plan' : '你的计划',
         tone: 'green',
         buyTotal: s4Buy,
         skipTotal: s4Skip,
@@ -319,7 +330,8 @@
     ];
   }
 
-  function calculateLedger(state) {
+  function calculateLedger(state, lang) {
+    const isEn = lang === 'en-US';
     const fxMap = resolveFxAnnualMap(state);
     // Today's lump-sum Black Friday purchase is ALWAYS locked at Day-0 spot rate (never affected by future FX sliders)
     const bfCost = Math.max(0, Number(state.bfCostCny) || 0);
@@ -556,41 +568,73 @@
       breakEvenProbPct = Math.min(100, Math.max(0, raw));
     }
 
-    const scenarios = buildComparisonScenarios(state, monthlyRows, bfCost, musicFee, needsLegacyUltraRenewal);
+    const scenarios = buildComparisonScenarios(state, monthlyRows, bfCost, musicFee, needsLegacyUltraRenewal, lang);
 
     let verdict;
     if (upsideNet <= 0) {
-      verdict = {
-        level: 'skip',
-        badge: '建议跳过',
-        tone: 'red',
-        headline: '按当前 12 个月订阅组合，就算全年不换模型也会亏钱',
-        detail: `你的组合中仅 ${proCoveredMonths} 个月实际用到黑五 Pro 槽位（可抵月费 ¥${Math.round(totalProValueSaved)}），低于黑五成本 ¥${Math.round(bfCost)}。直接按月买更划算。`,
-      };
+      verdict = isEn
+        ? {
+            level: 'skip',
+            badge: 'Skip Deal',
+            tone: 'red',
+            headline: 'Even with full-year retention, this plan loses money',
+            detail: `Only ${proCoveredMonths} months actively replace a monthly sub (¥${Math.round(totalProValueSaved)} saved), below the ¥${Math.round(bfCost)} annual price. Pay monthly instead.`,
+          }
+        : {
+            level: 'skip',
+            badge: '建议跳过',
+            tone: 'red',
+            headline: '按当前 12 个月订阅组合，就算全年不换模型也会亏钱',
+            detail: `你的组合中仅 ${proCoveredMonths} 个月实际用到黑五 Pro 槽位（可抵月费 ¥${Math.round(totalProValueSaved)}），低于黑五成本 ¥${Math.round(bfCost)}。直接按月买更划算。`,
+          };
     } else if (expectedNetSavings >= 40 && p * 100 >= breakEvenProbPct + 5) {
-      verdict = {
-        level: 'buy',
-        badge: '值得入手',
-        tone: 'green',
-        headline: `正期望交易：当前把握（${state.retainProbPct}%）高于盈亏线（${breakEvenProbPct.toFixed(1)}%）`,
-        detail: `预计 ${breakEvenMonths.toFixed(1)} 个月回本，按计划执行净省 ¥${Math.round(upsideNet)}，计入模型掉队风险后的期望净收益为 +¥${Math.round(expectedNetSavings)}。`,
-      };
+      verdict = isEn
+        ? {
+            level: 'buy',
+            badge: 'Worth Buying',
+            tone: 'green',
+            headline: `Positive EV: Your confidence (${state.retainProbPct}%) beats break-even (${breakEvenProbPct.toFixed(1)}%)`,
+            detail: `Breaks even in ~${breakEvenMonths.toFixed(1)} months, saving ¥${Math.round(upsideNet)} on full execution with +¥${Math.round(expectedNetSavings)} expected net value after obsolescence risk.`,
+          }
+        : {
+            level: 'buy',
+            badge: '值得入手',
+            tone: 'green',
+            headline: `正期望交易：当前把握（${state.retainProbPct}%）高于盈亏线（${breakEvenProbPct.toFixed(1)}%）`,
+            detail: `预计 ${breakEvenMonths.toFixed(1)} 个月回本，按计划执行净省 ¥${Math.round(upsideNet)}，计入模型掉队风险后的期望净收益为 +¥${Math.round(expectedNetSavings)}。`,
+          };
     } else if (expectedNetSavings >= -40) {
-      verdict = {
-        level: 'neutral',
-        badge: '接近打平 · 谨慎观望',
-        tone: 'amber',
-        headline: `赔率接近五五开：期望净值 ${expectedNetSavings >= 0 ? '+' : ''}¥${Math.round(expectedNetSavings)}`,
-        detail: `需要至少 ${breakEvenProbPct.toFixed(1)}% 的把握相信中后期继续使用 Gemini 才算正期望。若不想背负 ¥${Math.round(bfCost)} 沉没成本，按月随用随买更灵活。`,
-      };
+      verdict = isEn
+        ? {
+            level: 'neutral',
+            badge: 'Borderline · Wait',
+            tone: 'amber',
+            headline: `Near break-even: Expected value is ${expectedNetSavings >= 0 ? '+' : ''}¥${Math.round(expectedNetSavings)}`,
+            detail: `Needs at least ${breakEvenProbPct.toFixed(1)}% confidence in late-year retention. Paying monthly keeps cash flexible without locking ¥${Math.round(bfCost)} upfront.`,
+          }
+        : {
+            level: 'neutral',
+            badge: '接近打平 · 谨慎观望',
+            tone: 'amber',
+            headline: `赔率接近五五开：期望净值 ${expectedNetSavings >= 0 ? '+' : ''}¥${Math.round(expectedNetSavings)}`,
+            detail: `需要至少 ${breakEvenProbPct.toFixed(1)}% 的把握相信中后期继续使用 Gemini 才算正期望。若不想背负 ¥${Math.round(bfCost)} 沉没成本，按月随用随买更灵活。`,
+          };
     } else {
-      verdict = {
-        level: 'skip',
-        badge: '赔率倒挂 · 建议跳过',
-        tone: 'red',
-        headline: `风险大于收益：期望净值 -¥${Math.abs(Math.round(expectedNetSavings))}`,
-        detail: `盈亏平衡需要 ${breakEvenProbPct.toFixed(1)}% 以上把握，高于你当前的 ${state.retainProbPct}% 预期；最多省 ¥${Math.round(upsideNet)}，但一旦中后期模型掉队将净亏 ¥${Math.abs(Math.round(downsideNet))}。`,
-      };
+      verdict = isEn
+        ? {
+            level: 'skip',
+            badge: 'Negative EV · Skip',
+            tone: 'red',
+            headline: `Downside outweighs upside: EV is -¥${Math.abs(Math.round(expectedNetSavings))}`,
+            detail: `Break-even requires ${breakEvenProbPct.toFixed(1)}% retention confidence vs your ${state.retainProbPct}% estimate. Upside is ¥${Math.round(upsideNet)}, while switching early loses ¥${Math.abs(Math.round(downsideNet))}.`,
+          }
+        : {
+            level: 'skip',
+            badge: '赔率倒挂 · 建议跳过',
+            tone: 'red',
+            headline: `风险大于收益：期望净值 -¥${Math.abs(Math.round(expectedNetSavings))}`,
+            detail: `盈亏平衡需要 ${breakEvenProbPct.toFixed(1)}% 以上把握，高于你当前的 ${state.retainProbPct}% 预期；最多省 ¥${Math.round(upsideNet)}，但一旦中后期模型掉队将净亏 ¥${Math.abs(Math.round(downsideNet))}。`,
+          };
     }
 
     return {
