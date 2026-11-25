@@ -1385,14 +1385,6 @@ body.is-marquee-dragging {
   color: inherit;
 }
 
-.pill-chip-group.is-synced-ghost {
-  opacity: 0.72;
-}
-
-.pill-chip-group.is-synced-ghost:hover {
-  opacity: 1;
-}
-
 .cell-caret-btn {
   display: inline-flex;
   align-items: center;
