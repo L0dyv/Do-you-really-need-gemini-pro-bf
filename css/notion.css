@@ -67,6 +67,7 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: clip;
 }
 
 body {
@@ -79,6 +80,7 @@ body {
   font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.65;
+  overflow-x: clip;
 }
 
 button,
@@ -353,10 +355,14 @@ select {
   margin-top: 40px;
   padding-top: 20px;
   border-top: 1px solid var(--border);
-  display: flex;
+  display: none;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.export-footer.is-visible {
+  display: flex;
 }
 
 .mobile-step-nav {
@@ -366,6 +372,10 @@ select {
   border-top: 1px solid var(--border);
   align-items: center;
   justify-content: space-between;
+}
+
+.mobile-step-nav.is-empty {
+  display: none !important;
 }
 
 .step {
@@ -1616,6 +1626,15 @@ body.is-marquee-dragging {
 }
 
 /* Authentic Notion Database Brand-Grouped Floating Select Picker */
+.notion-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  display: none;
+  background: rgba(15, 15, 15, 0.34);
+  backdrop-filter: blur(2px);
+}
+
 .notion-picker {
   position: fixed;
   z-index: 70;
@@ -3119,6 +3138,16 @@ input[type="range"]::-moz-range-thumb {
   transform: translateY(0);
 }
 
+@media (hover: none) {
+  .phase-pill::after {
+    display: none;
+  }
+
+  .cell-chk {
+    opacity: 0.78;
+  }
+}
+
 @media (max-width: 900px) {
   .side-nav-zone {
     display: none;
@@ -3129,15 +3158,19 @@ input[type="range"]::-moz-range-thumb {
   }
 
   .topbar-inner {
-    padding: 0 18px;
+    height: auto;
+    min-height: 48px;
+    padding: 8px 16px;
+    flex-wrap: wrap;
+    row-gap: 6px;
   }
 
   .topbar-brand {
-    display: none;
+    font-size: 13px;
   }
 
   .page {
-    padding: 28px 18px 56px;
+    padding: 22px 16px 40px;
   }
 
   .page-title {
@@ -3174,5 +3207,380 @@ input[type="range"]::-moz-range-thumb {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 16px 28px;
+  }
+}
+
+@media (max-width: 680px) {
+  /* 2-row Topbar: Row 1 Brand + Compact Actions, Row 2 Full-Width 3-Col Step Tabs */
+  .topbar-inner {
+    padding: 8px 14px 7px;
+    gap: 6px;
+  }
+
+  .topbar-brand {
+    display: block;
+    font-size: 13px;
+    max-width: 46%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .topbar-actions {
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .history-text-btn {
+    padding: 0 7px;
+    height: 28px;
+  }
+
+  .history-text-btn span {
+    display: none;
+  }
+
+  .lang-toggle-btn {
+    height: 28px;
+    padding: 0 7px;
+  }
+
+  .ghost-btn {
+    height: 28px;
+    padding: 0 6px;
+    font-size: 12.5px;
+  }
+
+  .step-tabs {
+    order: 3;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+
+  .step-tab {
+    width: 100%;
+    padding: 6px 4px;
+    font-size: 12.5px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Page Canvas & Typography */
+  .page {
+    padding: 18px 14px calc(28px + env(safe-area-inset-bottom));
+  }
+
+  .step-kicker-row {
+    gap: 8px;
+  }
+
+  .substep-crumb {
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  .substep-btn {
+    font-size: 12px;
+    padding: 2px 5px;
+  }
+
+  .page-title {
+    font-size: 23px;
+    margin-bottom: 8px;
+  }
+
+  .page-lead {
+    font-size: 14px;
+    margin-bottom: 18px;
+  }
+
+  /* Step 1 Choice List & Custom Inputs */
+  .choice-row {
+    padding: 12px 10px;
+    gap: 11px;
+  }
+
+  .choice-line {
+    gap: 4px 12px;
+  }
+
+  .choice-name {
+    font-size: 15px;
+  }
+
+  .choice-price {
+    font-size: 14px;
+  }
+
+  .choice-note {
+    font-size: 13px;
+  }
+
+  #panel-bf-custom .prop-val {
+    gap: 8px;
+  }
+
+  #panel-bf-custom .flat-select,
+  #panel-bf-custom .flat-input {
+    font-size: 16px;
+    height: 38px;
+  }
+
+  .step1-next-wrap {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .step1-hint {
+    font-size: 13px;
+  }
+
+  .step1-next-wrap .primary-btn {
+    width: 100%;
+    height: 42px;
+    justify-content: center;
+  }
+
+  /* Step 2 & 3 Database Tables & Non-Overlapping Selection Bar */
+  .db-toolbar-slot {
+    min-height: 0;
+    flex-direction: column;
+    align-items: stretch;
+    margin-bottom: 8px;
+  }
+
+  .db-selection-bar {
+    position: static;
+    width: 100%;
+    margin-top: 6px;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .db-view-hint {
+    font-size: 12px;
+  }
+
+  .notion-db-wrap {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .notion-db {
+    font-size: 13px;
+  }
+
+  .notion-db th {
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+
+  .notion-db td {
+    padding: 7px 8px;
+  }
+
+  .notion-db .col-skip {
+    min-width: 168px;
+  }
+
+  .notion-db .col-buy {
+    min-width: 186px;
+  }
+
+  .cell-chk {
+    opacity: 0.78;
+    width: 16px;
+    height: 16px;
+  }
+
+  .cell-pill-btn {
+    max-width: 165px;
+    font-size: 12.5px;
+    padding: 3px 7px;
+  }
+
+  /* Mobile Bottom Sheet Multi-Select Picker */
+  .notion-picker-backdrop.is-open {
+    display: block;
+  }
+
+  .notion-picker {
+    left: 8px !important;
+    right: 8px !important;
+    bottom: max(8px, env(safe-area-inset-bottom)) !important;
+    top: auto !important;
+    width: auto;
+    max-width: none;
+    max-height: 78dvh;
+    border-radius: 12px;
+    box-shadow: 0 -8px 32px rgba(15, 15, 15, 0.2);
+  }
+
+  .notion-picker .flat-input,
+  .notion-picker .flat-select {
+    font-size: 16px;
+  }
+
+  .np-item-btn {
+    padding: 9px 10px;
+  }
+
+  /* Step 4 Sliders & Unified Mobile Timeline */
+  input[type="range"]::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+  }
+
+  .val-badge {
+    min-width: 72px;
+    font-size: 13.5px;
+  }
+
+  .lifecycle-help-note {
+    min-height: 78px;
+    font-size: 12px;
+  }
+
+  .lifecycle-bar {
+    padding: 50px 8px 48px;
+  }
+
+  .lc-month {
+    font-size: 10.5px;
+    bottom: 14px;
+  }
+
+  .lc-label {
+    font-size: 10px;
+    top: 14px;
+  }
+
+  .lc-node.is-staggered .lc-month {
+    bottom: 29px;
+  }
+
+  .lc-node.is-staggered .lc-label {
+    top: 29px;
+  }
+
+  /* Step 5 Replay & Decision Memo */
+  .replay-row {
+    grid-template-columns: 78px 1fr 86px;
+    gap: 6px;
+    padding: 5px 4px;
+    font-size: 12px;
+  }
+
+  .memo-ev-value {
+    font-size: 34px;
+  }
+
+  .memo-hero-conds {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .memo-strip {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    font-size: 12px;
+  }
+
+  .scen-pill-switch {
+    gap: 5px;
+  }
+
+  .scen-pill-btn {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .fin-table-tiered tbody tr.fin-row-standard .fin-scen-title {
+    font-size: 13px;
+  }
+
+  .fin-table-tiered tbody tr.fin-row-standard .fin-scen-sub {
+    font-size: 11px;
+  }
+
+  .chart-wrap {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .chart-svg {
+    min-width: 440px;
+  }
+
+  .toggle-body {
+    padding: 8px 2px 14px 4px;
+    font-size: 13.5px;
+  }
+
+  .sens-table {
+    font-size: 12px;
+  }
+
+  .sens-table th,
+  .sens-table td {
+    padding: 6px 8px;
+  }
+
+  /* Mobile Export Footer: Clean 2x2 Touch Grid */
+  .export-footer {
+    margin-top: 28px;
+    padding-top: 16px;
+    gap: 8px;
+  }
+
+  .export-footer.is-visible {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .export-footer button {
+    width: 100%;
+    height: 40px;
+    justify-content: center;
+    text-align: center;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+
+  .export-footer .text-btn {
+    border: 1px solid var(--border);
+  }
+
+  .mobile-step-nav {
+    margin-top: 22px;
+    gap: 10px;
+  }
+
+  .mobile-step-nav button {
+    height: 38px;
+  }
+
+  .site-credit {
+    flex-wrap: wrap;
+    text-align: center;
+    padding-top: 18px;
+    padding-bottom: 6px;
+    line-height: 1.5;
+  }
+
+  .toast {
+    left: 14px;
+    right: 14px;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    text-align: center;
   }
 }

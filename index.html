@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>AI 黑五包年决策账本</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -545,7 +545,7 @@
     </section>
 
     <!-- Export Bar (Shown only on Final Step) -->
-    <div class="export-footer" id="export-group" style="display:none;">
+    <div class="export-footer" id="export-group">
       <button type="button" class="subtle-btn" id="btn-copy-hd-img" data-i18n="step4.expCopyPng">复制 3x 高清图</button>
       <button type="button" class="subtle-btn" id="btn-export-svg" data-i18n="step4.expSvg">导出 SVG</button>
       <button type="button" class="subtle-btn" id="btn-export-html" data-i18n="step4.expHtml">导出网页</button>
@@ -553,7 +553,7 @@
     </div>
 
     <!-- Mobile-only Step Nav Fallback -->
-    <div class="mobile-step-nav">
+    <div class="mobile-step-nav" id="mobile-step-nav">
       <button type="button" class="text-btn" id="btn-mobile-prev" data-i18n="nav.mobilePrev">← 上一步</button>
       <button type="button" class="primary-btn btn-sm" id="btn-mobile-next" data-i18n="nav.mobileNext">下一步 →</button>
     </div>

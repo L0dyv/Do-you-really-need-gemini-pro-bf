@@ -134,9 +134,34 @@
     showToast(t('toast.redone'));
   }
 
+  const pickerBackdropEl = document.createElement('div');
+  pickerBackdropEl.className = 'notion-picker-backdrop';
+  document.body.appendChild(pickerBackdropEl);
+
   const pickerEl = document.createElement('div');
   pickerEl.className = 'notion-picker';
   document.body.appendChild(pickerEl);
+
+  function isCompactViewport() {
+    return typeof window !== 'undefined' && window.innerWidth <= 680;
+  }
+
+  function isMobileExportMode() {
+    const ua = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
+    const isMobileUa = /Android|iPhone|iPad|iPod|Mobile|HarmonyOS|MicroMessenger|QQ\//i.test(ua);
+    const isCoarseSmall =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(pointer: coarse)').matches &&
+      window.innerWidth <= 900;
+    const noImageClipboard =
+      typeof navigator === 'undefined' ||
+      !navigator.clipboard ||
+      typeof navigator.clipboard.write !== 'function' ||
+      typeof window === 'undefined' ||
+      typeof window.ClipboardItem === 'undefined';
+    return isMobileUa || isCoarseSmall || noImageClipboard;
+  }
 
   function loadState() {
     try {
@@ -312,6 +337,11 @@
   }
 
   function positionFloatingBox(boxEl, anchorRect, fallbackW, fallbackH) {
+    if (isCompactViewport()) {
+      boxEl.style.left = '';
+      boxEl.style.top = '';
+      return;
+    }
     const w = boxEl.offsetWidth || fallbackW || 368;
     const h = boxEl.offsetHeight || fallbackH || 420;
     let left = anchorRect.left;
@@ -422,12 +452,14 @@
   function renderNotionPicker() {
     if (!pickerState || (currentStep !== 1 && currentStep !== 2)) {
       pickerEl.classList.remove('is-open');
+      pickerBackdropEl.classList.remove('is-open');
       return;
     }
     const { column, targetIndices, focusedItemId, anchorRect, showCustom } = pickerState;
     if (!targetIndices || targetIndices.length === 0) {
       pickerState = null;
       pickerEl.classList.remove('is-open');
+      pickerBackdropEl.classList.remove('is-open');
       return;
     }
 
@@ -570,6 +602,7 @@
     `;
 
     pickerEl.classList.add('is-open');
+    pickerBackdropEl.classList.add('is-open');
     positionFloatingBox(pickerEl, anchorRect, 376, 480);
   }
 
@@ -601,7 +634,7 @@
       isCalculatingFinal = false;
       stageEl.style.display = 'none';
       resultEl.style.display = 'block';
-      exportEl.style.display = 'flex';
+      exportEl.classList.add('is-visible');
       render();
       return;
     }
@@ -610,7 +643,7 @@
     stageEl.style.display = 'flex';
     resultEl.style.display = 'none';
     resultEl.classList.remove('is-revealing');
-    exportEl.style.display = 'none';
+    exportEl.classList.remove('is-visible');
 
     render();
     const res = calculateLedger(state, getLang(), getDisplayCurrency());
@@ -703,7 +736,7 @@
         render();
         void resultEl.offsetWidth;
         resultEl.classList.add('is-revealing');
-        exportEl.style.display = 'flex';
+        exportEl.classList.add('is-visible');
       }, 1060)
     );
   }
@@ -1303,8 +1336,16 @@
     document.getElementById('side-next-tip').textContent = t('nav.next');
     mobPrev.style.visibility = hidePrev ? 'hidden' : 'visible';
     mobNext.style.visibility = hideNext ? 'hidden' : 'visible';
-    document.getElementById('export-group').style.display =
-      currentStep === 4 && !isCalculatingFinal ? 'flex' : 'none';
+    const mobNavEl = document.getElementById('mobile-step-nav');
+    if (mobNavEl) mobNavEl.classList.toggle('is-empty', hidePrev && hideNext);
+    document.getElementById('export-group').classList.toggle(
+      'is-visible',
+      currentStep === 4 && !isCalculatingFinal
+    );
+    const hdImgBtn = document.getElementById('btn-copy-hd-img');
+    if (hdImgBtn) {
+      hdImgBtn.textContent = isMobileExportMode() ? t('step4.expSavePng') : t('step4.expCopyPng');
+    }
 
     // STEP 1
     document.querySelectorAll('[data-bf-choice]').forEach((row) => {
@@ -1350,9 +1391,13 @@
     renderDynamicFxPanel(res);
 
     // Step 4: Periodic Multi-Cycle Model Lifecycle (Anchored at Gemini 4 Launch = Nov 1, 2026)
+    const compactView = isCompactViewport();
     const sotaUntilText = formatFutureMonth(2026, 11, Math.max(0, state.effectiveSotaMonths - 1));
     const nextWhenText = formatFutureMonth(2026, 11, state.nextFlagshipInterval);
-    const fmtNodeMonth = (txt) => (lang === 'en-US' ? txt : txt.slice(2));
+    const fmtNodeMonth = (txt) => {
+      if (lang === 'en-US') return compactView ? txt.split(' ')[0] : txt;
+      return compactView ? txt.replace(/^\d{4}年/, '') : txt.slice(2);
+    };
     const spanPartsText = formatSpanParts(res, lang);
 
     const extraSlider = document.getElementById('inp-post-sota-extra');
@@ -1395,6 +1440,7 @@
     const PRE_PCT = 10;
     const subBoundaryPct = (m) => PRE_PCT + (m / 12) * (100 - PRE_PCT);
     const monthLabelForT = (tOffset) => fmtNodeMonth(formatFutureMonth(2026, 11, tOffset));
+    const staggerGapPct = compactView ? 17 : 13;
 
     // Merge contiguous months with identical (kind, gen) into visual runs
     const runs = [];
@@ -1436,7 +1482,7 @@
       {
         pct: 0,
         align: 'start',
-        month: t('modal.axisPreStart'),
+        month: compactView ? monthLabelForT(0) : t('modal.axisPreStart'),
         label: t('modal.nodePreLaunch'),
         dotCls: 'lc-dot lc-dot-pre',
         monthCls: 'lc-month lc-month-muted mono',
@@ -1446,7 +1492,7 @@
       {
         pct: PRE_PCT,
         align: 'start',
-        month: t('modal.axisStart'),
+        month: compactView ? monthLabelForT(1) : t('modal.axisStart'),
         label: t('modal.nodeStart'),
         dotCls: 'lc-dot',
         monthCls: 'lc-month mono',
@@ -1542,7 +1588,7 @@
       .map((n, i) => {
         let staggered = false;
         if (i >= 2) {
-          if (n.pct - lastNormalPct < 13) {
+          if (n.pct - lastNormalPct < staggerGapPct) {
             staggered = true;
             lastStaggerPct = n.pct;
           } else {
@@ -2584,10 +2630,11 @@
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
+      a.rel = 'noopener';
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
     }
 
     document.getElementById('btn-copy-hd-img').addEventListener('click', async () => {
@@ -2595,19 +2642,20 @@
       const cur = getDisplayCurrency();
       const res = calculateLedger(state, lang, cur);
       const svg = buildSummarySvg(state, res, lang, cur);
+      const saveFileName = 'do-you-really-need-gemini-pro-bf-3x.png';
       try {
         const pngBlob = await svgToHighResPngBlob(svg, 3);
-        if (navigator.clipboard && typeof window.ClipboardItem !== 'undefined') {
-          await navigator.clipboard.write([new window.ClipboardItem({ 'image/png': pngBlob })]);
-          showToast(t('toast.copiedPng'));
-        } else {
-          triggerDownload(pngBlob, 'do-you-really-need-gemini-pro-bf-3x.png');
+        if (isMobileExportMode()) {
+          triggerDownload(pngBlob, saveFileName);
           showToast(t('toast.downloadedPng'));
+          return;
         }
+        await navigator.clipboard.write([new window.ClipboardItem({ 'image/png': pngBlob })]);
+        showToast(t('toast.copiedPng'));
       } catch {
         try {
           const pngBlob = await svgToHighResPngBlob(svg, 3);
-          triggerDownload(pngBlob, 'do-you-really-need-gemini-pro-bf-3x.png');
+          triggerDownload(pngBlob, saveFileName);
           showToast(t('toast.downloadedPng'));
         } catch {
           showToast(t('toast.pngFailed'));
@@ -2675,8 +2723,39 @@
         await navigator.clipboard.writeText(lines);
         showToast(t('toast.copiedText'));
       } catch {
-        showToast(t('toast.copyFailed'));
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = lines;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          const ok = document.execCommand('copy');
+          ta.remove();
+          showToast(ok ? t('toast.copiedText') : t('toast.copyFailed'));
+        } catch {
+          showToast(t('toast.copyFailed'));
+        }
       }
+    });
+
+    pickerBackdropEl.addEventListener('click', () => {
+      pickerState = null;
+      renderNotionPicker();
+    });
+
+    let lastCompactState = isCompactViewport();
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const nowCompact = isCompactViewport();
+        if (nowCompact !== lastCompactState) {
+          lastCompactState = nowCompact;
+          render();
+        }
+      }, 120);
     });
   }
 
